@@ -1,0 +1,144 @@
+import express from 'express';
+import { createServer } from 'http';
+import { Server as SocketIO } from 'socket.io';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import jwt from 'jsonwebtoken';
+import connectDB from './config/db.js';
+import authRoutes from './routes/auth.js';
+import therapistRoutes from './routes/therapists.js';
+import sessionRoutes from './routes/sessions.js';
+import paymentRoutes from './routes/payments.js';
+import adminRoutes from './routes/admin.js';
+import reviewRoutes from './routes/reviews.js';
+import waitlistRoutes from './routes/waitlist.js';
+import messageRoutes from './routes/messages.js';
+import blockRoutes from './routes/blocks.js';
+import settingsRoutes from './routes/settings.js';
+import introCallRoutes from './routes/introCalls.js';
+import groupSessionRoutes from './routes/groupSessions.js';
+import supervisionRoutes from './routes/supervision.js';
+import payoutRoutes from './routes/payouts.js';
+import resourceRoutes from './routes/resources.js';
+import blogPostRoutes from './routes/blogPosts.js';
+import notificationRoutes from './routes/notifications.js';
+import discountRoutes from './routes/discounts.js';
+import { startReminderScheduler } from './utils/reminders.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '.env') });
+
+const app = express();
+const httpServer = createServer(app);
+const PORT = process.env.PORT || 5001;
+
+const corsOrigins = [
+  process.env.CLIENT_URL || 'http://localhost:5174',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+];
+
+// Socket.io
+const io = new SocketIO(httpServer, {
+  cors: { origin: corsOrigins, credentials: true }
+});
+
+// Store io on app for use in route handlers
+app.set('io', io);
+
+// Socket.io auth + room management
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Authentication required'));
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.id;
+    socket.userRole = decoded.role;
+    next();
+  } catch {
+    next(new Error('Invalid token'));
+  }
+});
+
+io.on('connection', (socket) => {
+  // Join user's personal room for direct messages
+  socket.join(`user_${socket.userId}`);
+  console.log(`[SOCKET] ${socket.userRole} ${socket.userId} connected`);
+
+  // Join conversation rooms
+  socket.on('join_conversation', (conversationKey) => {
+    socket.join(`conv_${conversationKey}`);
+  });
+
+  // Typing indicator
+  socket.on('typing', ({ conversationKey, isTyping }) => {
+    socket.to(`conv_${conversationKey}`).emit('user_typing', {
+      userId: socket.userId,
+      isTyping,
+    });
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`[SOCKET] ${socket.userId} disconnected`);
+  });
+});
+
+// Connect to MongoDB
+connectDB();
+
+// Middleware
+app.use(cors({ origin: corsOrigins, credentials: true }));
+app.use(express.json());
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/therapists', therapistRoutes);
+app.use('/api/sessions', sessionRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/blocks', blockRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/intro-calls', introCallRoutes);
+app.use('/api/group-sessions', groupSessionRoutes);
+app.use('/api/supervision', supervisionRoutes);
+app.use('/api/payouts', payoutRoutes);
+app.use('/api/resources', resourceRoutes);
+app.use('/api/blog-posts', blogPostRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/discounts', discountRoutes);
+
+// Static files (uploads)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Serve frontend build in production
+const distPath = path.join(__dirname, '..', 'dist');
+import('fs').then(fs => {
+  if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+    // SPA fallback: serve index.html for any non-API route
+    app.get('*', (req, res) => {
+      if (!req.path.startsWith('/api')) {
+        res.sendFile(path.join(distPath, 'index.html'));
+      }
+    });
+    console.log('Serving frontend from dist/');
+  }
+});
+
+httpServer.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  // Start session reminder scheduler
+  startReminderScheduler();
+});
