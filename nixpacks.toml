@@ -1,0 +1,17 @@
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "npm-9_x"]
+
+[phases.install]
+cmds = [
+  "rm -rf node_modules server/node_modules",
+  "npm install --include=dev",
+  "npm install --prefix server"
+]
+
+[phases.build]
+cmds = ["npx vite build"]
+
+[start]
+cmd = "node server/server.js"
