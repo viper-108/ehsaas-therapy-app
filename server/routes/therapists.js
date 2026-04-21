@@ -422,6 +422,20 @@ router.put('/dashboard/client-history/:clientId', protect, therapistOnly, async 
   }
 });
 
+// GET /api/therapists/dashboard/my-clients — all clients who've booked with this therapist
+router.get('/dashboard/my-clients', protect, therapistOnly, async (req, res) => {
+  try {
+    const mongoose = (await import('mongoose')).default;
+    const therapistOid = new mongoose.Types.ObjectId(req.userId);
+    const clientIds = await Session.find({ therapistId: therapistOid }).distinct('clientId');
+    const Client = (await import('../models/Client.js')).default;
+    const clients = await Client.find({ _id: { $in: clientIds } }).select('name email').sort({ name: 1 });
+    res.json(clients);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // GET /api/therapists/dashboard/clients-needing-history
 router.get('/dashboard/clients-needing-history', protect, therapistOnly, async (req, res) => {
   try {

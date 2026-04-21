@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   Calendar, Clock, Search, Star, Languages, LogOut, ChevronRight,
-  Filter, XCircle, MessageCircle, Repeat
+  Filter, XCircle, MessageCircle, Repeat, Library
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { CalendarSyncButton } from "@/components/CalendarSyncButton";
 import { ReviewForm } from "@/components/ReviewForm";
 import { ConversationList } from "@/components/ConversationList";
 import { ChatWindow } from "@/components/ChatWindow";
+import { ClientResources } from "@/components/ClientResources";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/services/api";
@@ -124,6 +125,7 @@ const ClientDashboard = () => {
               <TabsTrigger value="find-therapist"><Search className="w-4 h-4 mr-2" />{t('common.search')}</TabsTrigger>
               <TabsTrigger value="upcoming"><Calendar className="w-4 h-4 mr-2" />{t('dashboard.upcoming')}</TabsTrigger>
               <TabsTrigger value="past"><Clock className="w-4 h-4 mr-2" />{t('dashboard.past')}</TabsTrigger>
+              <TabsTrigger value="resources"><Library className="w-4 h-4 mr-2" />Resources</TabsTrigger>
               <TabsTrigger value="messages"><MessageCircle className="w-4 h-4 mr-2" />{t('dashboard.messages')}</TabsTrigger>
             </TabsList>
 
@@ -396,6 +398,11 @@ const ClientDashboard = () => {
                   </div>
                 )}
               </Card>
+            </TabsContent>
+
+            {/* ========== RESOURCES TAB ========== */}
+            <TabsContent value="resources">
+              <ClientResources />
             </TabsContent>
 
             {/* ========== MESSAGES TAB ========== */}

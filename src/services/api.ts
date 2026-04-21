@@ -431,6 +431,11 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  async getTherapistClients() {
+    const res = await fetch(`${API_BASE}/therapists/dashboard/my-clients`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+
   // Resume Upload
   async uploadResume(file: File) {
     const formData = new FormData();
