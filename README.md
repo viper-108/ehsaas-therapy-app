@@ -1,73 +1,40 @@
-# Welcome to your Lovable project
+# Ehsaas Therapy Centre
 
-## Project info
+Online therapy platform connecting clients with licensed psychologists.
 
-**URL**: https://lovable.dev/projects/ab372300-1ef7-47d3-93e6-f48abc0f6dcb
+## Stack
 
-## How can I edit this code?
+- Frontend: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
+- Backend: Express.js + MongoDB (Mongoose) + Socket.io
+- Auth: JWT (client, therapist, admin roles)
+- Payments: PhonePe
+- Email: Nodemailer (Gmail SMTP)
 
-There are several ways of editing your application.
+## Running locally
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/ab372300-1ef7-47d3-93e6-f48abc0f6dcb) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Prerequisites: Node.js 20+, MongoDB (local or Atlas).
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+npm install
+cd server && npm install && cd ..
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Start backend (port 5001)
+cd server && node server.js
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# In another terminal, start frontend (port 5174)
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Copy `server/.env.example` to `server/.env` and fill in `MONGODB_URI`, `JWT_SECRET`, email/PhonePe credentials.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Deployment
 
-**Use GitHub Codespaces**
+Deployed on Railway. Push to `main` auto-triggers a deployment.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/ab372300-1ef7-47d3-93e6-f48abc0f6dcb) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Required Railway env vars:
+- `MONGODB_URI`
+- `JWT_SECRET`
+- `EMAIL_USER`, `EMAIL_PASS`
+- `CLIENT_URL`
+- `NODE_ENV=production`
+- PhonePe credentials

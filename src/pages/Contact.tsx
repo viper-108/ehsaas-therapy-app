@@ -1,16 +1,34 @@
+import { useState } from "react";
 import { Mail, Phone, Instagram, MapPin, Clock, Send } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Navigation from "@/components/Navigation";
+import { useToast } from "@/hooks/use-toast";
+
+const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:5001/api';
+
 const Contact = () => {
+  const { toast } = useToast();
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    subject: "",
+    message: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const update = (field: string, value: string) => setForm({ ...form, [field]: value });
+
   const contactInfo = [{
     icon: Mail,
     title: "Email",
-    value: "sessions.ehsaas@gmail.com",
+    value: "sessions@ehsaastherapycentre.com",
     description: "Send us your questions anytime",
-    href: "mailto:sessions.ehsaas@gmail.com"
+    href: "mailto:sessions@ehsaastherapycentre.com"
   }, {
     icon: Phone,
     title: "WhatsApp Support",
@@ -24,24 +42,31 @@ const Contact = () => {
     description: "Follow us for daily insights",
     href: "https://instagram.com/ehsaas.therapy.centre"
   }];
-  const officeHours = [{
-    day: "Monday - Friday",
-    hours: "9:00 AM - 8:00 PM"
-  }, {
-    day: "Saturday",
-    hours: "10:00 AM - 6:00 PM"
-  }, {
-    day: "Sunday",
-    hours: "10:00 AM - 4:00 PM"
-  }];
-  const handleSubmit = (e: React.FormEvent) => {
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    alert("Thank you for your message! We'll get back to you soon.");
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to send message");
+      toast({ title: "Message sent", description: "Thanks! We'll get back to you soon." });
+      setForm({ firstName: "", lastName: "", email: "", phone: "", subject: "", message: "" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to send message", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
   };
+
   return <div className="min-h-screen bg-background">
       <Navigation />
-      
+
       <div className="py-20">
         <div className="max-w-6xl mx-auto px-4">
           {/* Header */}
@@ -64,47 +89,79 @@ const Contact = () => {
                         <label className="block text-sm font-medium text-foreground mb-2">
                           First Name *
                         </label>
-                        <Input placeholder="Enter your first name" required />
+                        <Input
+                          placeholder="Enter your first name"
+                          value={form.firstName}
+                          onChange={(e) => update("firstName", e.target.value)}
+                          required
+                        />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-2">
                           Last Name *
                         </label>
-                        <Input placeholder="Enter your last name" required />
+                        <Input
+                          placeholder="Enter your last name"
+                          value={form.lastName}
+                          onChange={(e) => update("lastName", e.target.value)}
+                          required
+                        />
                       </div>
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-2">
                         Email Address *
                       </label>
-                      <Input type="email" placeholder="Enter your email" required />
+                      <Input
+                        type="email"
+                        placeholder="Enter your email"
+                        value={form.email}
+                        onChange={(e) => update("email", e.target.value)}
+                        required
+                      />
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-2">
                         Phone Number
                       </label>
-                      <Input type="tel" placeholder="Enter your phone number" />
+                      <Input
+                        type="tel"
+                        placeholder="Enter your phone number"
+                        value={form.phone}
+                        onChange={(e) => update("phone", e.target.value)}
+                      />
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-2">
                         Subject *
                       </label>
-                      <Input placeholder="What is this regarding?" required />
+                      <Input
+                        placeholder="What is this regarding?"
+                        value={form.subject}
+                        onChange={(e) => update("subject", e.target.value)}
+                        required
+                      />
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-2">
                         Message *
                       </label>
-                      <Textarea placeholder="Tell us how we can help you..." rows={5} required />
+                      <Textarea
+                        placeholder="Tell us how we can help you..."
+                        rows={5}
+                        value={form.message}
+                        onChange={(e) => update("message", e.target.value)}
+                        required
+                      />
                     </div>
-                    
-                    <Button type="submit" size="lg" className="w-full">
+
+                    <Button type="submit" size="lg" className="w-full" disabled={submitting}>
                       <Send className="w-4 h-4 mr-2" />
-                      Send Message
+                      {submitting ? "Sending..." : "Send Message"}
                     </Button>
                   </form>
                 </CardContent>
@@ -131,9 +188,6 @@ const Contact = () => {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Office Hours */}
-              
 
               {/* Quick Actions */}
               <Card className="p-6">
