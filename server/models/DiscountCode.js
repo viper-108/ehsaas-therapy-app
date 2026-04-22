@@ -12,6 +12,4 @@ const discountCodeSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
 }, { timestamps: true });
 
-discountCodeSchema.index({ code: 1 });
-
 export default mongoose.model('DiscountCode', discountCodeSchema);
