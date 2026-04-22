@@ -413,9 +413,14 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
                     <Button onClick={handleVerifyOtp} disabled={loading} className="w-full" size="lg">
                       {loading ? 'Verifying...' : 'Verify & Login'}
                     </Button>
-                    <button type="button" onClick={() => { setOtpSent(false); setOtpCode(''); }} className="text-sm text-primary hover:underline block w-full text-center">
-                      Resend code
-                    </button>
+                    <div className="flex justify-between text-sm">
+                      <button type="button" onClick={() => { setOtpSent(false); setOtpCode(''); }} className="text-primary hover:underline">
+                        Resend code
+                      </button>
+                      <button type="button" onClick={() => { setUseOtp(false); setOtpSent(false); setOtpCode(''); }} className="text-primary hover:underline">
+                        Back to password login
+                      </button>
+                    </div>
                   </>
                 )}
               </>
@@ -575,14 +580,14 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
               {isSignUp ? t('auth.alreadyHaveAccount') : t('auth.dontHaveAccount')}
               {' '}
               <button
-                onClick={() => { setIsSignUp(!isSignUp); setLoginEmail(''); setLoginPassword(''); }}
+                onClick={() => { setIsSignUp(!isSignUp); setLoginEmail(''); setLoginPassword(''); setUseOtp(false); setOtpSent(false); setOtpCode(''); }}
                 className="text-primary font-medium hover:underline"
               >
                 {isSignUp ? t('auth.logIn') : t('auth.signUp')}
               </button>
             </p>
             <button
-              onClick={() => { setActiveTab('admin'); setIsSignUp(false); setLoginEmail(''); setLoginPassword(''); }}
+              onClick={() => { setActiveTab('admin'); setIsSignUp(false); setLoginEmail(''); setLoginPassword(''); setUseOtp(false); setOtpSent(false); setOtpCode(''); }}
               className="text-xs text-muted-foreground hover:text-primary mt-2 inline-block"
             >
               Admin Login →
