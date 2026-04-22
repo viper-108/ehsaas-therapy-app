@@ -12,10 +12,11 @@ const createTransporter = () => {
 
   // Explicit SMTP config — more reliable on Railway than `service: 'gmail'`
   // Port 587 (STARTTLS) works better than 465 (SSL) through Railway's network
+  const port = Number(process.env.SMTP_PORT || 587);
   _cachedTransporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: false, // STARTTLS — upgrade connection
+    port,
+    secure: port === 465, // true for 465 (SSL), false for 587 (STARTTLS)
     auth: { user, pass },
     // Aggressive timeouts so requests don't hang forever
     connectionTimeout: 10000,
