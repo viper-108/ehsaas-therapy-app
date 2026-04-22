@@ -150,6 +150,9 @@ const Home = () => {
             <Button asChild size="lg" variant="secondary" className="text-lg px-8 py-6">
               <Link to="/team">Book a Session</Link>
             </Button>
+            <Button asChild variant="outline" size="lg" className="text-lg px-8 py-6 bg-white/10 border-white text-white hover:bg-white hover:text-primary">
+              <Link to="/contact">Contact Us</Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -157,7 +160,7 @@ const Home = () => {
       {/* Footer */}
       <footer className="bg-slate-900 text-white py-12">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-3 gap-8">
             <div>
               <h3 className="text-xl font-bold mb-4">EHSAAS</h3>
               <p className="text-white/80">Feel the healing within</p>
@@ -174,16 +177,8 @@ const Home = () => {
               <h4 className="font-semibold mb-4">Support</h4>
               <div className="space-y-2">
                 <Link to="/faqs" className="block text-white/80 hover:text-white">FAQs</Link>
-                <Link to="/contact" className="block text-white/80 hover:text-white">Contact</Link>
+                <Link to="/contact" className="block text-white/80 hover:text-white">Contact Us</Link>
                 <Link to="/blogs" className="block text-white/80 hover:text-white">Blogs</Link>
-              </div>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Contact</h4>
-              <div className="space-y-2 text-white/80">
-                <p>sessions.ehsaas@gmail.com</p>
-                <p>+91-7411948161</p>
-                <p>@ehsaas.therapy.centre</p>
               </div>
             </div>
           </div>
