@@ -13,7 +13,8 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const { specialization, language, search } = req.query;
-    let query = { isApproved: true };
+    // Only show active (not soft-deleted) therapists to public
+    let query = { isApproved: true, accountStatus: { $ne: 'past' } };
 
     if (specialization) {
       query.specializations = { $in: [new RegExp(specialization, 'i')] };
@@ -52,6 +53,10 @@ router.get('/:id', async (req, res) => {
   try {
     const therapist = await Therapist.findById(req.params.id).select('-password');
     if (!therapist) {
+      return res.status(404).json({ message: 'Therapist not found' });
+    }
+    // Hide soft-deleted therapists from public (unless admin call)
+    if (therapist.accountStatus === 'past') {
       return res.status(404).json({ message: 'Therapist not found' });
     }
     const obj = therapist.toObject();

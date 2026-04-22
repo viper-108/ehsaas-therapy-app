@@ -18,6 +18,9 @@ router.post('/', protect, clientOnly, async (req, res) => {
 
     const therapist = await Therapist.findById(therapistId);
     if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    if (therapist.accountStatus === 'past') {
+      return res.status(400).json({ message: 'This therapist is no longer available.' });
+    }
 
     // Check if already has a pending request with this therapist
     const existing = await IntroCallRequest.findOne({ clientId: req.userId, therapistId, status: 'pending' });

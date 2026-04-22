@@ -223,7 +223,7 @@ const AdminDashboard = () => {
                 <TabsTrigger value="stats"><BarChart3 className="w-4 h-4 mr-2" />Statistics</TabsTrigger>
                 <TabsTrigger value="reviews"><Star className="w-4 h-4 mr-2" />Reviews</TabsTrigger>
                 <TabsTrigger value="analytics"><TrendingUp className="w-4 h-4 mr-2" />Analytics</TabsTrigger>
-                <TabsTrigger value="monthly"><CalendarDays className="w-4 h-4 mr-2" />Monthly & Earnings</TabsTrigger>
+                <TabsTrigger value="monthly"><CalendarDays className="w-4 h-4 mr-2" />Earnings</TabsTrigger>
               </TabsList>
 
               {/* ========== PENDING REQUESTS ========== */}
@@ -333,6 +333,11 @@ const AdminDashboard = () => {
                             <p className="font-medium text-foreground truncate">{t.name}</p>
                             <p className="text-sm text-muted-foreground truncate">{t.email} • {t.title}</p>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {t.accountStatus === 'past' ? (
+                                <Badge className="bg-muted text-muted-foreground">Past</Badge>
+                              ) : (
+                                <Badge className="bg-success/10 text-success border-success/20">Active</Badge>
+                              )}
                               {t.therapistType === 'psychiatrist' && (
                                 <Badge className="bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300">Psychiatrist</Badge>
                               )}
@@ -344,28 +349,46 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          {statusBadge(t.onboardingStatus || (t.isApproved ? 'approved' : 'not_started'))}
-                          {t.onboardingStatus === 'pending_approval' && (
-                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleApprove(t._id); }}>Approve</Button>
+                          {t.accountStatus === 'past' ? (
+                            <Button size="sm" variant="outline" onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await fetch(`${(import.meta as any).env?.PROD ? '/api' : 'http://localhost:5001/api'}/admin/therapists/${t._id}/restore`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('ehsaas_token')}` }
+                                });
+                                toast({ title: "Restored", description: `${t.name} is active again` });
+                                loadDashboard();
+                              } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                            }}>
+                              Restore
+                            </Button>
+                          ) : (
+                            <>
+                              {statusBadge(t.onboardingStatus || (t.isApproved ? 'approved' : 'not_started'))}
+                              {t.onboardingStatus === 'pending_approval' && (
+                                <Button size="sm" onClick={(e) => { e.stopPropagation(); handleApprove(t._id); }}>Approve</Button>
+                              )}
+                              <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setCommissionModal({ open: true, therapist: t, value: String(t.commissionPercent ?? 60) }); }}>
+                                <Percent className="w-3 h-3 mr-1" /> Commission
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={async (e) => {
+                                e.stopPropagation();
+                                const next = t.therapistType === 'psychiatrist' ? 'psychologist' : 'psychiatrist';
+                                try {
+                                  await api.setTherapistType(t._id, next);
+                                  toast({ title: "Updated", description: `Set to ${next}` });
+                                  loadDashboard();
+                                } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                              }}>
+                                {t.therapistType === 'psychiatrist' ? 'Make Psychologist' : 'Make Psychiatrist'}
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-destructive hover:bg-destructive/10"
+                                onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ open: true, therapist: t }); }}>
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </>
                           )}
-                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setCommissionModal({ open: true, therapist: t, value: String(t.commissionPercent ?? 60) }); }}>
-                            <Percent className="w-3 h-3 mr-1" /> Commission
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={async (e) => {
-                            e.stopPropagation();
-                            const next = t.therapistType === 'psychiatrist' ? 'psychologist' : 'psychiatrist';
-                            try {
-                              await api.setTherapistType(t._id, next);
-                              toast({ title: "Updated", description: `Set to ${next}` });
-                              loadDashboard();
-                            } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                          }}>
-                            {t.therapistType === 'psychiatrist' ? 'Make Psychologist' : 'Make Psychiatrist'}
-                          </Button>
-                          <Button size="sm" variant="outline" className="text-destructive hover:bg-destructive/10"
-                            onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ open: true, therapist: t }); }}>
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
                         </div>
                       </div>
                     </Card>
@@ -569,7 +592,7 @@ const AdminDashboard = () => {
               {/* ========== MONTHLY & EARNINGS ========== */}
               <TabsContent value="monthly">
                 <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
-                  <h2 className="text-xl font-semibold text-foreground">Monthly Analytics & Earnings Split</h2>
+                  <h2 className="text-xl font-semibold text-foreground">Earnings</h2>
                   <div className="flex gap-3">
                     <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
                       <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
@@ -650,7 +673,12 @@ const AdminDashboard = () => {
                                 <tbody>
                                   {m.therapists.map((t: any) => (
                                     <tr key={t.therapistId} className="border-b last:border-0">
-                                      <td className="py-2">{t.name}</td>
+                                      <td className="py-2">
+                                        {t.name}
+                                        {t.accountStatus === 'past' && (
+                                          <Badge className="ml-2 bg-muted text-muted-foreground text-xs">Past</Badge>
+                                        )}
+                                      </td>
                                       <td className="py-2">{t.commissionPercent}%</td>
                                       <td className="py-2">{t.sessions}</td>
                                       <td className="py-2">₹{t.revenue.toLocaleString('en-IN')}</td>

@@ -224,6 +224,9 @@ router.post('/therapist/login', async (req, res) => {
     if (!therapist) {
       return res.status(404).json({ message: 'This email is not registered as a therapist' });
     }
+    if (therapist.accountStatus === 'past') {
+      return res.status(403).json({ message: 'This therapist account has been deactivated. Please contact Ehsaas support.' });
+    }
     if (!(await therapist.comparePassword(password))) {
       return res.status(401).json({ message: 'Incorrect password' });
     }

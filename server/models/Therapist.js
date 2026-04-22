@@ -55,6 +55,9 @@ const therapistSchema = new mongoose.Schema({
   commissionPercent: { type: Number, default: 60, min: 0, max: 100 },
   // Therapist type: psychologist (default) or psychiatrist (can issue prescriptions)
   therapistType: { type: String, enum: ['psychologist', 'psychiatrist'], default: 'psychologist' },
+  // Account status: 'active' shows publicly; 'past' soft-deleted, hidden from public/bookings
+  accountStatus: { type: String, enum: ['active', 'past'], default: 'active' },
+  deletedAt: { type: Date, default: null },
   // Password reset
   resetPasswordToken: { type: String, default: null },
   resetPasswordExpires: { type: Date, default: null },

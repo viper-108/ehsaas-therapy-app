@@ -4,6 +4,7 @@ import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import jwt from 'jsonwebtoken';
 import connectDB from './config/db.js';
@@ -126,20 +127,19 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Serve frontend build in production
+// Serve frontend build in production (synchronous so SPA fallback is registered before httpServer.listen)
 const distPath = path.join(__dirname, '..', 'dist');
-import('fs').then(fs => {
-  if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
-    // SPA fallback: serve index.html for any non-API route
-    app.get('*', (req, res) => {
-      if (!req.path.startsWith('/api')) {
-        res.sendFile(path.join(distPath, 'index.html'));
-      }
-    });
-    console.log('Serving frontend from dist/');
-  }
-});
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  // SPA fallback: serve index.html for any non-API, non-static-file route
+  app.get(/.*/, (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+  console.log('Serving frontend from dist/');
+} else {
+  console.log('No dist/ folder found — frontend will not be served');
+}
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

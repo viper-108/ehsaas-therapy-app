@@ -112,29 +112,51 @@ router.put('/therapists/:id/reject', protect, adminOnly, async (req, res) => {
   }
 });
 
-// DELETE /api/admin/therapists/:id — delete therapist profile
+// DELETE /api/admin/therapists/:id — soft-delete therapist
+// Marks as 'past' (still visible to admin for history/earnings, but hidden from public,
+// logged out, cannot be booked, messages disabled, intro calls disabled).
 router.delete('/therapists/:id', protect, adminOnly, async (req, res) => {
   try {
     const therapist = await Therapist.findById(req.params.id);
     if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
 
-    // Check for active upcoming sessions
-    const upcomingCount = await Session.countDocuments({
-      therapistId: req.params.id,
-      status: 'scheduled',
-      date: { $gte: new Date() },
-    });
-    if (upcomingCount > 0) {
-      return res.status(400).json({ message: `Cannot delete — ${upcomingCount} upcoming session(s) scheduled. Cancel or complete them first.` });
-    }
+    // Cancel all upcoming scheduled sessions
+    const cancelled = await Session.updateMany(
+      { therapistId: req.params.id, status: 'scheduled', date: { $gte: new Date() } },
+      { status: 'cancelled' }
+    );
 
-    const info = { name: therapist.name, email: therapist.email };
-    await Therapist.findByIdAndDelete(req.params.id);
-    console.log(`[ADMIN] Deleted therapist: ${info.name} (${info.email})`);
-    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'therapist_deleted', 'Therapist', req.params.id, info); } catch {}
-    res.json({ message: 'Therapist deleted', ...info });
+    therapist.accountStatus = 'past';
+    therapist.deletedAt = new Date();
+    // Note: isApproved is preserved so restore brings back the original state.
+    // accountStatus='past' alone is enough to revoke access (checked in login + public routes).
+    await therapist.save();
+
+    console.log(`[ADMIN] Soft-deleted therapist: ${therapist.name} (${therapist.email}). Cancelled ${cancelled.modifiedCount} upcoming sessions.`);
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'therapist_deleted', 'Therapist', req.params.id, { name: therapist.name, email: therapist.email, cancelledSessions: cancelled.modifiedCount }); } catch {}
+    res.json({
+      message: `Therapist archived. ${cancelled.modifiedCount} upcoming sessions cancelled.`,
+      name: therapist.name,
+      email: therapist.email,
+    });
   } catch (error) {
     console.error('Delete therapist error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/admin/therapists/:id/restore — undelete
+router.post('/therapists/:id/restore', protect, adminOnly, async (req, res) => {
+  try {
+    const therapist = await Therapist.findByIdAndUpdate(
+      req.params.id,
+      { accountStatus: 'active', deletedAt: null },
+      { new: true }
+    ).select('-password');
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    res.json({ message: 'Therapist restored', therapist: convertPricing(therapist) });
+  } catch (error) {
+    console.error('Restore therapist error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -205,7 +227,7 @@ router.get('/monthly-analytics', protect, adminOnly, async (req, res) => {
       // Sessions in this month
       const sessions = await Session.find({
         date: { $gte: start, $lt: end }
-      }).populate('therapistId', 'name commissionPercent therapistType').lean();
+      }).populate('therapistId', 'name commissionPercent therapistType accountStatus').lean();
 
       const total = sessions.length;
       const completed = sessions.filter(s => s.status === 'completed').length;
@@ -234,6 +256,7 @@ router.get('/monthly-analytics', protect, adminOnly, async (req, res) => {
               therapistId: tid,
               name: s.therapistId.name,
               commissionPercent: pct,
+              accountStatus: s.therapistId.accountStatus || 'active',
               sessions: 0,
               revenue: 0,
               therapistShare: 0,

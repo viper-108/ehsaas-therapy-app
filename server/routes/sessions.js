@@ -23,6 +23,9 @@ router.post('/', protect, clientOnly, async (req, res) => {
 
     const therapist = await Therapist.findById(therapistId);
     if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    if (therapist.accountStatus === 'past') {
+      return res.status(400).json({ message: 'This therapist is no longer available. Please choose another therapist.' });
+    }
 
     const pricing = therapist.pricing instanceof Map ? Object.fromEntries(therapist.pricing) : therapist.pricing;
     const amount = pricing[String(duration)];
@@ -120,6 +123,9 @@ router.post('/recurring', protect, clientOnly, async (req, res) => {
 
     const therapist = await Therapist.findById(therapistId);
     if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    if (therapist.accountStatus === 'past') {
+      return res.status(400).json({ message: 'This therapist is no longer available. Please choose another therapist.' });
+    }
 
     const pricing = therapist.pricing instanceof Map ? Object.fromEntries(therapist.pricing) : therapist.pricing;
     const amount = pricing[String(duration)];

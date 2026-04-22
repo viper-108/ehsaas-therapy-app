@@ -50,7 +50,8 @@ router.get('/client', protect, async (req, res) => {
   try {
     if (req.userRole !== 'client') return res.status(403).json({ message: 'Client only' });
     const prescriptions = await Prescription.find({ clientId: req.userId })
-      .populate('psychiatristId', 'name title')
+      .populate('psychiatristId', 'name title highestEducation educationBackground specializations email phone')
+      .populate('clientId', 'name email phone')
       .sort({ createdAt: -1 });
     res.json(prescriptions);
   } catch (error) {

@@ -150,9 +150,6 @@ const Home = () => {
             <Button asChild size="lg" variant="secondary" className="text-lg px-8 py-6">
               <Link to="/team">Book a Session</Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="text-lg px-8 py-6 bg-white/10 border-white text-white hover:bg-white hover:text-primary">
-              <Link to="/contact">Contact Us</Link>
-            </Button>
           </div>
         </div>
       </div>

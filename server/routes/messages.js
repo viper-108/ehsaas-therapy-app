@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Message from '../models/Message.js';
 import Session from '../models/Session.js';
 import Block from '../models/Block.js';
+import Therapist from '../models/Therapist.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -196,6 +197,12 @@ router.post('/', protect, async (req, res) => {
     const blocked = await isBlocked(req.userId, receiverId);
     if (blocked) {
       return res.status(403).json({ message: 'Cannot send messages. This user is blocked.' });
+    }
+
+    // If receiver is a soft-deleted therapist, block the message
+    const receiverTherapist = await Therapist.findById(receiverId).select('accountStatus');
+    if (receiverTherapist && receiverTherapist.accountStatus === 'past') {
+      return res.status(400).json({ message: 'This therapist is no longer available.' });
     }
 
     // Verify session relationship

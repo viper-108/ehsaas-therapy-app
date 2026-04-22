@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pill } from "lucide-react";
+import { Pill, Download } from "lucide-react";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { downloadPrescriptionPDF } from "@/utils/prescriptionPdf";
 
 export const ClientPrescriptions = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,11 +57,16 @@ export const ClientPrescriptions = () => {
                     <p className="text-xs text-muted-foreground">{p.psychiatristId?.title || 'Psychiatrist'}</p>
                     <p className="text-xs text-muted-foreground">Issued {new Date(p.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                   </div>
-                  {p.followUpDate && (
-                    <Badge variant="outline" className="text-xs">
-                      Follow-up: {new Date(p.followUpDate).toLocaleDateString('en-IN')}
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {p.followUpDate && (
+                      <Badge variant="outline" className="text-xs">
+                        Follow-up: {new Date(p.followUpDate).toLocaleDateString('en-IN')}
+                      </Badge>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => downloadPrescriptionPDF(p, user?.name)}>
+                      <Download className="w-3 h-3 mr-1" /> Download PDF
+                    </Button>
+                  </div>
                 </div>
                 {p.diagnosis && (
                   <div className="mb-3">
