@@ -63,7 +63,10 @@ router.post('/forgot-password', async (req, res) => {
           <p style="color:#666;font-size:13px;">If you didn't request this, you can safely ignore this email.</p>
         </div>
       </div>`;
-    await sendEmail(user.email, 'Reset your Ehsaas password', html);
+    // Fire and forget — don't block response on SMTP
+    sendEmail(user.email, 'Reset your Ehsaas password', html).catch(err =>
+      console.error('[FORGOT-PW] Email send failed:', err.message)
+    );
     res.json(genericResp);
   } catch (error) {
     console.error('Forgot password error:', error);
@@ -126,7 +129,10 @@ router.post('/client/request-otp', async (req, res) => {
           <p style="color:#666;font-size:13px;">If you didn't request this, you can ignore this email.</p>
         </div>
       </div>`;
-    await sendEmail(client.email, `Your Ehsaas login code: ${otp}`, html);
+    // Fire and forget — don't block response on SMTP
+    sendEmail(client.email, `Your Ehsaas login code: ${otp}`, html).catch(err =>
+      console.error('[OTP] Email send failed:', err.message)
+    );
     res.json(genericResp);
   } catch (error) {
     console.error('Request OTP error:', error);

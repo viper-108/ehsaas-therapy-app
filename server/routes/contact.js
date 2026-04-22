@@ -52,12 +52,10 @@ router.post('/', async (req, res) => {
       </div>
     `;
 
-    const result = await sendEmail(CONTACT_TO, emailSubject, html);
-
-    if (!result.success) {
-      console.error('[CONTACT] Failed to send email:', result.error);
-      return res.status(500).json({ message: 'Failed to send message. Please try again later.' });
-    }
+    // Fire and forget — don't block response on SMTP (Gmail can be slow on Railway)
+    sendEmail(CONTACT_TO, emailSubject, html).catch(err =>
+      console.error('[CONTACT] Email send failed:', err.message)
+    );
 
     res.json({ message: "Thanks! We'll get back to you soon." });
   } catch (error) {

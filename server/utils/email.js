@@ -1,19 +1,32 @@
 import nodemailer from 'nodemailer';
 
 // Create transporter - uses Gmail SMTP if configured, otherwise logs to console
+let _cachedTransporter = null;
 const createTransporter = () => {
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;
 
-  if (user && pass) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass },
-    });
-  }
+  if (!user || !pass) return null;
 
-  // Fallback: log emails to console in development
-  return null;
+  if (_cachedTransporter) return _cachedTransporter;
+
+  // Explicit SMTP config — more reliable on Railway than `service: 'gmail'`
+  // Port 587 (STARTTLS) works better than 465 (SSL) through Railway's network
+  _cachedTransporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: false, // STARTTLS — upgrade connection
+    auth: { user, pass },
+    // Aggressive timeouts so requests don't hang forever
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+    pool: true,       // reuse connections
+    maxConnections: 3,
+    maxMessages: 100,
+  });
+
+  return _cachedTransporter;
 };
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'shukla.amitedcjss@gmail.com,Pdsethia17@gmail.com').split(',').map(e => e.trim());
