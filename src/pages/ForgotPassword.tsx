@@ -22,9 +22,9 @@ const ForgotPassword = () => {
     try {
       await api.forgotPassword(email, role);
       setSent(true);
-      toast({ title: "Check your email", description: "If that email is registered, a reset link was sent." });
+      toast({ title: "Check your email", description: "A password reset link has been sent to your email." });
     } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
+      toast({ title: "Error", description: e.message || "Failed to send reset link", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -41,7 +41,7 @@ const ForgotPassword = () => {
             {sent ? (
               <div className="space-y-4">
                 <div className="p-4 bg-muted rounded-md">
-                  If an account exists for <strong>{email}</strong>, a password reset link has been sent. Check your inbox (and spam folder). The link expires in 1 hour.
+                  A password reset link has been sent to <strong>{email}</strong>. Check your inbox (and spam folder). The link expires in 1 hour.
                 </div>
                 <Button variant="outline" asChild className="w-full">
                   <Link to="/">Back to Home</Link>

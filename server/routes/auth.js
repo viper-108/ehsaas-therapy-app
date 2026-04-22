@@ -35,17 +35,19 @@ router.post('/forgot-password', async (req, res) => {
     if (!email) return res.status(400).json({ message: 'Email required' });
 
     const result = await findUserByEmail(email, role);
-    // Return generic message regardless — prevent email enumeration
-    const genericResp = { message: 'If that email exists, a reset link was sent' };
 
     let user, foundRole;
     if (result?.user) { user = result.user; foundRole = result.role; }
     else if (result) { user = result; foundRole = role; }
 
-    if (!user) return res.json(genericResp);
+    if (!user) {
+      return res.status(404).json({ message: 'This email is not registered' });
+    }
 
-    // Admin model doesn't have reset fields — skip
-    if (foundRole === 'admin') return res.json(genericResp);
+    // Admins can't reset via this flow
+    if (foundRole === 'admin') {
+      return res.status(400).json({ message: 'Admin password reset is not available through this form. Contact support.' });
+    }
 
     const token = crypto.randomBytes(32).toString('hex');
     user.resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex');
@@ -67,7 +69,7 @@ router.post('/forgot-password', async (req, res) => {
     sendEmail(user.email, 'Reset your Ehsaas password', html).catch(err =>
       console.error('[FORGOT-PW] Email send failed:', err.message)
     );
-    res.json(genericResp);
+    res.json({ message: 'A password reset link has been sent to your email.' });
   } catch (error) {
     console.error('Forgot password error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -110,9 +112,9 @@ router.post('/client/request-otp', async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Email required' });
     const client = await Client.findOne({ email });
-    // Prevent email enumeration
-    const genericResp = { message: 'If that email is registered, an OTP was sent' };
-    if (!client) return res.json(genericResp);
+    if (!client) {
+      return res.status(404).json({ message: 'This email is not registered as a client' });
+    }
 
     const otp = String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
     client.otpCode = await bcrypt.hash(otp, 10);
@@ -133,7 +135,7 @@ router.post('/client/request-otp', async (req, res) => {
     sendEmail(client.email, `Your Ehsaas login code: ${otp}`, html).catch(err =>
       console.error('[OTP] Email send failed:', err.message)
     );
-    res.json(genericResp);
+    res.json({ message: 'A 6-digit code has been sent to your email.' });
   } catch (error) {
     console.error('Request OTP error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -219,8 +221,11 @@ router.post('/therapist/login', async (req, res) => {
     const { email, password } = req.body;
     const therapist = await Therapist.findOne({ email });
 
-    if (!therapist || !(await therapist.comparePassword(password))) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+    if (!therapist) {
+      return res.status(404).json({ message: 'This email is not registered as a therapist' });
+    }
+    if (!(await therapist.comparePassword(password))) {
+      return res.status(401).json({ message: 'Incorrect password' });
     }
 
     const token = generateToken(therapist._id, 'therapist');
@@ -292,8 +297,11 @@ router.post('/client/login', async (req, res) => {
     const { email, password } = req.body;
     const client = await Client.findOne({ email });
 
-    if (!client || !(await client.comparePassword(password))) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+    if (!client) {
+      return res.status(404).json({ message: 'This email is not registered as a client' });
+    }
+    if (!(await client.comparePassword(password))) {
+      return res.status(401).json({ message: 'Incorrect password' });
     }
 
     const token = generateToken(client._id, 'client');
@@ -316,8 +324,11 @@ router.post('/admin/login', async (req, res) => {
     const { email, password } = req.body;
     const admin = await Admin.findOne({ email });
 
-    if (!admin || !(await admin.comparePassword(password))) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+    if (!admin) {
+      return res.status(404).json({ message: 'This email is not registered as an admin' });
+    }
+    if (!(await admin.comparePassword(password))) {
+      return res.status(401).json({ message: 'Incorrect password' });
     }
 
     const token = generateToken(admin._id, 'admin');
