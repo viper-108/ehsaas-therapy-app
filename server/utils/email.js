@@ -1,63 +1,103 @@
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-// Create transporter - uses Gmail SMTP if configured, otherwise logs to console
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'shukla.amitedcjss@gmail.com,Pdsethia17@gmail.com').split(',').map(e => e.trim());
+const FROM_NAME = process.env.EMAIL_FROM_NAME || 'Ehsaas Therapy Centre';
+
+// === RESEND (preferred — reliable on Railway) ===
+let _resend = null;
+const getResend = () => {
+  if (!process.env.RESEND_API_KEY) return null;
+  if (_resend) return _resend;
+  _resend = new Resend(process.env.RESEND_API_KEY);
+  return _resend;
+};
+
+// === NODEMAILER / SMTP (fallback) ===
 let _cachedTransporter = null;
 const createTransporter = () => {
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;
 
   if (!user || !pass) return null;
-
   if (_cachedTransporter) return _cachedTransporter;
 
-  // Explicit SMTP config — more reliable on Railway than `service: 'gmail'`
-  // Port 587 (STARTTLS) works better than 465 (SSL) through Railway's network
   const port = Number(process.env.SMTP_PORT || 587);
   _cachedTransporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port,
-    secure: port === 465, // true for 465 (SSL), false for 587 (STARTTLS)
+    secure: port === 465,
     auth: { user, pass },
-    // Aggressive timeouts so requests don't hang forever
     connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 15000,
-    pool: true,       // reuse connections
+    pool: true,
     maxConnections: 3,
     maxMessages: 100,
   });
-
   return _cachedTransporter;
 };
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'shukla.amitedcjss@gmail.com,Pdsethia17@gmail.com').split(',').map(e => e.trim());
-const FROM_EMAIL = process.env.EMAIL_USER || 'noreply@ehsaastherapy.com';
+const FROM_EMAIL_SMTP = process.env.EMAIL_USER || 'noreply@ehsaastherapy.com';
+// Resend default is onboarding@resend.dev — only delivers to account owner.
+// Set RESEND_FROM=sessions@ehsaastherapycentre.com once you verify the domain in Resend dashboard.
+const RESEND_FROM = process.env.RESEND_FROM || 'onboarding@resend.dev';
 
 export const sendEmail = async (to, subject, html, attachments = []) => {
+  // 1. Prefer Resend if configured
+  const resend = getResend();
+  if (resend) {
+    try {
+      const payload = {
+        from: `${FROM_NAME} <${RESEND_FROM}>`,
+        to: Array.isArray(to) ? to : to.split(',').map(s => s.trim()),
+        subject,
+        html,
+      };
+      if (attachments.length) {
+        payload.attachments = attachments.map(a => ({
+          filename: a.filename,
+          content: a.content, // Buffer or base64 string
+        }));
+      }
+      const { data, error } = await resend.emails.send(payload);
+      if (error) {
+        console.error(`[EMAIL ERROR] Resend failed for ${to}: ${error.message || JSON.stringify(error)}`);
+        return { success: false, error: error.message || 'Resend error' };
+      }
+      console.log(`[EMAIL] Sent (resend) to ${to}: ${subject}${attachments.length ? ` (${attachments.length} attachments)` : ''}`);
+      return { success: true, id: data?.id };
+    } catch (error) {
+      console.error(`[EMAIL ERROR] Resend threw for ${to}:`, error.message);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // 2. Fall back to SMTP (Gmail)
   const transporter = createTransporter();
-
-  if (!transporter) {
-    console.log(`[EMAIL MOCK] To: ${to}`);
-    console.log(`[EMAIL MOCK] Subject: ${subject}`);
-    console.log(`[EMAIL MOCK] Body preview: ${html.substring(0, 200)}...`);
-    if (attachments.length) console.log(`[EMAIL MOCK] Attachments: ${attachments.map(a => a.filename).join(', ')}`);
-    return { success: true, mock: true };
+  if (transporter) {
+    try {
+      await transporter.sendMail({
+        from: `"${FROM_NAME}" <${FROM_EMAIL_SMTP}>`,
+        to,
+        subject,
+        html,
+        attachments,
+      });
+      console.log(`[EMAIL] Sent (smtp) to ${to}: ${subject}${attachments.length ? ` (${attachments.length} attachments)` : ''}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[EMAIL ERROR] SMTP failed to send to ${to}:`, error.message);
+      return { success: false, error: error.message };
+    }
   }
 
-  try {
-    await transporter.sendMail({
-      from: `"Ehsaas Therapy Centre" <${FROM_EMAIL}>`,
-      to,
-      subject,
-      html,
-      attachments,
-    });
-    console.log(`[EMAIL] Sent to ${to}: ${subject}${attachments.length ? ` (${attachments.length} attachments)` : ''}`);
-    return { success: true };
-  } catch (error) {
-    console.error(`[EMAIL ERROR] Failed to send to ${to}:`, error.message);
-    return { success: false, error: error.message };
-  }
+  // 3. No email provider configured — mock log
+  console.log(`[EMAIL MOCK] To: ${to}`);
+  console.log(`[EMAIL MOCK] Subject: ${subject}`);
+  console.log(`[EMAIL MOCK] Body preview: ${html.substring(0, 200)}...`);
+  if (attachments.length) console.log(`[EMAIL MOCK] Attachments: ${attachments.map(a => a.filename).join(', ')}`);
+  return { success: true, mock: true };
 };
 
 // Notify admins about a new therapist onboarding request
