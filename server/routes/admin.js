@@ -112,6 +112,174 @@ router.put('/therapists/:id/reject', protect, adminOnly, async (req, res) => {
   }
 });
 
+// DELETE /api/admin/therapists/:id — delete therapist profile
+router.delete('/therapists/:id', protect, adminOnly, async (req, res) => {
+  try {
+    const therapist = await Therapist.findById(req.params.id);
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+
+    // Check for active upcoming sessions
+    const upcomingCount = await Session.countDocuments({
+      therapistId: req.params.id,
+      status: 'scheduled',
+      date: { $gte: new Date() },
+    });
+    if (upcomingCount > 0) {
+      return res.status(400).json({ message: `Cannot delete — ${upcomingCount} upcoming session(s) scheduled. Cancel or complete them first.` });
+    }
+
+    const info = { name: therapist.name, email: therapist.email };
+    await Therapist.findByIdAndDelete(req.params.id);
+    console.log(`[ADMIN] Deleted therapist: ${info.name} (${info.email})`);
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'therapist_deleted', 'Therapist', req.params.id, info); } catch {}
+    res.json({ message: 'Therapist deleted', ...info });
+  } catch (error) {
+    console.error('Delete therapist error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/admin/therapists/:id/commission — set commission percent
+router.put('/therapists/:id/commission', protect, adminOnly, async (req, res) => {
+  try {
+    const { commissionPercent } = req.body;
+    const pct = Number(commissionPercent);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      return res.status(400).json({ message: 'commissionPercent must be between 0 and 100' });
+    }
+    const therapist = await Therapist.findByIdAndUpdate(
+      req.params.id,
+      { commissionPercent: pct },
+      { new: true }
+    ).select('-password');
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'commission_updated', 'Therapist', therapist._id, { name: therapist.name, commissionPercent: pct }); } catch {}
+    res.json(convertPricing(therapist));
+  } catch (error) {
+    console.error('Set commission error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/admin/therapists/:id/type — set therapist type (psychologist/psychiatrist)
+router.put('/therapists/:id/type', protect, adminOnly, async (req, res) => {
+  try {
+    const { therapistType } = req.body;
+    if (!['psychologist', 'psychiatrist'].includes(therapistType)) {
+      return res.status(400).json({ message: 'Invalid therapist type' });
+    }
+    const therapist = await Therapist.findByIdAndUpdate(
+      req.params.id,
+      { therapistType },
+      { new: true }
+    ).select('-password');
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    res.json(convertPricing(therapist));
+  } catch (error) {
+    console.error('Set type error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/admin/monthly-analytics?year=2026&month=4 — monthly breakdown
+// If month omitted, returns breakdown by month for the year
+router.get('/monthly-analytics', protect, adminOnly, async (req, res) => {
+  try {
+    const year = Number(req.query.year) || new Date().getFullYear();
+    const month = req.query.month !== undefined ? Number(req.query.month) : null; // 1-12
+
+    // Helper: build date range
+    const buildRange = (y, m) => {
+      if (m !== null) {
+        const start = new Date(y, m - 1, 1);
+        const end = new Date(y, m, 1);
+        return { start, end };
+      }
+      return { start: new Date(y, 0, 1), end: new Date(y + 1, 0, 1) };
+    };
+
+    // Per-month breakdown (12 months or just one month if specified)
+    const months = month !== null ? [month] : Array.from({ length: 12 }, (_, i) => i + 1);
+    const monthlyData = await Promise.all(months.map(async (m) => {
+      const { start, end } = buildRange(year, m);
+      // Sessions in this month
+      const sessions = await Session.find({
+        date: { $gte: start, $lt: end }
+      }).populate('therapistId', 'name commissionPercent therapistType').lean();
+
+      const total = sessions.length;
+      const completed = sessions.filter(s => s.status === 'completed').length;
+      const cancelled = sessions.filter(s => s.status === 'cancelled').length;
+      const noShow = sessions.filter(s => s.status === 'no-show').length;
+
+      // Revenue = sum of amounts from completed sessions
+      const completedSessions = sessions.filter(s => s.status === 'completed');
+      let totalRevenue = 0;
+      let therapistShare = 0;
+      let ehsaasShare = 0;
+      const therapistBreakdown = {};
+
+      for (const s of completedSessions) {
+        const amount = s.amount || 0;
+        totalRevenue += amount;
+        const pct = s.therapistId?.commissionPercent ?? 60;
+        const therapistCut = Math.round((amount * pct) / 100);
+        const ehsaasCut = amount - therapistCut;
+        therapistShare += therapistCut;
+        ehsaasShare += ehsaasCut;
+        if (s.therapistId) {
+          const tid = String(s.therapistId._id);
+          if (!therapistBreakdown[tid]) {
+            therapistBreakdown[tid] = {
+              therapistId: tid,
+              name: s.therapistId.name,
+              commissionPercent: pct,
+              sessions: 0,
+              revenue: 0,
+              therapistShare: 0,
+              ehsaasShare: 0,
+            };
+          }
+          therapistBreakdown[tid].sessions += 1;
+          therapistBreakdown[tid].revenue += amount;
+          therapistBreakdown[tid].therapistShare += therapistCut;
+          therapistBreakdown[tid].ehsaasShare += ehsaasCut;
+        }
+      }
+
+      return {
+        year,
+        month: m,
+        monthName: new Date(year, m - 1, 1).toLocaleString('en-US', { month: 'long' }),
+        total,
+        completed,
+        cancelled,
+        noShow,
+        totalRevenue,
+        therapistShare,
+        ehsaasShare,
+        therapists: Object.values(therapistBreakdown),
+      };
+    }));
+
+    // Year totals
+    const yearTotal = monthlyData.reduce((acc, m) => ({
+      total: acc.total + m.total,
+      completed: acc.completed + m.completed,
+      cancelled: acc.cancelled + m.cancelled,
+      noShow: acc.noShow + m.noShow,
+      totalRevenue: acc.totalRevenue + m.totalRevenue,
+      therapistShare: acc.therapistShare + m.therapistShare,
+      ehsaasShare: acc.ehsaasShare + m.ehsaasShare,
+    }), { total: 0, completed: 0, cancelled: 0, noShow: 0, totalRevenue: 0, therapistShare: 0, ehsaasShare: 0 });
+
+    res.json({ year, monthly: monthlyData, yearTotal });
+  } catch (error) {
+    console.error('Monthly analytics error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // GET /api/admin/all-clients
 router.get('/all-clients', protect, adminOnly, async (req, res) => {
   try {

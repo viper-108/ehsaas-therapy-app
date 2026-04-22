@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Users, UserCheck, UserX, Clock, Calendar, DollarSign, BarChart3,
-  CheckCircle, XCircle, LogOut, ChevronRight, Shield, Loader2, Star, TrendingUp
+  CheckCircle, XCircle, LogOut, ChevronRight, Shield, Loader2, Star, TrendingUp,
+  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +56,56 @@ const AdminDashboard = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [detailModal, setDetailModal] = useState<{ open: boolean; type: 'therapist' | 'client'; data: any | null; loading: boolean }>({ open: false, type: 'therapist', data: null, loading: false });
   const [allReviews, setAllReviews] = useState<any[]>([]);
+  const [monthlyData, setMonthlyData] = useState<any>(null);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [commissionModal, setCommissionModal] = useState<{ open: boolean; therapist: any | null; value: string }>({ open: false, therapist: null, value: '' });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; therapist: any | null }>({ open: false, therapist: null });
+
+  const loadMonthlyAnalytics = async () => {
+    try {
+      const month = selectedMonth === 'all' ? undefined : Number(selectedMonth);
+      const data = await api.getMonthlyAnalytics(selectedYear, month);
+      setMonthlyData(data);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Failed to load analytics", variant: "destructive" });
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'monthly' || activeTab === 'stats') {
+      loadMonthlyAnalytics();
+    }
+  }, [activeTab, selectedYear, selectedMonth]);
+
+  const handleDeleteTherapist = async () => {
+    if (!deleteConfirm.therapist) return;
+    try {
+      await api.deleteTherapist(deleteConfirm.therapist._id);
+      toast({ title: "Deleted", description: `${deleteConfirm.therapist.name} was removed` });
+      setDeleteConfirm({ open: false, therapist: null });
+      loadDashboard();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Failed to delete", variant: "destructive" });
+    }
+  };
+
+  const handleSaveCommission = async () => {
+    if (!commissionModal.therapist) return;
+    const pct = Number(commissionModal.value);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      toast({ title: "Error", description: "Enter a percentage between 0 and 100", variant: "destructive" });
+      return;
+    }
+    try {
+      await api.setTherapistCommission(commissionModal.therapist._id, pct);
+      toast({ title: "Updated", description: `Commission set to ${pct}%` });
+      setCommissionModal({ open: false, therapist: null, value: '' });
+      loadDashboard();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -171,6 +223,7 @@ const AdminDashboard = () => {
                 <TabsTrigger value="stats"><BarChart3 className="w-4 h-4 mr-2" />Statistics</TabsTrigger>
                 <TabsTrigger value="reviews"><Star className="w-4 h-4 mr-2" />Reviews</TabsTrigger>
                 <TabsTrigger value="analytics"><TrendingUp className="w-4 h-4 mr-2" />Analytics</TabsTrigger>
+                <TabsTrigger value="monthly"><CalendarDays className="w-4 h-4 mr-2" />Monthly & Earnings</TabsTrigger>
               </TabsList>
 
               {/* ========== PENDING REQUESTS ========== */}
@@ -270,24 +323,49 @@ const AdminDashboard = () => {
                 <h2 className="text-xl font-semibold text-foreground mb-4">All Therapists ({allTherapists.length})</h2>
                 <div className="space-y-3">
                   {allTherapists.map(t => (
-                    <Card key={t._id} className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => openTherapistDetail(t._id)}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                    <Card key={t._id} className="p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer" onClick={() => openTherapistDetail(t._id)}>
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary flex-shrink-0">
                             {t.name.split(' ').map((n: string) => n[0]).join('')}
                           </div>
-                          <div>
-                            <p className="font-medium text-foreground">{t.name}</p>
-                            <p className="text-sm text-muted-foreground">{t.email} • {t.title}</p>
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground truncate">{t.name}</p>
+                            <p className="text-sm text-muted-foreground truncate">{t.email} • {t.title}</p>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {t.therapistType === 'psychiatrist' && (
+                                <Badge className="bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300">Psychiatrist</Badge>
+                              )}
+                              <Badge variant="outline" className="text-xs">
+                                <Percent className="w-3 h-3 mr-1" />
+                                Cut: {t.commissionPercent ?? 60}%
+                              </Badge>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-muted-foreground">{t.experience}y exp</span>
+                        <div className="flex items-center gap-2 flex-wrap">
                           {statusBadge(t.onboardingStatus || (t.isApproved ? 'approved' : 'not_started'))}
                           {t.onboardingStatus === 'pending_approval' && (
                             <Button size="sm" onClick={(e) => { e.stopPropagation(); handleApprove(t._id); }}>Approve</Button>
                           )}
-                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setCommissionModal({ open: true, therapist: t, value: String(t.commissionPercent ?? 60) }); }}>
+                            <Percent className="w-3 h-3 mr-1" /> Commission
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={async (e) => {
+                            e.stopPropagation();
+                            const next = t.therapistType === 'psychiatrist' ? 'psychologist' : 'psychiatrist';
+                            try {
+                              await api.setTherapistType(t._id, next);
+                              toast({ title: "Updated", description: `Set to ${next}` });
+                              loadDashboard();
+                            } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                          }}>
+                            {t.therapistType === 'psychiatrist' ? 'Make Psychologist' : 'Make Psychiatrist'}
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-destructive hover:bg-destructive/10"
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ open: true, therapist: t }); }}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
                         </div>
                       </div>
                     </Card>
@@ -314,6 +392,23 @@ const AdminDashboard = () => {
                             <div>
                               <p className="font-medium text-foreground">{c.name}</p>
                               <p className="text-sm text-muted-foreground">{c.email}</p>
+                              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                {c.flags?.highCancellations && (
+                                  <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs">
+                                    <Flag className="w-3 h-3 mr-1" /> {c.cancellationCount}+ cancellations
+                                  </Badge>
+                                )}
+                                {c.flags?.highNoShows && (
+                                  <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs">
+                                    <Flag className="w-3 h-3 mr-1" /> {c.noShowCount}+ no-shows
+                                  </Badge>
+                                )}
+                                {c.flags?.frequentTherapistChanges && (
+                                  <Badge className="bg-warm/10 text-warm border-warm/20 text-xs">
+                                    <AlertTriangle className="w-3 h-3 mr-1" /> Frequent therapist changes
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
@@ -469,6 +564,109 @@ const AdminDashboard = () => {
               <TabsContent value="analytics">
                 <h2 className="text-xl font-semibold text-foreground mb-4">Platform Analytics</h2>
                 <AnalyticsCharts />
+              </TabsContent>
+
+              {/* ========== MONTHLY & EARNINGS ========== */}
+              <TabsContent value="monthly">
+                <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+                  <h2 className="text-xl font-semibold text-foreground">Monthly Analytics & Earnings Split</h2>
+                  <div className="flex gap-3">
+                    <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+                      <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {[selectedYear - 2, selectedYear - 1, selectedYear, selectedYear + 1].map(y => (
+                          <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                      <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Months</SelectItem>
+                        {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
+                          <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {!monthlyData ? (
+                  <Card className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></Card>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Year totals */}
+                    <Card className="p-6">
+                      <h3 className="font-semibold mb-4">{selectedMonth === 'all' ? `${monthlyData.year} Totals` : `${['','January','February','March','April','May','June','July','August','September','October','November','December'][Number(selectedMonth)]} ${monthlyData.year}`}</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="p-4 bg-muted rounded-lg">
+                          <p className="text-xs text-muted-foreground">Total Sessions</p>
+                          <p className="text-2xl font-bold">{monthlyData.yearTotal.total}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {monthlyData.yearTotal.completed} completed · {monthlyData.yearTotal.cancelled} cancelled · {monthlyData.yearTotal.noShow} no-show
+                          </p>
+                        </div>
+                        <div className="p-4 bg-primary/10 rounded-lg">
+                          <p className="text-xs text-muted-foreground">Total Revenue</p>
+                          <p className="text-2xl font-bold text-primary">₹{monthlyData.yearTotal.totalRevenue.toLocaleString('en-IN')}</p>
+                        </div>
+                        <div className="p-4 bg-secondary/10 rounded-lg">
+                          <p className="text-xs text-muted-foreground">Therapists Earned</p>
+                          <p className="text-2xl font-bold text-secondary">₹{monthlyData.yearTotal.therapistShare.toLocaleString('en-IN')}</p>
+                        </div>
+                        <div className="p-4 bg-warm/10 rounded-lg">
+                          <p className="text-xs text-muted-foreground">Ehsaas Revenue</p>
+                          <p className="text-2xl font-bold text-warm">₹{monthlyData.yearTotal.ehsaasShare.toLocaleString('en-IN')}</p>
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* Per-month breakdown */}
+                    {monthlyData.monthly.filter((m: any) => selectedMonth === 'all' || m.month === Number(selectedMonth)).map((m: any) => (
+                      <Card key={m.month} className="p-6">
+                        <h4 className="font-semibold text-lg mb-3">{m.monthName} {m.year}</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 text-sm">
+                          <div><p className="text-muted-foreground">Sessions</p><p className="font-bold">{m.total}</p></div>
+                          <div><p className="text-muted-foreground">Completed</p><p className="font-bold text-success">{m.completed}</p></div>
+                          <div><p className="text-muted-foreground">Revenue</p><p className="font-bold">₹{m.totalRevenue.toLocaleString('en-IN')}</p></div>
+                          <div><p className="text-muted-foreground">Therapist Share</p><p className="font-bold text-secondary">₹{m.therapistShare.toLocaleString('en-IN')}</p></div>
+                          <div><p className="text-muted-foreground">Ehsaas Share</p><p className="font-bold text-warm">₹{m.ehsaasShare.toLocaleString('en-IN')}</p></div>
+                        </div>
+                        {m.therapists.length > 0 && (
+                          <div className="border-t pt-3">
+                            <p className="text-xs font-semibold text-muted-foreground mb-2">BY THERAPIST</p>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="text-left text-muted-foreground text-xs border-b">
+                                    <th className="pb-2">Therapist</th>
+                                    <th className="pb-2">Cut %</th>
+                                    <th className="pb-2">Sessions</th>
+                                    <th className="pb-2">Revenue</th>
+                                    <th className="pb-2">Therapist Earned</th>
+                                    <th className="pb-2">Ehsaas Earned</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {m.therapists.map((t: any) => (
+                                    <tr key={t.therapistId} className="border-b last:border-0">
+                                      <td className="py-2">{t.name}</td>
+                                      <td className="py-2">{t.commissionPercent}%</td>
+                                      <td className="py-2">{t.sessions}</td>
+                                      <td className="py-2">₹{t.revenue.toLocaleString('en-IN')}</td>
+                                      <td className="py-2 text-secondary">₹{t.therapistShare.toLocaleString('en-IN')}</td>
+                                      <td className="py-2 text-warm">₹{t.ehsaasShare.toLocaleString('en-IN')}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           )}
@@ -638,6 +836,69 @@ const AdminDashboard = () => {
           ) : (
             <p className="text-muted-foreground text-center py-8">Could not load details</p>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Commission Modal */}
+      <Dialog open={commissionModal.open} onOpenChange={(open) => { if (!open) setCommissionModal({ open: false, therapist: null, value: '' }); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set Commission for {commissionModal.therapist?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Percentage of each session fee that goes to the therapist. The rest stays with Ehsaas.
+            </p>
+            <div className="flex gap-2 items-center">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={commissionModal.value}
+                onChange={(e) => setCommissionModal({ ...commissionModal, value: e.target.value })}
+                className="text-center text-2xl"
+              />
+              <span className="text-xl">%</span>
+            </div>
+            {commissionModal.value && (
+              <p className="text-sm text-muted-foreground">
+                Therapist gets <strong>{commissionModal.value}%</strong>, Ehsaas keeps <strong>{100 - Number(commissionModal.value)}%</strong>
+              </p>
+            )}
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setCommissionModal({ open: false, therapist: null, value: '' })}>
+                Cancel
+              </Button>
+              <Button className="flex-1" onClick={handleSaveCommission}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <Dialog open={deleteConfirm.open} onOpenChange={(open) => { if (!open) setDeleteConfirm({ open: false, therapist: null }); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {deleteConfirm.therapist?.name}?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-4 bg-destructive/10 rounded-md text-destructive text-sm">
+              This will permanently delete the therapist's profile. Past sessions remain but the therapist won't be able to log in. This cannot be undone.
+            </div>
+            <p className="text-sm text-muted-foreground">
+              If the therapist has upcoming sessions, those must be cancelled or completed first.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirm({ open: false, therapist: null })}>
+                Cancel
+              </Button>
+              <Button variant="destructive" className="flex-1" onClick={handleDeleteTherapist}>
+                <Trash2 className="w-4 h-4 mr-2" /> Delete
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

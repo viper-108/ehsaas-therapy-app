@@ -19,6 +19,7 @@ import { ConversationList } from "@/components/ConversationList";
 import { ChatWindow } from "@/components/ChatWindow";
 import { SupervisionRequestForm } from "@/components/SupervisionRequestForm";
 import { TherapistResources } from "@/components/TherapistResources";
+import { PsychiatristPrescriptions } from "@/components/PsychiatristPrescriptions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/services/api";
@@ -161,6 +162,9 @@ const TherapistDashboard = () => {
               <TabsTrigger value="intro-calls"><Phone className="w-4 h-4 mr-2" />{t('dashboard.introCalls')}{introCalls.filter(c => c.status === 'pending').length > 0 && <Badge className="ml-1 bg-warm text-white text-xs px-1">{introCalls.filter(c => c.status === 'pending').length}</Badge>}</TabsTrigger>
               <TabsTrigger value="supervision"><BookOpen className="w-4 h-4 mr-2" />{t('dashboard.supervision')}</TabsTrigger>
               <TabsTrigger value="resources"><Library className="w-4 h-4 mr-2" />Resources</TabsTrigger>
+              {user?.therapistType === 'psychiatrist' && (
+                <TabsTrigger value="prescriptions"><FileText className="w-4 h-4 mr-2" />Prescriptions</TabsTrigger>
+              )}
               <TabsTrigger value="messages"><MessageCircle className="w-4 h-4 mr-2" />{t('dashboard.messages')}</TabsTrigger>
             </TabsList>
 
@@ -538,6 +542,13 @@ const TherapistDashboard = () => {
             <TabsContent value="resources">
               <TherapistResources />
             </TabsContent>
+
+            {/* ========== PRESCRIPTIONS TAB (psychiatrist only) ========== */}
+            {user?.therapistType === 'psychiatrist' && (
+              <TabsContent value="prescriptions">
+                <PsychiatristPrescriptions />
+              </TabsContent>
+            )}
 
             {/* ========== MESSAGES TAB ========== */}
             <TabsContent value="messages">

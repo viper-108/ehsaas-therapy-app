@@ -26,6 +26,7 @@ import blogPostRoutes from './routes/blogPosts.js';
 import notificationRoutes from './routes/notifications.js';
 import discountRoutes from './routes/discounts.js';
 import contactRoutes from './routes/contact.js';
+import prescriptionRoutes from './routes/prescriptions.js';
 import { startReminderScheduler } from './utils/reminders.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -115,6 +116,7 @@ app.use('/api/blog-posts', blogPostRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/discounts', discountRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/prescriptions', prescriptionRoutes);
 
 // Static files (uploads)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

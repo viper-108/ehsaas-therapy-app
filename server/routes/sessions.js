@@ -52,6 +52,9 @@ router.post('/', protect, clientOnly, async (req, res) => {
       sessionType: sessionType || 'individual', status: 'scheduled'
     });
 
+    // Check if client has switched therapists 3+ times (fire-and-forget)
+    import('../utils/clientFlags.js').then(m => m.checkTherapistChangeFlag(req.userId).catch(e => console.error('[FLAG]', e)));
+
     const populated = await session.populate([
       { path: 'therapistId', select: 'name title image email' },
       { path: 'clientId', select: 'name email' }
@@ -242,6 +245,11 @@ router.put('/:id/cancel', protect, async (req, res) => {
     session.status = 'cancelled';
     await session.save();
 
+    // Check if client should be flagged for high cancellations (fire-and-forget)
+    if (req.userRole === 'client') {
+      import('../utils/clientFlags.js').then(m => m.checkCancellationFlag(session.clientId).catch(e => console.error('[FLAG]', e)));
+    }
+
     // Notify waitlisted clients for this therapist+date
     try {
       const startOfDay = new Date(session.date);
@@ -277,6 +285,38 @@ router.put('/:id/cancel', protect, async (req, res) => {
 
     res.json(session);
   } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/sessions/:id/status — therapist/admin marks session as completed/no-show
+router.put('/:id/status', protect, async (req, res) => {
+  try {
+    if (req.userRole !== 'therapist' && req.userRole !== 'admin') {
+      return res.status(403).json({ message: 'Therapist or admin only' });
+    }
+    const { status } = req.body;
+    if (!['completed', 'no-show', 'cancelled'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+    const session = await Session.findById(req.params.id);
+    if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (req.userRole === 'therapist' && String(session.therapistId) !== String(req.userId)) {
+      return res.status(403).json({ message: 'Not your session' });
+    }
+    session.status = status;
+    await session.save();
+
+    // Trigger appropriate flag check
+    if (status === 'no-show') {
+      import('../utils/clientFlags.js').then(m => m.checkNoShowFlag(session.clientId).catch(e => console.error('[FLAG]', e)));
+    } else if (status === 'cancelled') {
+      import('../utils/clientFlags.js').then(m => m.checkCancellationFlag(session.clientId).catch(e => console.error('[FLAG]', e)));
+    }
+
+    res.json(session);
+  } catch (error) {
+    console.error('Set status error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

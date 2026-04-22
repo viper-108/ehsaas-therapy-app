@@ -51,6 +51,13 @@ const therapistSchema = new mongoose.Schema({
     bankName: { type: String, default: '' },
     accountHolder: { type: String, default: '' },
   },
+  // Commission percentage the therapist receives (rest goes to Ehsaas)
+  commissionPercent: { type: Number, default: 60, min: 0, max: 100 },
+  // Therapist type: psychologist (default) or psychiatrist (can issue prescriptions)
+  therapistType: { type: String, enum: ['psychologist', 'psychiatrist'], default: 'psychologist' },
+  // Password reset
+  resetPasswordToken: { type: String, default: null },
+  resetPasswordExpires: { type: Date, default: null },
 }, { timestamps: true });
 
 therapistSchema.pre('save', async function(next) {

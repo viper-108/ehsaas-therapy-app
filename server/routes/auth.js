@@ -1,10 +1,167 @@
 import express from 'express';
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import Therapist from '../models/Therapist.js';
 import Client from '../models/Client.js';
 import Admin from '../models/Admin.js';
 import { generateToken, protect } from '../middleware/auth.js';
+import { sendEmail } from '../utils/email.js';
 
 const router = express.Router();
+
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5174';
+
+// ==================== FORGOT / RESET PASSWORD ====================
+
+const findUserByEmail = async (email, role) => {
+  if (role === 'therapist') return Therapist.findOne({ email });
+  if (role === 'client') return Client.findOne({ email });
+  if (role === 'admin') return Admin.findOne({ email });
+  // Auto-detect role
+  const lookups = await Promise.all([
+    Therapist.findOne({ email }),
+    Client.findOne({ email }),
+    Admin.findOne({ email }),
+  ]);
+  const roles = ['therapist', 'client', 'admin'];
+  for (let i = 0; i < lookups.length; i++) if (lookups[i]) return { user: lookups[i], role: roles[i] };
+  return null;
+};
+
+// POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email, role } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email required' });
+
+    const result = await findUserByEmail(email, role);
+    // Return generic message regardless — prevent email enumeration
+    const genericResp = { message: 'If that email exists, a reset link was sent' };
+
+    let user, foundRole;
+    if (result?.user) { user = result.user; foundRole = result.role; }
+    else if (result) { user = result; foundRole = role; }
+
+    if (!user) return res.json(genericResp);
+
+    // Admin model doesn't have reset fields — skip
+    if (foundRole === 'admin') return res.json(genericResp);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex');
+    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save();
+
+    const resetUrl = `${CLIENT_URL}/reset-password?token=${token}&role=${foundRole}`;
+    const html = `
+      <div style="font-family: Arial; max-width: 600px; margin: 0 auto;">
+        <div style="background: #D97706; color: white; padding: 20px;"><h2>Reset your password</h2></div>
+        <div style="padding: 24px; border: 1px solid #eee;">
+          <p>Hi ${user.name || 'there'},</p>
+          <p>Click the link below to set a new password for your Ehsaas account. This link expires in 1 hour.</p>
+          <p><a href="${resetUrl}" style="display:inline-block;background:#D97706;color:white;padding:12px 24px;border-radius:4px;text-decoration:none;">Reset Password</a></p>
+          <p style="color:#666;font-size:13px;">If you didn't request this, you can safely ignore this email.</p>
+        </div>
+      </div>`;
+    await sendEmail(user.email, 'Reset your Ehsaas password', html);
+    res.json(genericResp);
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, role, password } = req.body;
+    if (!token || !password || !role) return res.status(400).json({ message: 'Missing token, role, or password' });
+    if (password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
+
+    const hashed = crypto.createHash('sha256').update(token).digest('hex');
+    const Model = role === 'therapist' ? Therapist : role === 'client' ? Client : null;
+    if (!Model) return res.status(400).json({ message: 'Invalid role' });
+
+    const user = await Model.findOne({
+      resetPasswordToken: hashed,
+      resetPasswordExpires: { $gt: new Date() },
+    });
+    if (!user) return res.status(400).json({ message: 'Token invalid or expired' });
+
+    user.password = password; // pre-save will hash
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
+    await user.save();
+    res.json({ message: 'Password updated. You can now log in.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ==================== OTP LOGIN (CLIENTS) ====================
+
+// POST /api/auth/client/request-otp — sends 6-digit OTP to client email
+router.post('/client/request-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email required' });
+    const client = await Client.findOne({ email });
+    // Prevent email enumeration
+    const genericResp = { message: 'If that email is registered, an OTP was sent' };
+    if (!client) return res.json(genericResp);
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
+    client.otpCode = await bcrypt.hash(otp, 10);
+    client.otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+    await client.save();
+
+    const html = `
+      <div style="font-family: Arial; max-width: 600px; margin: 0 auto;">
+        <div style="background: #D97706; color: white; padding: 20px;"><h2>Your Ehsaas login code</h2></div>
+        <div style="padding: 24px; border: 1px solid #eee;">
+          <p>Hi ${client.name},</p>
+          <p>Use this code to log in. It expires in 10 minutes.</p>
+          <p style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;padding:20px;background:#f5f5f5;border-radius:8px;">${otp}</p>
+          <p style="color:#666;font-size:13px;">If you didn't request this, you can ignore this email.</p>
+        </div>
+      </div>`;
+    await sendEmail(client.email, `Your Ehsaas login code: ${otp}`, html);
+    res.json(genericResp);
+  } catch (error) {
+    console.error('Request OTP error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/auth/client/verify-otp — verify OTP and log client in
+router.post('/client/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });
+    const client = await Client.findOne({ email });
+    if (!client || !client.otpCode || !client.otpExpires) {
+      return res.status(400).json({ message: 'Invalid or expired code' });
+    }
+    if (client.otpExpires < new Date()) {
+      return res.status(400).json({ message: 'Code expired' });
+    }
+    const matches = await bcrypt.compare(otp, client.otpCode);
+    if (!matches) return res.status(400).json({ message: 'Invalid code' });
+
+    // Clear OTP
+    client.otpCode = null;
+    client.otpExpires = null;
+    await client.save();
+
+    const token = generateToken(client._id, 'client');
+    res.json({ token, user: client.toPublicJSON(), role: 'client' });
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 
 // ==================== THERAPIST AUTH ====================
 

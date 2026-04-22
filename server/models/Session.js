@@ -40,6 +40,7 @@ const sessionSchema = new mongoose.Schema({
   }],
   feedbackId: { type: mongoose.Schema.Types.ObjectId, ref: 'FeedbackSurvey' },
   progressId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProgressEntry' },
+  noShowEmailSent: { type: Boolean, default: false },
 }, { timestamps: true });
 
 // Index for efficient queries

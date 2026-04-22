@@ -160,6 +160,106 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  // Forgot/Reset password
+  async forgotPassword(email: string, role?: string) {
+    const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+      method: 'POST', headers: this.getHeaders(false), body: JSON.stringify({ email, role })
+    });
+    return this.handleResponse(res);
+  }
+
+  async resetPassword(token: string, role: string, password: string) {
+    const res = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: 'POST', headers: this.getHeaders(false), body: JSON.stringify({ token, role, password })
+    });
+    return this.handleResponse(res);
+  }
+
+  // OTP login (clients)
+  async requestOtp(email: string) {
+    const res = await fetch(`${API_BASE}/auth/client/request-otp`, {
+      method: 'POST', headers: this.getHeaders(false), body: JSON.stringify({ email })
+    });
+    return this.handleResponse(res);
+  }
+
+  async verifyOtp(email: string, otp: string) {
+    const res = await fetch(`${API_BASE}/auth/client/verify-otp`, {
+      method: 'POST', headers: this.getHeaders(false), body: JSON.stringify({ email, otp })
+    });
+    return this.handleResponse(res);
+  }
+
+  // Admin therapist management
+  async deleteTherapist(id: string) {
+    const res = await fetch(`${API_BASE}/admin/therapists/${id}`, {
+      method: 'DELETE', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+
+  async setTherapistCommission(id: string, commissionPercent: number) {
+    const res = await fetch(`${API_BASE}/admin/therapists/${id}/commission`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ commissionPercent })
+    });
+    return this.handleResponse(res);
+  }
+
+  async setTherapistType(id: string, therapistType: string) {
+    const res = await fetch(`${API_BASE}/admin/therapists/${id}/type`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ therapistType })
+    });
+    return this.handleResponse(res);
+  }
+
+  async getMonthlyAnalytics(year?: number, month?: number) {
+    const params = new URLSearchParams();
+    if (year) params.set('year', String(year));
+    if (month !== undefined) params.set('month', String(month));
+    const res = await fetch(`${API_BASE}/admin/monthly-analytics?${params}`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+
+  // Session status (therapist marks completed/no-show)
+  async setSessionStatus(sessionId: string, status: 'completed' | 'no-show' | 'cancelled') {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/status`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ status })
+    });
+    return this.handleResponse(res);
+  }
+
+  // Prescriptions
+  async createPrescription(data: any) {
+    const res = await fetch(`${API_BASE}/prescriptions`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(data)
+    });
+    return this.handleResponse(res);
+  }
+
+  async getMyPrescriptions() {
+    const res = await fetch(`${API_BASE}/prescriptions/my`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+
+  async getClientPrescriptions() {
+    const res = await fetch(`${API_BASE}/prescriptions/client`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+
+  async updatePrescription(id: string, data: any) {
+    const res = await fetch(`${API_BASE}/prescriptions/${id}`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify(data)
+    });
+    return this.handleResponse(res);
+  }
+
+  async deletePrescription(id: string) {
+    const res = await fetch(`${API_BASE}/prescriptions/${id}`, {
+      method: 'DELETE', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+
   // Therapist onboarding
   async completeOnboarding() {
     const res = await fetch(`${API_BASE}/therapists/onboard`, {

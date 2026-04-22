@@ -16,6 +16,8 @@ import { ReviewForm } from "@/components/ReviewForm";
 import { ConversationList } from "@/components/ConversationList";
 import { ChatWindow } from "@/components/ChatWindow";
 import { ClientResources } from "@/components/ClientResources";
+import { ClientPrescriptions } from "@/components/ClientPrescriptions";
+import { Pill } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/services/api";
@@ -126,6 +128,7 @@ const ClientDashboard = () => {
               <TabsTrigger value="upcoming"><Calendar className="w-4 h-4 mr-2" />{t('dashboard.upcoming')}</TabsTrigger>
               <TabsTrigger value="past"><Clock className="w-4 h-4 mr-2" />{t('dashboard.past')}</TabsTrigger>
               <TabsTrigger value="resources"><Library className="w-4 h-4 mr-2" />Resources</TabsTrigger>
+              <TabsTrigger value="prescriptions"><Pill className="w-4 h-4 mr-2" />Prescriptions</TabsTrigger>
               <TabsTrigger value="messages"><MessageCircle className="w-4 h-4 mr-2" />{t('dashboard.messages')}</TabsTrigger>
             </TabsList>
 
@@ -403,6 +406,11 @@ const ClientDashboard = () => {
             {/* ========== RESOURCES TAB ========== */}
             <TabsContent value="resources">
               <ClientResources />
+            </TabsContent>
+
+            {/* ========== PRESCRIPTIONS TAB ========== */}
+            <TabsContent value="prescriptions">
+              <ClientPrescriptions />
             </TabsContent>
 
             {/* ========== MESSAGES TAB ========== */}

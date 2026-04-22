@@ -14,6 +14,21 @@ const clientSchema = new mongoose.Schema({
   },
   stripeCustomerId: { type: String, default: '' },
   referralCode: { type: String, unique: true, sparse: true },
+  // Behaviour tracking - auto-flagged by system
+  cancellationCount: { type: Number, default: 0 },
+  noShowCount: { type: Number, default: 0 },
+  // Flags: set when thresholds exceeded
+  flags: {
+    highCancellations: { type: Boolean, default: false },
+    highNoShows: { type: Boolean, default: false },
+    frequentTherapistChanges: { type: Boolean, default: false },
+  },
+  // Password reset
+  resetPasswordToken: { type: String, default: null },
+  resetPasswordExpires: { type: Date, default: null },
+  // OTP login
+  otpCode: { type: String, default: null },
+  otpExpires: { type: Date, default: null },
 }, { timestamps: true });
 
 // Auto-generate referral code on creation
