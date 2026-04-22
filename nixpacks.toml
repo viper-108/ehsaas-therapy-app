@@ -11,7 +11,10 @@ cmds = [
 ]
 
 [phases.build]
-cmds = ["npx vite build"]
+cmds = [
+  "rm -rf dist",
+  "npx vite build"
+]
 
 [start]
 cmd = "node server/server.js"
