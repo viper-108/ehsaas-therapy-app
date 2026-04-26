@@ -5,7 +5,9 @@ const availabilitySlotSchema = new mongoose.Schema({
   dayOfWeek: { type: Number, required: true, min: 0, max: 6 }, // 0=Sunday, 6=Saturday
   startTime: { type: String, required: true }, // "09:00"
   endTime: { type: String, required: true },   // "18:00"
-  isAvailable: { type: Boolean, default: true }
+  isAvailable: { type: Boolean, default: true },
+  // Max number of sessions on this specific day (overrides therapist.maxSessionsPerDay if set)
+  maxSessionsThisDay: { type: Number, default: null, min: 0, max: 20 },
 }, { _id: false });
 
 const therapistSchema = new mongoose.Schema({

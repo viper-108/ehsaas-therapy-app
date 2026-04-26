@@ -131,9 +131,11 @@ router.get('/:id/available-slots', async (req, res) => {
 
     const bookedTimes = bookedSessions.map(s => s.startTime);
 
-    // Check max sessions per day
-    const maxPerDay = therapist.maxSessionsPerDay || 8;
-    if (bookedSessions.length >= maxPerDay) {
+    // Check max sessions per day — per-day override takes precedence
+    const dayLimit = (dayAvailability.maxSessionsThisDay != null && dayAvailability.maxSessionsThisDay > 0)
+      ? dayAvailability.maxSessionsThisDay
+      : (therapist.maxSessionsPerDay || 8);
+    if (bookedSessions.length >= dayLimit) {
       return res.json({ slots: [], message: 'All sessions are booked for this day', fullyBooked: true });
     }
 

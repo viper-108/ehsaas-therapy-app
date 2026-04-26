@@ -133,6 +133,12 @@ const TherapistDashboard = () => {
     );
   };
 
+  const updateDayMaxSessions = (dayOfWeek: number, value: number | null) => {
+    setAvailability(prev =>
+      prev.map(a => a.dayOfWeek === dayOfWeek ? { ...a, maxSessionsThisDay: value } : a)
+    );
+  };
+
   if (isLoading || !user) return null;
 
   // Gate: show onboarding if not onboarded or not approved
@@ -402,7 +408,7 @@ const TherapistDashboard = () => {
                     const isActive = slot?.isAvailable ?? false;
 
                     return (
-                      <div key={index} className="flex items-center gap-4 p-4 border rounded-lg">
+                      <div key={index} className="flex items-center gap-4 p-4 border rounded-lg flex-wrap">
                         <div className="w-28">
                           <p className="font-medium text-foreground">{day}</p>
                         </div>
@@ -411,21 +417,36 @@ const TherapistDashboard = () => {
                           onCheckedChange={() => toggleDay(index)}
                         />
                         {isActive && (
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="time"
-                              value={slot?.startTime || '09:00'}
-                              onChange={e => updateDayTime(index, 'startTime', e.target.value)}
-                              className="w-32"
-                            />
-                            <span className="text-muted-foreground">to</span>
-                            <Input
-                              type="time"
-                              value={slot?.endTime || '18:00'}
-                              onChange={e => updateDayTime(index, 'endTime', e.target.value)}
-                              className="w-32"
-                            />
-                          </div>
+                          <>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="time"
+                                value={slot?.startTime || '09:00'}
+                                onChange={e => updateDayTime(index, 'startTime', e.target.value)}
+                                className="w-32"
+                              />
+                              <span className="text-muted-foreground">to</span>
+                              <Input
+                                type="time"
+                                value={slot?.endTime || '18:00'}
+                                onChange={e => updateDayTime(index, 'endTime', e.target.value)}
+                                className="w-32"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2 ml-auto">
+                              <label className="text-xs text-muted-foreground">Max sessions:</label>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={20}
+                                placeholder="Default"
+                                value={slot?.maxSessionsThisDay ?? ''}
+                                onChange={e => updateDayMaxSessions(index, e.target.value === '' ? null : parseInt(e.target.value))}
+                                className="w-24 text-center"
+                                title="Leave empty to use the default daily limit below"
+                              />
+                            </div>
+                          </>
                         )}
                         {!isActive && <span className="text-sm text-muted-foreground">Not available</span>}
                       </div>
@@ -433,12 +454,12 @@ const TherapistDashboard = () => {
                   })}
                 </div>
 
-                {/* Max Sessions Per Day */}
-                <div className="mt-6 p-4 border rounded-lg">
+                {/* Max Sessions Per Day — DEFAULT (used when per-day not set) */}
+                <div className="mt-6 p-4 border rounded-lg bg-muted/30">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-foreground">Max Sessions Per Day</p>
-                      <p className="text-xs text-muted-foreground">Limit the number of sessions clients can book with you per day</p>
+                      <p className="font-medium text-foreground">Default Max Sessions Per Day</p>
+                      <p className="text-xs text-muted-foreground">Used for any day where you didn't set a per-day limit above</p>
                     </div>
                     <Input
                       type="number"
