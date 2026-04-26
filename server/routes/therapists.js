@@ -32,12 +32,35 @@ router.get('/', async (req, res) => {
 
     const therapists = await Therapist.find(query).select('-password');
 
-    // Convert pricing Map to plain objects
+    // Compute today's booked count for each therapist to flag isFullToday
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const therapistIds = therapists.map(t => t._id);
+    const bookedAgg = await Session.aggregate([
+      {
+        $match: {
+          therapistId: { $in: therapistIds },
+          date: { $gte: todayStart, $lte: todayEnd },
+          status: { $in: ['scheduled', 'completed'] }
+        }
+      },
+      { $group: { _id: '$therapistId', count: { $sum: 1 } } }
+    ]);
+    const bookedMap = new Map(bookedAgg.map(b => [String(b._id), b.count]));
+
+    // Convert pricing Map to plain objects + add isFullToday flag
     const result = therapists.map(t => {
       const obj = t.toObject();
       if (obj.pricing instanceof Map) {
         obj.pricing = Object.fromEntries(obj.pricing);
       }
+      const todayBooked = bookedMap.get(String(t._id)) || 0;
+      const maxPerDay = obj.maxSessionsPerDay || 8;
+      obj.todayBookedCount = todayBooked;
+      obj.isFullToday = todayBooked >= maxPerDay;
       return obj;
     });
 
@@ -271,11 +294,26 @@ router.get('/dashboard/stats', protect, therapistOnly, async (req, res) => {
       createdAt: { $gte: sixMonthsAgo }
     });
 
+    // Get therapist's commission percentage
+    const therapist = await Therapist.findById(req.userId).select('commissionPercent');
+    const commissionPct = therapist?.commissionPercent ?? 60;
+
     const monthlyEarnings = {};
     monthlyPayments.forEach(p => {
       const key = `${p.createdAt.getFullYear()}-${String(p.createdAt.getMonth() + 1).padStart(2, '0')}`;
       monthlyEarnings[key] = (monthlyEarnings[key] || 0) + p.amount;
     });
+
+    // Build per-month commission split (synced with admin earnings view)
+    const monthlyBreakdown = Object.entries(monthlyEarnings).map(([month, total]) => ({
+      month,
+      totalRevenue: total,
+      therapistShare: Math.round(total * commissionPct / 100),
+      ehsaasShare: Math.round(total * (100 - commissionPct) / 100),
+    })).sort((a, b) => b.month.localeCompare(a.month));
+
+    const lifetimeTherapistShare = Math.round(totalEarnings * commissionPct / 100);
+    const lifetimeEhsaasShare = Math.round(totalEarnings * (100 - commissionPct) / 100);
 
     res.json({
       totalSessions: allSessions.length,
@@ -283,7 +321,11 @@ router.get('/dashboard/stats', protect, therapistOnly, async (req, res) => {
       upcomingSessions: upcomingSessions.length,
       totalHours: Math.round(totalHours * 10) / 10,
       totalEarnings,
-      monthlyEarnings
+      lifetimeTherapistShare,
+      lifetimeEhsaasShare,
+      commissionPercent: commissionPct,
+      monthlyEarnings,
+      monthlyBreakdown,
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -294,11 +336,16 @@ router.get('/dashboard/stats', protect, therapistOnly, async (req, res) => {
 router.put('/dashboard/sessions/:sessionId/status', protect, therapistOnly, async (req, res) => {
   try {
     const { status } = req.body;
+    if (!['completed', 'no-show', 'cancelled'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+    const update = { status };
+    if (status === 'no-show') update.noShowEmailSent = true;
     const session = await Session.findOneAndUpdate(
       { _id: req.params.sessionId, therapistId: req.userId },
-      { status },
+      update,
       { new: true }
-    ).populate('clientId', 'name email');
+    ).populate('clientId', 'name email').populate('therapistId', 'name');
 
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
@@ -311,8 +358,46 @@ router.put('/dashboard/sessions/:sessionId/status', protect, therapistOnly, asyn
       });
     }
 
+    // No-show: send email + flag check
+    if (status === 'no-show') {
+      try {
+        const { sendEmail } = await import('../utils/email.js');
+        const { checkNoShowFlag } = await import('../utils/clientFlags.js');
+        const Notification = (await import('../models/Notification.js')).default;
+        const sessionDate = new Date(session.date);
+        const dateStr = sessionDate.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
+        const html = `
+          <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #dc2626;">Session marked as no-show</h2>
+            <p>Hi ${session.clientId?.name || 'there'},</p>
+            <p>Your therapist has marked your scheduled session as a no-show:</p>
+            <table style="width:100%; border-collapse:collapse; margin:15px 0;">
+              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Therapist</td><td style="padding:8px; border:1px solid #ddd;">${session.therapistId?.name || ''}</td></tr>
+              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Date</td><td style="padding:8px; border:1px solid #ddd;">${dateStr}</td></tr>
+              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Time</td><td style="padding:8px; border:1px solid #ddd;">${session.startTime}</td></tr>
+            </table>
+            <p>Frequent no-shows may affect future bookings. If something came up, please reach out to <a href="mailto:sessions@ehsaastherapycentre.com">sessions@ehsaastherapycentre.com</a>.</p>
+          </div>`;
+        if (session.clientId?.email) {
+          sendEmail(session.clientId.email, 'Session marked as no-show', html).catch(e => console.error('[NOSHOW]', e.message));
+        }
+        Notification.notify(session.clientId._id, 'client', 'no_show',
+          'Session missed',
+          `Your session with ${session.therapistId?.name || 'your therapist'} was marked as no-show.`,
+          '/client-dashboard?tab=past'
+        ).catch(() => {});
+        checkNoShowFlag(session.clientId._id).catch(e => console.error('[FLAG]', e));
+      } catch (e) { console.error('[NOSHOW MANUAL]', e.message); }
+    } else if (status === 'cancelled') {
+      try {
+        const { checkCancellationFlag } = await import('../utils/clientFlags.js');
+        checkCancellationFlag(session.clientId._id).catch(() => {});
+      } catch {}
+    }
+
     res.json(session);
   } catch (error) {
+    console.error('Set status error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

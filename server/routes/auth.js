@@ -351,6 +351,31 @@ router.get('/me', protect, async (req, res) => {
   res.json({ user: req.user, role: req.userRole });
 });
 
+// PUT /api/auth/client/profile — update client profile (phone, therapy prefs, emergency contact)
+router.put('/client/profile', protect, async (req, res) => {
+  try {
+    if (req.userRole !== 'client') return res.status(403).json({ message: 'Client only' });
+    const { name, phone, therapyPreferences, emergencyContact } = req.body;
+    const update = {};
+    if (typeof name === 'string' && name.trim()) update.name = name.trim();
+    if (typeof phone === 'string') update.phone = phone.trim();
+    if (therapyPreferences && typeof therapyPreferences === 'object') update.therapyPreferences = therapyPreferences;
+    if (emergencyContact && typeof emergencyContact === 'object') {
+      update.emergencyContact = {
+        name: (emergencyContact.name || '').trim(),
+        phone: (emergencyContact.phone || '').trim(),
+        relationship: (emergencyContact.relationship || '').trim(),
+      };
+    }
+    const client = await Client.findByIdAndUpdate(req.userId, update, { new: true }).select('-password');
+    if (!client) return res.status(404).json({ message: 'Client not found' });
+    res.json({ user: client });
+  } catch (error) {
+    console.error('Client profile update error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // GET /api/auth/referrals/my — client's referrals
 router.get('/referrals/my', protect, async (req, res) => {
   try {

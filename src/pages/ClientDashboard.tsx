@@ -17,7 +17,9 @@ import { ConversationList } from "@/components/ConversationList";
 import { ChatWindow } from "@/components/ChatWindow";
 import { ClientResources } from "@/components/ClientResources";
 import { ClientPrescriptions } from "@/components/ClientPrescriptions";
-import { Pill } from "lucide-react";
+import { ClientProfileTab } from "@/components/ClientProfileTab";
+import { SessionFilterBar, applySessionFilters, buildEntityOptions, defaultFilters } from "@/components/SessionFilterBar";
+import { Pill, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/services/api";
@@ -38,6 +40,8 @@ const ClientDashboard = () => {
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'find-therapist');
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
   const [pastSessions, setPastSessions] = useState<any[]>([]);
+  const [upcomingFilters, setUpcomingFilters] = useState(defaultFilters);
+  const [pastFilters, setPastFilters] = useState(defaultFilters);
   const [therapists, setTherapists] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConcern, setSelectedConcern] = useState('');
@@ -130,6 +134,7 @@ const ClientDashboard = () => {
               <TabsTrigger value="resources"><Library className="w-4 h-4 mr-2" />Resources</TabsTrigger>
               <TabsTrigger value="prescriptions"><Pill className="w-4 h-4 mr-2" />Prescriptions</TabsTrigger>
               <TabsTrigger value="messages"><MessageCircle className="w-4 h-4 mr-2" />{t('dashboard.messages')}</TabsTrigger>
+              <TabsTrigger value="profile"><UserIcon className="w-4 h-4 mr-2" />Profile</TabsTrigger>
             </TabsList>
 
             {/* ========== FIND THERAPIST TAB ========== */}
@@ -187,8 +192,13 @@ const ClientDashboard = () => {
               ) : (
                 <div className="grid lg:grid-cols-2 gap-6">
                   {therapists.map(therapist => (
-                    <Card key={therapist._id} className="p-6 hover:shadow-large transition-all duration-300">
-                      <div className="flex gap-6">
+                    <Card key={therapist._id} className={`p-6 hover:shadow-large transition-all duration-300 relative ${therapist.isFullToday ? 'opacity-60 saturate-50' : ''}`}>
+                      {therapist.isFullToday && (
+                        <Badge className="absolute top-3 right-3 z-10 bg-orange-500/90 text-white border-orange-600">
+                          Slots Filled Today
+                        </Badge>
+                      )}
+                      <div className={`flex gap-6 ${therapist.isFullToday ? 'blur-[1px]' : ''}`}>
                         <div className="flex-shrink-0">
                           <div className="w-24 h-24 rounded-lg bg-gradient-primary flex items-center justify-center overflow-hidden">
                             <img
@@ -275,18 +285,26 @@ const ClientDashboard = () => {
 
             {/* ========== UPCOMING SESSIONS TAB ========== */}
             <TabsContent value="upcoming">
+              <SessionFilterBar
+                filters={upcomingFilters}
+                onChange={setUpcomingFilters}
+                entityType="therapist"
+                entityOptions={buildEntityOptions(upcomingSessions, 'therapist')}
+              />
               <Card className="p-6">
                 <h2 className="text-xl font-semibold text-foreground mb-4">Upcoming Sessions</h2>
-                {upcomingSessions.length === 0 ? (
+                {(() => {
+                  const filtered = applySessionFilters(upcomingSessions, upcomingFilters, 'therapist');
+                  return filtered.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-muted-foreground mb-4">No upcoming sessions</p>
+                    <p className="text-muted-foreground mb-4">No upcoming sessions match filters</p>
                     <Button onClick={() => setActiveTab('find-therapist')}>
                       Find a Therapist
                     </Button>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {upcomingSessions.map(session => (
+                    {filtered.map(session => (
                       <div key={session._id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
@@ -350,19 +368,28 @@ const ClientDashboard = () => {
                       </div>
                     ))}
                   </div>
-                )}
+                  );
+                })()}
               </Card>
             </TabsContent>
 
             {/* ========== PAST SESSIONS TAB ========== */}
             <TabsContent value="past">
+              <SessionFilterBar
+                filters={pastFilters}
+                onChange={setPastFilters}
+                entityType="therapist"
+                entityOptions={buildEntityOptions(pastSessions, 'therapist')}
+              />
               <Card className="p-6">
                 <h2 className="text-xl font-semibold text-foreground mb-4">Past Sessions</h2>
-                {pastSessions.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-12">No past sessions yet</p>
+                {(() => {
+                  const filtered = applySessionFilters(pastSessions, pastFilters, 'therapist');
+                  return filtered.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-12">No past sessions match filters</p>
                 ) : (
                   <div className="space-y-3">
-                    {pastSessions.map(session => (
+                    {filtered.map(session => (
                       <div key={session._id} className="flex items-center justify-between p-4 bg-muted/20 rounded-lg">
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
@@ -399,7 +426,8 @@ const ClientDashboard = () => {
                       </div>
                     ))}
                   </div>
-                )}
+                  );
+                })()}
               </Card>
             </TabsContent>
 
@@ -433,6 +461,11 @@ const ClientDashboard = () => {
                   </div>
                 </div>
               </Card>
+            </TabsContent>
+
+            {/* ========== PROFILE TAB ========== */}
+            <TabsContent value="profile">
+              <ClientProfileTab />
             </TabsContent>
           </Tabs>
         </div>

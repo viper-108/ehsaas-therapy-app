@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import Navigation from "@/components/Navigation";
 import { AnalyticsCharts } from "@/components/AnalyticsCharts";
+import { SessionsListWithFilters } from "@/components/SessionsListWithFilters";
+import { AdminReviewModeration } from "@/components/AdminReviewModeration";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
@@ -457,34 +459,7 @@ const AdminDashboard = () => {
 
               {/* ========== ALL SESSIONS ========== */}
               <TabsContent value="sessions">
-                <h2 className="text-xl font-semibold text-foreground mb-4">All Sessions ({allSessions.length})</h2>
-                {allSessions.length === 0 ? (
-                  <Card className="p-12 text-center">
-                    <p className="text-muted-foreground">No sessions yet.</p>
-                  </Card>
-                ) : (
-                  <div className="space-y-3">
-                    {allSessions.map((s: any) => (
-                      <Card key={s._id} className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-foreground">
-                              {s.clientId?.name || 'Unknown Client'} → {s.therapistId?.name || 'Unknown Therapist'}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {new Date(s.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                              {' '}at {s.startTime} • {s.duration} min
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Badge variant="secondary">₹{s.amount}</Badge>
-                            {sessionStatusBadge(s.status)}
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
+                <SessionsListWithFilters sessions={allSessions} role="admin" />
               </TabsContent>
 
               {/* ========== STATISTICS ========== */}
@@ -555,32 +530,35 @@ const AdminDashboard = () => {
 
               {/* ========== REVIEWS ========== */}
               <TabsContent value="reviews">
-                <h2 className="text-xl font-semibold text-foreground mb-4">All Reviews ({allReviews.length})</h2>
-                {allReviews.length === 0 ? (
-                  <Card className="p-12 text-center"><p className="text-muted-foreground">No reviews yet.</p></Card>
-                ) : (
-                  <div className="space-y-3">
-                    {allReviews.map((r: any) => (
-                      <Card key={r._id} className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="font-medium text-foreground">{r.clientId?.name || 'Client'} → {r.therapistId?.name || 'Therapist'}</p>
-                            <div className="flex items-center gap-1 my-1">
-                              {[1,2,3,4,5].map(s => (
-                                <Star key={s} className={`w-4 h-4 ${s <= r.rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/20'}`} />
-                              ))}
-                              <span className="text-sm ml-1">{r.rating}/5</span>
+                <AdminReviewModeration />
+                <div className="mt-8">
+                  <h2 className="text-xl font-semibold text-foreground mb-4">All Reviews — Approved ({allReviews.length})</h2>
+                  {allReviews.length === 0 ? (
+                    <Card className="p-12 text-center"><p className="text-muted-foreground">No approved reviews yet.</p></Card>
+                  ) : (
+                    <div className="space-y-3">
+                      {allReviews.map((r: any) => (
+                        <Card key={r._id} className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-medium text-foreground">{r.clientId?.name || 'Client'} → {r.therapistId?.name || (r.reviewType === 'ehsaas' ? 'Ehsaas' : 'Therapist')}</p>
+                              <div className="flex items-center gap-1 my-1">
+                                {[1,2,3,4,5].map(s => (
+                                  <Star key={s} className={`w-4 h-4 ${s <= r.rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/20'}`} />
+                                ))}
+                                <span className="text-sm ml-1">{r.rating}/5</span>
+                              </div>
+                              {r.comment && <p className="text-sm text-muted-foreground">{r.comment}</p>}
                             </div>
-                            {r.comment && <p className="text-sm text-muted-foreground">{r.comment}</p>}
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(r.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
                           </div>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(r.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </TabsContent>
 
               {/* ========== ANALYTICS ========== */}

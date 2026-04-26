@@ -1,58 +1,33 @@
 import { Link } from "react-router-dom";
-import { Star, Heart, Users, Clock, CheckCircle } from "lucide-react";
+import { Star, Heart, Users, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Navigation from "@/components/Navigation";
 import forestBackground from "@/assets/forest-background.jpg";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Home = () => {
+  const { t } = useLanguage();
+
   const services = [
-    {
-      icon: Users,
-      title: "Individual Therapy",
-      description: "One-on-one sessions with licensed psychologists",
-    },
-    {
-      icon: Heart,
-      title: "Couple Therapy",
-      description: "Strengthen your relationship with professional guidance",
-    },
-    {
-      icon: Users,
-      title: "Training",
-      description: "Helping young professionals to bridge the gap between theoretical knowledge and practical skills",
-    },
-    {
-      icon: Clock,
-      title: "Supervision",
-      description: "Enhancing therapist competancy, and professional development",
-    },
+    { icon: Users, title: t('services.individual'), description: t('services.individualDesc') },
+    { icon: Heart, title: t('services.couple'), description: t('services.coupleDesc') },
+    { icon: Users, title: t('services.training'), description: t('services.trainingDesc') },
+    { icon: Clock, title: t('services.supervision'), description: t('services.supervisionDesc') },
   ];
 
   const testimonials = [
-    {
-      name: "PM",
-      text: "EHSAAS helped me through my darkest times. The therapists are incredibly caring and professional.",
-      rating: 5,
-    },
-    {
-      name: "RK",
-      text: "The couple therapy sessions saved my marriage. We learned to communicate better and understand each other.",
-      rating: 5,
-    },
-    {
-      name: "ZS",
-      text: "Priyadarshini is an amazing psychologist. She helped me recoup from anxiety, and patiently heard all my issues without any judgements",
-      rating: 5,
-    },
+    { name: "PM", text: "EHSAAS helped me through my darkest times. The therapists are incredibly caring and professional.", rating: 5 },
+    { name: "RK", text: "The couple therapy sessions saved my marriage. We learned to communicate better and understand each other.", rating: 5 },
+    { name: "ZS", text: "Priyadarshini is an amazing psychologist. She helped me recoup from anxiety, and patiently heard all my issues without any judgements", rating: 5 },
   ];
 
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      
+
       {/* Hero Section */}
-      <div 
+      <div
         className="relative min-h-screen flex items-center justify-center"
         style={{
           backgroundImage: `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${forestBackground})`,
@@ -63,17 +38,17 @@ const Home = () => {
       >
         <div className="text-center text-white max-w-4xl mx-auto px-4">
           <h1 className="text-5xl md:text-7xl font-bold mb-6">
-            Feel the healing within
+            {t('home.heroTitle')}
           </h1>
           <p className="text-xl md:text-2xl mb-8 text-white/90">
-            Compassionate, inclusive and accessible therapy for your mental health journey
+            {t('home.heroSubtitle')}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button asChild size="lg" className="text-lg px-8 py-6">
-              <Link to="/services">Explore Our Services</Link>
+              <Link to="/services">{t('home.exploreServices')}</Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="text-lg px-8 py-6 bg-white/10 border-white text-white hover:bg-white hover:text-primary">
-              <Link to="/team">Meet Our Team</Link>
+              <Link to="/team">{t('home.meetTeam')}</Link>
             </Button>
           </div>
         </div>
@@ -83,12 +58,12 @@ const Home = () => {
       <div className="py-20 bg-background">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-foreground mb-4">Our Services</h2>
+            <h2 className="text-4xl font-bold text-foreground mb-4">{t('home.ourServices')}</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Comprehensive mental health services designed to support your journey towards wellness
+              {t('home.servicesIntro')}
             </p>
           </div>
-          
+
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {services.map((service, index) => (
               <Card key={index} className="text-center p-6 hover:shadow-large transition-all duration-300 hover:-translate-y-2">
@@ -100,10 +75,10 @@ const Home = () => {
               </Card>
             ))}
           </div>
-          
+
           <div className="text-center mt-12">
             <Button asChild size="lg">
-              <Link to="/services">View All Services</Link>
+              <Link to="/services">{t('home.viewAllServices')}</Link>
             </Button>
           </div>
         </div>
@@ -113,12 +88,12 @@ const Home = () => {
       <div className="py-20 bg-muted/30">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-foreground mb-4">What Our Clients Say</h2>
+            <h2 className="text-4xl font-bold text-foreground mb-4">{t('home.testimonials')}</h2>
             <p className="text-lg text-muted-foreground">
-              Real stories from people who found healing with EHSAAS
+              {t('home.testimonialsIntro')}
             </p>
           </div>
-          
+
           <div className="grid md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, index) => (
               <Card key={index} className="p-6">
@@ -141,17 +116,14 @@ const Home = () => {
       <div className="py-20 bg-gradient-hero">
         <div className="max-w-4xl mx-auto text-center px-4">
           <h2 className="text-4xl font-bold text-white mb-6">
-            Ready to Begin Your Healing Journey?
+            {t('home.ctaTitle')}
           </h2>
           <p className="text-xl text-white/90 mb-8">
-            Take the first step towards better mental health with our professional therapists
+            {t('home.ctaSubtitle')}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button asChild size="lg" variant="secondary" className="text-lg px-8 py-6">
-              <Link to="/team">Book a Session</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg" className="text-lg px-8 py-6 bg-white/10 border-white text-white hover:bg-white hover:text-primary">
-              <Link to="/contact">Contact Us</Link>
+              <Link to="/team">{t('home.bookSession')}</Link>
             </Button>
           </div>
         </div>
@@ -163,27 +135,27 @@ const Home = () => {
           <div className="grid md:grid-cols-3 gap-8">
             <div>
               <h3 className="text-xl font-bold mb-4">EHSAAS</h3>
-              <p className="text-white/80">Feel the healing within</p>
+              <p className="text-white/80">{t('footer.tagline')}</p>
             </div>
             <div>
-              <h4 className="font-semibold mb-4">Quick Links</h4>
+              <h4 className="font-semibold mb-4">{t('footer.quickLinks')}</h4>
               <div className="space-y-2">
-                <Link to="/about" className="block text-white/80 hover:text-white">About Us</Link>
-                <Link to="/services" className="block text-white/80 hover:text-white">Services</Link>
-                <Link to="/team" className="block text-white/80 hover:text-white">Our Team</Link>
+                <Link to="/about" className="block text-white/80 hover:text-white">{t('footer.aboutUs')}</Link>
+                <Link to="/services" className="block text-white/80 hover:text-white">{t('nav.services')}</Link>
+                <Link to="/team" className="block text-white/80 hover:text-white">{t('footer.ourTeam')}</Link>
               </div>
             </div>
             <div>
-              <h4 className="font-semibold mb-4">Support</h4>
+              <h4 className="font-semibold mb-4">{t('footer.support')}</h4>
               <div className="space-y-2">
-                <Link to="/faqs" className="block text-white/80 hover:text-white">FAQs</Link>
-                <Link to="/contact" className="block text-white/80 hover:text-white">Contact Us</Link>
-                <Link to="/blogs" className="block text-white/80 hover:text-white">Blogs</Link>
+                <Link to="/faqs" className="block text-white/80 hover:text-white">{t('footer.faqs')}</Link>
+                <Link to="/contact" className="block text-white/80 hover:text-white">{t('footer.contactUs')}</Link>
+                <Link to="/blogs" className="block text-white/80 hover:text-white">{t('footer.blogs')}</Link>
               </div>
             </div>
           </div>
           <div className="border-t border-white/20 mt-8 pt-8 text-center text-white/60">
-            <p>&copy; 2024 EHSAAS. All rights reserved.</p>
+            <p>{t('footer.copyright')}</p>
           </div>
         </div>
       </footer>

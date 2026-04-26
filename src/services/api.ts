@@ -54,6 +54,13 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  async updateClientProfile(body: any) {
+    const res = await fetch(`${API_BASE}/auth/client/profile`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+
   // Therapists (public)
   async getTherapists(params?: { specialization?: string; language?: string; search?: string }) {
     const query = new URLSearchParams(params as any).toString();
@@ -338,6 +345,37 @@ class ApiService {
 
   async getAllReviews() {
     const res = await fetch(`${API_BASE}/admin/all-reviews`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+
+  async createEhsaasReview(rating: number, comment: string) {
+    const res = await fetch(`${API_BASE}/reviews/ehsaas`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ rating, comment })
+    });
+    return this.handleResponse(res);
+  }
+
+  async getEhsaasReviews() {
+    const res = await fetch(`${API_BASE}/reviews/ehsaas`, { headers: this.getHeaders(false) });
+    return this.handleResponse(res);
+  }
+
+  async getPendingReviews() {
+    const res = await fetch(`${API_BASE}/reviews/admin/pending`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+
+  async approveReview(id: string) {
+    const res = await fetch(`${API_BASE}/reviews/admin/${id}/approve`, {
+      method: 'PUT', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+
+  async rejectReview(id: string, reason?: string) {
+    const res = await fetch(`${API_BASE}/reviews/admin/${id}/reject`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason: reason || '' })
+    });
     return this.handleResponse(res);
   }
 

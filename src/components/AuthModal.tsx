@@ -296,37 +296,7 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
                         value={clientForm.password} onChange={e => setClientForm(p => ({ ...p, password: e.target.value }))} />
                     </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-foreground mb-1 block">Phone</label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input type="tel" placeholder="+91-XXXXXXXXXX" className="pl-10"
-                        value={clientForm.phone} onChange={e => setClientForm(p => ({ ...p, phone: e.target.value }))} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-foreground mb-2 block">What kind of therapy are you looking for?</label>
-                    <div className="flex flex-wrap gap-2">
-                      {THERAPY_TYPES.map(type => (
-                        <Badge
-                          key={type}
-                          variant={clientForm.concerns.includes(type) ? "default" : "outline"}
-                          className="cursor-pointer transition-all"
-                          onClick={() => toggleConcern(type)}
-                        >
-                          {type}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-foreground mb-1 block">Tell us more about what you need (optional)</label>
-                    <Textarea placeholder="Describe what you're going through or what kind of support you're looking for..."
-                      rows={3} value={clientForm.description}
-                      onChange={e => setClientForm(p => ({ ...p, description: e.target.value }))} />
-                  </div>
+                  <p className="text-xs text-muted-foreground italic">You can complete the rest of your profile (phone, therapy preferences, emergency contact) after sign up.</p>
                 </div>
 
                 {/* Client Terms & Conditions */}
@@ -456,51 +426,7 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
                         value={therapistForm.password} onChange={e => setTherapistForm(p => ({ ...p, password: e.target.value }))} />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-sm font-medium text-foreground mb-1 block">Title</label>
-                      <Input placeholder="e.g. Psychologist"
-                        value={therapistForm.title} onChange={e => setTherapistForm(p => ({ ...p, title: e.target.value }))} />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-foreground mb-1 block">Experience (years)</label>
-                      <Input type="number" placeholder="e.g. 3"
-                        value={therapistForm.experience} onChange={e => setTherapistForm(p => ({ ...p, experience: e.target.value }))} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-foreground mb-1 block">Phone</label>
-                    <Input type="tel" placeholder="+91-XXXXXXXXXX"
-                      value={therapistForm.phone} onChange={e => setTherapistForm(p => ({ ...p, phone: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-foreground mb-1 block">Specializations (comma separated)</label>
-                    <Input placeholder="e.g. Anxiety, Depression, Trauma"
-                      value={therapistForm.specializations} onChange={e => setTherapistForm(p => ({ ...p, specializations: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-foreground mb-1 block">Languages (comma separated)</label>
-                    <Input placeholder="e.g. English, Hindi, Marathi"
-                      value={therapistForm.languages} onChange={e => setTherapistForm(p => ({ ...p, languages: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-foreground mb-1 block">Bio</label>
-                    <Textarea placeholder="Tell clients about yourself and your approach..."
-                      rows={3} value={therapistForm.bio}
-                      onChange={e => setTherapistForm(p => ({ ...p, bio: e.target.value }))} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-sm font-medium text-foreground mb-1 block">Price (30 min) ₹</label>
-                      <Input type="number" placeholder="600"
-                        value={therapistForm.pricing30} onChange={e => setTherapistForm(p => ({ ...p, pricing30: e.target.value }))} />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-foreground mb-1 block">Price (50 min) ₹</label>
-                      <Input type="number" placeholder="900"
-                        value={therapistForm.pricing50} onChange={e => setTherapistForm(p => ({ ...p, pricing50: e.target.value }))} />
-                    </div>
-                  </div>
+                  <p className="text-xs text-muted-foreground italic">You'll set up your title, specializations, languages, pricing, bio and availability after signing up. Profile must be approved by admin before going live.</p>
                 </div>
 
                 <Button onClick={handleTherapistSignup} disabled={loading} className="w-full" size="lg">

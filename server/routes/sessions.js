@@ -305,19 +305,50 @@ router.put('/:id/status', protect, async (req, res) => {
     if (!['completed', 'no-show', 'cancelled'].includes(status)) {
       return res.status(400).json({ message: 'Invalid status' });
     }
-    const session = await Session.findById(req.params.id);
+    const session = await Session.findById(req.params.id)
+      .populate('clientId', 'name email')
+      .populate('therapistId', 'name email');
     if (!session) return res.status(404).json({ message: 'Session not found' });
-    if (req.userRole === 'therapist' && String(session.therapistId) !== String(req.userId)) {
+    if (req.userRole === 'therapist' && String(session.therapistId._id) !== String(req.userId)) {
       return res.status(403).json({ message: 'Not your session' });
     }
     session.status = status;
+    if (status === 'no-show') session.noShowEmailSent = true;
     await session.save();
 
     // Trigger appropriate flag check
     if (status === 'no-show') {
-      import('../utils/clientFlags.js').then(m => m.checkNoShowFlag(session.clientId).catch(e => console.error('[FLAG]', e)));
+      import('../utils/clientFlags.js').then(m => m.checkNoShowFlag(session.clientId._id).catch(e => console.error('[FLAG]', e)));
+
+      // Send no-show email to client
+      try {
+        const { sendEmail } = await import('../utils/email.js');
+        const Notification = (await import('../models/Notification.js')).default;
+        const sessionDate = new Date(session.date);
+        const dateStr = sessionDate.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
+        const html = `
+          <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #dc2626;">Session marked as no-show</h2>
+            <p>Hi ${session.clientId?.name || 'there'},</p>
+            <p>Your therapist has marked your scheduled session as a no-show:</p>
+            <table style="width:100%; border-collapse:collapse; margin:15px 0;">
+              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Therapist</td><td style="padding:8px; border:1px solid #ddd;">${session.therapistId?.name || ''}</td></tr>
+              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Date</td><td style="padding:8px; border:1px solid #ddd;">${dateStr}</td></tr>
+              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Time</td><td style="padding:8px; border:1px solid #ddd;">${session.startTime}</td></tr>
+            </table>
+            <p>Frequent no-shows may affect future booking. If something came up, please reach out to <a href="mailto:sessions@ehsaastherapycentre.com">sessions@ehsaastherapycentre.com</a>.</p>
+          </div>`;
+        if (session.clientId?.email) {
+          sendEmail(session.clientId.email, 'Session marked as no-show', html).catch(e => console.error('[NOSHOW MANUAL]', e.message));
+        }
+        Notification.notify(session.clientId._id, 'client', 'no_show',
+          'Session missed',
+          `Your therapist marked your session with ${session.therapistId?.name || 'them'} as a no-show.`,
+          '/client-dashboard?tab=past'
+        ).catch(() => {});
+      } catch (e) { console.error('[NOSHOW MANUAL] failed:', e.message); }
     } else if (status === 'cancelled') {
-      import('../utils/clientFlags.js').then(m => m.checkCancellationFlag(session.clientId).catch(e => console.error('[FLAG]', e)));
+      import('../utils/clientFlags.js').then(m => m.checkCancellationFlag(session.clientId._id).catch(e => console.error('[FLAG]', e)));
     }
 
     res.json(session);

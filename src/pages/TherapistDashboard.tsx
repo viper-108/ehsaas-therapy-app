@@ -20,6 +20,8 @@ import { ChatWindow } from "@/components/ChatWindow";
 import { SupervisionRequestForm } from "@/components/SupervisionRequestForm";
 import { TherapistResources } from "@/components/TherapistResources";
 import { PsychiatristPrescriptions } from "@/components/PsychiatristPrescriptions";
+import { SessionFilterBar, applySessionFilters, buildEntityOptions, defaultFilters } from "@/components/SessionFilterBar";
+import { TherapistEarningsTab } from "@/components/TherapistEarningsTab";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/services/api";
@@ -36,6 +38,8 @@ const TherapistDashboard = () => {
   const [stats, setStats] = useState<any>(null);
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
   const [pastSessions, setPastSessions] = useState<any[]>([]);
+  const [upcomingFilters, setUpcomingFilters] = useState(defaultFilters);
+  const [pastFilters, setPastFilters] = useState(defaultFilters);
   const [availability, setAvailability] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview');
   const [notesSessionId, setNotesSessionId] = useState<string | null>(null);
@@ -166,6 +170,7 @@ const TherapistDashboard = () => {
                 <TabsTrigger value="prescriptions"><FileText className="w-4 h-4 mr-2" />Prescriptions</TabsTrigger>
               )}
               <TabsTrigger value="messages"><MessageCircle className="w-4 h-4 mr-2" />{t('dashboard.messages')}</TabsTrigger>
+              <TabsTrigger value="earnings"><DollarSign className="w-4 h-4 mr-2" />{t('dashboard.earnings')}</TabsTrigger>
             </TabsList>
 
             {/* ========== OVERVIEW TAB ========== */}
@@ -276,13 +281,21 @@ const TherapistDashboard = () => {
 
             {/* ========== UPCOMING SESSIONS TAB ========== */}
             <TabsContent value="upcoming">
+              <SessionFilterBar
+                filters={upcomingFilters}
+                onChange={setUpcomingFilters}
+                entityType="client"
+                entityOptions={buildEntityOptions(upcomingSessions, 'client')}
+              />
               <Card className="p-6">
                 <h2 className="text-xl font-semibold text-foreground mb-4">Upcoming Sessions</h2>
-                {upcomingSessions.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-12">No upcoming sessions scheduled</p>
-                ) : (
+                {(() => {
+                  const filtered = applySessionFilters(upcomingSessions, upcomingFilters, 'client');
+                  return filtered.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-12">No upcoming sessions match filters</p>
+                  ) : (
                   <div className="space-y-4">
-                    {upcomingSessions.map(session => (
+                    {filtered.map(session => (
                       <div key={session._id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div>
                           <p className="font-medium text-foreground text-lg">{session.clientId?.name || 'Client'}</p>
@@ -308,6 +321,11 @@ const TherapistDashboard = () => {
                             <Button size="sm" variant="outline" onClick={() => handleStatusUpdate(session._id, 'completed')}>
                               <CheckCircle className="w-4 h-4 mr-1" /> Complete
                             </Button>
+                            <Button size="sm" variant="outline" className="border-orange-500 text-orange-600 hover:bg-orange-50" onClick={() => {
+                              if (window.confirm(`Mark this session as no-show? Client will be emailed.`)) handleStatusUpdate(session._id, 'no-show');
+                            }}>
+                              No Show
+                            </Button>
                             <Button size="sm" variant="destructive" onClick={() => handleStatusUpdate(session._id, 'cancelled')}>
                               <XCircle className="w-4 h-4 mr-1" /> Cancel
                             </Button>
@@ -316,19 +334,28 @@ const TherapistDashboard = () => {
                       </div>
                     ))}
                   </div>
-                )}
+                  );
+                })()}
               </Card>
             </TabsContent>
 
             {/* ========== PAST SESSIONS TAB ========== */}
             <TabsContent value="past">
+              <SessionFilterBar
+                filters={pastFilters}
+                onChange={setPastFilters}
+                entityType="client"
+                entityOptions={buildEntityOptions(pastSessions, 'client')}
+              />
               <Card className="p-6">
                 <h2 className="text-xl font-semibold text-foreground mb-4">Past Sessions</h2>
-                {pastSessions.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-12">No past sessions yet</p>
+                {(() => {
+                  const filtered = applySessionFilters(pastSessions, pastFilters, 'client');
+                  return filtered.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-12">No past sessions match filters</p>
                 ) : (
                   <div className="space-y-3">
-                    {pastSessions.map(session => (
+                    {filtered.map(session => (
                       <div key={session._id} className="flex items-center justify-between p-4 bg-muted/20 rounded-lg">
                         <div>
                           <p className="font-medium text-foreground">{session.clientId?.name || 'Client'}</p>
@@ -360,7 +387,8 @@ const TherapistDashboard = () => {
                       </div>
                     ))}
                   </div>
-                )}
+                );
+                })()}
               </Card>
             </TabsContent>
 
@@ -570,6 +598,11 @@ const TherapistDashboard = () => {
                   </div>
                 </div>
               </Card>
+            </TabsContent>
+
+            {/* ========== EARNINGS TAB ========== */}
+            <TabsContent value="earnings">
+              <TherapistEarningsTab />
             </TabsContent>
           </Tabs>
         </div>

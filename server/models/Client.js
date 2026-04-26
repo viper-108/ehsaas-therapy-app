@@ -12,6 +12,12 @@ const clientSchema = new mongoose.Schema({
     preferredLanguage: { type: String, default: 'English' },
     description: { type: String, default: '' }  // free-text description of needs
   },
+  // Emergency contact (used in case of crisis)
+  emergencyContact: {
+    name: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    relationship: { type: String, default: '' },
+  },
   stripeCustomerId: { type: String, default: '' },
   referralCode: { type: String, unique: true, sparse: true },
   // Behaviour tracking - auto-flagged by system
