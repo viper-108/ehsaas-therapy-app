@@ -3,8 +3,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import Navigation from "@/components/Navigation";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Services = () => {
+  const { t } = useLanguage();
   const clientServices = [
     {
       icon: Users,
@@ -70,9 +72,9 @@ const Services = () => {
         <div className="max-w-7xl mx-auto px-4">
           {/* Header */}
           <div className="text-center mb-16">
-            <h1 className="text-5xl font-bold text-foreground mb-6">Our Services</h1>
+            <h1 className="text-5xl font-bold text-foreground mb-6">{t('servicesPage.title')}</h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Comprehensive mental health services designed to support individuals, couples, organizations, and fellow therapists
+              {t('servicesPage.subtitle')}
             </p>
           </div>
 

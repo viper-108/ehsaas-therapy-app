@@ -3,8 +3,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Navigation from "@/components/Navigation";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Blogs = () => {
+  const { t } = useLanguage();
   const blogs = [
     {
       id: 1,
@@ -75,9 +77,9 @@ By working together, we can create a world where seeking mental health support i
         <div className="max-w-6xl mx-auto px-4">
           {/* Header */}
           <div className="text-center mb-16">
-            <h1 className="text-5xl font-bold text-foreground mb-6">Mental Health Insights</h1>
+            <h1 className="text-5xl font-bold text-foreground mb-6">{t('blogsPage.title')}</h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Expert insights, practical tips, and inspiring stories to support your mental health journey
+              {t('blogsPage.subtitle')}
             </p>
           </div>
 

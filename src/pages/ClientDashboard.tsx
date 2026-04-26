@@ -19,6 +19,7 @@ import { ClientResources } from "@/components/ClientResources";
 import { ClientPrescriptions } from "@/components/ClientPrescriptions";
 import { ClientProfileTab } from "@/components/ClientProfileTab";
 import { SessionFilterBar, applySessionFilters, buildEntityOptions, defaultFilters } from "@/components/SessionFilterBar";
+import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { Pill, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -126,16 +127,24 @@ const ClientDashboard = () => {
             </Button>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-6 flex-wrap">
-              <TabsTrigger value="find-therapist"><Search className="w-4 h-4 mr-2" />{t('common.search')}</TabsTrigger>
-              <TabsTrigger value="upcoming"><Calendar className="w-4 h-4 mr-2" />{t('dashboard.upcoming')}</TabsTrigger>
-              <TabsTrigger value="past"><Clock className="w-4 h-4 mr-2" />{t('dashboard.past')}</TabsTrigger>
-              <TabsTrigger value="resources"><Library className="w-4 h-4 mr-2" />Resources</TabsTrigger>
-              <TabsTrigger value="prescriptions"><Pill className="w-4 h-4 mr-2" />Prescriptions</TabsTrigger>
-              <TabsTrigger value="messages"><MessageCircle className="w-4 h-4 mr-2" />{t('dashboard.messages')}</TabsTrigger>
-              <TabsTrigger value="profile"><UserIcon className="w-4 h-4 mr-2" />Profile</TabsTrigger>
-            </TabsList>
+          {(() => {
+            const sidebarItems: SidebarItem[] = [
+              { value: 'find-therapist', label: t('common.search'), icon: Search, group: 'Discover' },
+              { value: 'resources', label: 'Resources', icon: Library, group: 'Discover' },
+              { value: 'upcoming', label: t('dashboard.upcoming'), icon: Calendar, group: 'Sessions' },
+              { value: 'past', label: t('dashboard.past'), icon: Clock, group: 'Sessions' },
+              { value: 'prescriptions', label: 'Prescriptions', icon: Pill, group: 'Health' },
+              { value: 'messages', label: t('dashboard.messages'), icon: MessageCircle, group: 'Health' },
+              { value: 'profile', label: 'Profile', icon: UserIcon, group: 'Account' },
+            ];
+            return (
+              <div className="flex gap-6">
+                <DashboardSidebar items={sidebarItems} activeValue={activeTab} onChange={setActiveTab} />
+                <div className="flex-1 min-w-0">
+                  <Tabs value={activeTab} onValueChange={setActiveTab}>
+                    <TabsList className="hidden">
+                      {sidebarItems.map(i => <TabsTrigger key={i.value} value={i.value}>{i.label}</TabsTrigger>)}
+                    </TabsList>
 
             {/* ========== FIND THERAPIST TAB ========== */}
             <TabsContent value="find-therapist">
@@ -468,6 +477,10 @@ const ClientDashboard = () => {
               <ClientProfileTab />
             </TabsContent>
           </Tabs>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

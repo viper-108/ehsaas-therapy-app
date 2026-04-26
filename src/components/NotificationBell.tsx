@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, Check, CheckCheck } from "lucide-react";
+import { Bell, Check, CheckCheck, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export const NotificationBell = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [count, setCount] = useState(0);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -95,7 +97,12 @@ export const NotificationBell = () => {
               notifications.slice(0, 10).map(n => (
                 <div
                   key={n._id}
-                  onClick={() => { if (!n.read) markRead(n._id); if (n.link) window.location.href = n.link; }}
+                  onClick={() => {
+                    if (!n.read) markRead(n._id);
+                    setIsOpen(false);
+                    if (n.link) navigate(n.link);
+                    else navigate('/notifications');
+                  }}
                   className={`p-3 border-b cursor-pointer hover:bg-muted/50 transition-colors ${!n.read ? 'bg-primary/5' : ''}`}
                 >
                   <div className="flex items-start justify-between">
@@ -112,6 +119,12 @@ export const NotificationBell = () => {
               ))
             )}
           </div>
+          <button
+            onClick={() => { setIsOpen(false); navigate('/notifications'); }}
+            className="w-full p-3 border-t text-sm font-medium text-primary hover:bg-muted/40 transition-colors flex items-center justify-center gap-1"
+          >
+            View all notifications <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>

@@ -22,6 +22,7 @@ import { TherapistResources } from "@/components/TherapistResources";
 import { PsychiatristPrescriptions } from "@/components/PsychiatristPrescriptions";
 import { SessionFilterBar, applySessionFilters, buildEntityOptions, defaultFilters } from "@/components/SessionFilterBar";
 import { TherapistEarningsTab } from "@/components/TherapistEarningsTab";
+import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/services/api";
@@ -153,7 +154,7 @@ const TherapistDashboard = () => {
       <div className="py-8">
         <div className="max-w-7xl mx-auto px-4">
           {/* Header */}
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex justify-between items-center mb-6">
             <div>
               <h1 className="text-3xl font-bold text-foreground">{t('dashboard.welcome')}, {user.name}</h1>
               <p className="text-muted-foreground mt-1">Therapist Dashboard</p>
@@ -163,21 +164,28 @@ const TherapistDashboard = () => {
             </Button>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-6 flex-wrap">
-              <TabsTrigger value="overview"><BarChart3 className="w-4 h-4 mr-2" />{t('dashboard.overview')}</TabsTrigger>
-              <TabsTrigger value="upcoming"><Calendar className="w-4 h-4 mr-2" />{t('dashboard.upcoming')}</TabsTrigger>
-              <TabsTrigger value="past"><Clock className="w-4 h-4 mr-2" />{t('dashboard.past')}</TabsTrigger>
-              <TabsTrigger value="availability"><Settings className="w-4 h-4 mr-2" />{t('dashboard.availability')}</TabsTrigger>
-              <TabsTrigger value="intro-calls"><Phone className="w-4 h-4 mr-2" />{t('dashboard.introCalls')}{introCalls.filter(c => c.status === 'pending').length > 0 && <Badge className="ml-1 bg-warm text-white text-xs px-1">{introCalls.filter(c => c.status === 'pending').length}</Badge>}</TabsTrigger>
-              <TabsTrigger value="supervision"><BookOpen className="w-4 h-4 mr-2" />{t('dashboard.supervision')}</TabsTrigger>
-              <TabsTrigger value="resources"><Library className="w-4 h-4 mr-2" />Resources</TabsTrigger>
-              {user?.therapistType === 'psychiatrist' && (
-                <TabsTrigger value="prescriptions"><FileText className="w-4 h-4 mr-2" />Prescriptions</TabsTrigger>
-              )}
-              <TabsTrigger value="messages"><MessageCircle className="w-4 h-4 mr-2" />{t('dashboard.messages')}</TabsTrigger>
-              <TabsTrigger value="earnings"><DollarSign className="w-4 h-4 mr-2" />{t('dashboard.earnings')}</TabsTrigger>
-            </TabsList>
+          {(() => {
+            const pendingIntroCalls = introCalls.filter(c => c.status === 'pending').length;
+            const sidebarItems: SidebarItem[] = [
+              { value: 'overview', label: t('dashboard.overview'), icon: BarChart3, group: 'Overview' },
+              { value: 'earnings', label: t('dashboard.earnings'), icon: DollarSign, group: 'Overview' },
+              { value: 'upcoming', label: t('dashboard.upcoming'), icon: Calendar, group: 'Sessions' },
+              { value: 'past', label: t('dashboard.past'), icon: Clock, group: 'Sessions' },
+              { value: 'availability', label: t('dashboard.availability'), icon: Settings, group: 'Sessions' },
+              { value: 'intro-calls', label: t('dashboard.introCalls'), icon: Phone, badge: pendingIntroCalls || null, group: 'Clients' },
+              { value: 'messages', label: t('dashboard.messages'), icon: MessageCircle, group: 'Clients' },
+              { value: 'resources', label: 'Resources', icon: Library, group: 'Content' },
+              { value: 'supervision', label: t('dashboard.supervision'), icon: BookOpen, group: 'Content' },
+              ...(user?.therapistType === 'psychiatrist' ? [{ value: 'prescriptions', label: 'Prescriptions', icon: FileText, group: 'Content' } as SidebarItem] : []),
+            ];
+            return (
+              <div className="flex gap-6">
+                <DashboardSidebar items={sidebarItems} activeValue={activeTab} onChange={setActiveTab} />
+                <div className="flex-1 min-w-0">
+                  <Tabs value={activeTab} onValueChange={setActiveTab}>
+                    <TabsList className="hidden">
+                      {sidebarItems.map(i => <TabsTrigger key={i.value} value={i.value}>{i.label}</TabsTrigger>)}
+                    </TabsList>
 
             {/* ========== OVERVIEW TAB ========== */}
             <TabsContent value="overview">
@@ -626,6 +634,10 @@ const TherapistDashboard = () => {
               <TherapistEarningsTab />
             </TabsContent>
           </Tabs>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

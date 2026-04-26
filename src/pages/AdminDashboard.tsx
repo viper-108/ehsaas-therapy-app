@@ -19,6 +19,7 @@ import Navigation from "@/components/Navigation";
 import { AnalyticsCharts } from "@/components/AnalyticsCharts";
 import { SessionsListWithFilters } from "@/components/SessionsListWithFilters";
 import { AdminReviewModeration } from "@/components/AdminReviewModeration";
+import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
@@ -213,20 +214,25 @@ const AdminDashboard = () => {
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
           ) : (
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="mb-6">
-                <TabsTrigger value="pending">
-                  <Clock className="w-4 h-4 mr-2" />
-                  Pending ({pending.length})
-                </TabsTrigger>
-                <TabsTrigger value="therapists"><UserCheck className="w-4 h-4 mr-2" />Therapists</TabsTrigger>
-                <TabsTrigger value="clients"><Users className="w-4 h-4 mr-2" />Clients</TabsTrigger>
-                <TabsTrigger value="sessions"><Calendar className="w-4 h-4 mr-2" />Sessions</TabsTrigger>
-                <TabsTrigger value="stats"><BarChart3 className="w-4 h-4 mr-2" />Statistics</TabsTrigger>
-                <TabsTrigger value="reviews"><Star className="w-4 h-4 mr-2" />Reviews</TabsTrigger>
-                <TabsTrigger value="analytics"><TrendingUp className="w-4 h-4 mr-2" />Analytics</TabsTrigger>
-                <TabsTrigger value="monthly"><CalendarDays className="w-4 h-4 mr-2" />Earnings</TabsTrigger>
-              </TabsList>
+            (() => {
+              const sidebarItems: SidebarItem[] = [
+                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: pending.length || null, group: 'Approvals' },
+                { value: 'reviews', label: 'Reviews', icon: Star, group: 'Approvals' },
+                { value: 'therapists', label: 'Therapists', icon: UserCheck, group: 'People' },
+                { value: 'clients', label: 'Clients', icon: Users, group: 'People' },
+                { value: 'sessions', label: 'Sessions', icon: Calendar, group: 'Activity' },
+                { value: 'monthly', label: 'Earnings', icon: CalendarDays, group: 'Activity' },
+                { value: 'stats', label: 'Statistics', icon: BarChart3, group: 'Insights' },
+                { value: 'analytics', label: 'Analytics', icon: TrendingUp, group: 'Insights' },
+              ];
+              return (
+                <div className="flex gap-6">
+                  <DashboardSidebar items={sidebarItems} activeValue={activeTab} onChange={setActiveTab} />
+                  <div className="flex-1 min-w-0">
+                    <Tabs value={activeTab} onValueChange={setActiveTab}>
+                      <TabsList className="hidden">
+                        {sidebarItems.map(i => <TabsTrigger key={i.value} value={i.value}>{i.label}</TabsTrigger>)}
+                      </TabsList>
 
               {/* ========== PENDING REQUESTS ========== */}
               <TabsContent value="pending">
@@ -675,6 +681,10 @@ const AdminDashboard = () => {
                 )}
               </TabsContent>
             </Tabs>
+                  </div>
+                </div>
+              );
+            })()
           )}
         </div>
       </div>

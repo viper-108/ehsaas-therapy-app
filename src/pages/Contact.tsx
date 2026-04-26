@@ -6,11 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Navigation from "@/components/Navigation";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:5001/api';
 
 const Contact = () => {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -71,7 +73,7 @@ const Contact = () => {
         <div className="max-w-6xl mx-auto px-4">
           {/* Header */}
           <div className="text-center mb-16">
-            <h1 className="text-5xl font-bold text-foreground mb-6">Get in Touch</h1>
+            <h1 className="text-5xl font-bold text-foreground mb-6">{t('contactPage.getInTouch')}</h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
               We're here to support you on your mental health journey. Reach out with any questions or to schedule a session.
             </p>
@@ -161,7 +163,7 @@ const Contact = () => {
 
                     <Button type="submit" size="lg" className="w-full" disabled={submitting}>
                       <Send className="w-4 h-4 mr-2" />
-                      {submitting ? "Sending..." : "Send Message"}
+                      {submitting ? t('contactPage.form.sending') : t('contactPage.form.send')}
                     </Button>
                   </form>
                 </CardContent>

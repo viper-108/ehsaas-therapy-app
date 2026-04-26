@@ -2,19 +2,21 @@ import { Heart, Target, Eye, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import Navigation from "@/components/Navigation";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const About = () => {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      
+
       <div className="py-20">
         <div className="max-w-6xl mx-auto px-4">
           {/* Header */}
           <div className="text-center mb-16">
-            <h1 className="text-5xl font-bold text-foreground mb-6">About EHSAAS</h1>
+            <h1 className="text-5xl font-bold text-foreground mb-6">{t('about.title')}</h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Dedicated to providing compassionate, professional mental health care that empowers individuals to heal and thrive.
+              {t('about.subtitle')}
             </p>
           </div>
 
@@ -24,7 +26,7 @@ const About = () => {
               <CardContent className="pt-6">
                 <div className="flex items-center mb-6">
                   <Heart className="w-8 h-8 text-primary mr-4" />
-                  <h2 className="text-3xl font-bold text-foreground">About EHSAAS</h2>
+                  <h2 className="text-3xl font-bold text-foreground">{t('about.section.about')}</h2>
                 </div>
                 <p className="text-lg text-muted-foreground leading-relaxed mb-6">
                  At Ehsaas Therapy Centre (ETC), we believe in creating a world where healing is not just possible, but accessible, compassionate, and deeply transformative.
@@ -50,7 +52,7 @@ We offer a wide range of therapists, each with unique expertise, language skills
               <CardContent className="pt-6">
                 <div className="flex items-center mb-6">
                   <Target className="w-8 h-8 text-primary mr-4" />
-                  <h2 className="text-3xl font-bold text-foreground">Our Mission</h2>
+                  <h2 className="text-3xl font-bold text-foreground">{t('about.section.mission')}</h2>
                 </div>
                 <ul className="text-lg text-muted-foreground leading-relaxed space-y-2">
                   <li>• To provide accessible, inclusive, and high-quality therapy rooted in safety, empathy, and respect.</li>
@@ -65,7 +67,7 @@ We offer a wide range of therapists, each with unique expertise, language skills
               <CardContent className="pt-6">
                 <div className="flex items-center mb-6">
                   <Eye className="w-8 h-8 text-secondary mr-4" />
-                  <h2 className="text-3xl font-bold text-foreground">Our Vision</h2>
+                  <h2 className="text-3xl font-bold text-foreground">{t('about.section.vision')}</h2>
                 </div>
                 <ul className="text-lg text-muted-foreground leading-relaxed space-y-2">
                   <li>• To help build a world filled with more healed individuals, where people feel seen, safe, and supported.</li>
@@ -81,7 +83,7 @@ We offer a wide range of therapists, each with unique expertise, language skills
               <CardContent className="pt-6">
                 <div className="flex items-center mb-6">
                   <User className="w-8 h-8 text-secondary mr-4" />
-                  <h2 className="text-3xl font-bold text-foreground">About the Founder</h2>
+                  <h2 className="text-3xl font-bold text-foreground">{t('about.section.founder')}</h2>
                 </div>
                 <div className="grid md:grid-cols-3 gap-8 items-center">
                   <div className="md:col-span-1">
@@ -116,35 +118,35 @@ We offer a wide range of therapists, each with unique expertise, language skills
 
           {/* Values */}
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-foreground mb-12">Our Core Values</h2>
+            <h2 className="text-3xl font-bold text-foreground mb-12">{t('about.section.values')}</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
               <div className="text-center">
                 <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Heart className="w-8 h-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Compassionate Accessibility</h3>
-                <p className="text-muted-foreground">We ensure mental health care is accessible with empathy and understanding at its core.</p>
+                <h3 className="text-xl font-semibold mb-3">{t('about.value.accessibility')}</h3>
+                <p className="text-muted-foreground">{t('about.value.accessibilityDesc')}</p>
               </div>
               <div className="text-center">
                 <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Eye className="w-8 h-8 text-secondary" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Affirming Diversity</h3>
-                <p className="text-muted-foreground">We celebrate and affirm all identities, creating inclusive spaces for everyone.</p>
+                <h3 className="text-xl font-semibold mb-3">{t('about.value.diversity')}</h3>
+                <p className="text-muted-foreground">{t('about.value.diversityDesc')}</p>
               </div>
               <div className="text-center">
                 <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Target className="w-8 h-8 text-accent" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Holistic Healing</h3>
-                <p className="text-muted-foreground">We address the whole person, nurturing mind, body, and spirit in the healing process.</p>
+                <h3 className="text-xl font-semibold mb-3">{t('about.value.healing')}</h3>
+                <p className="text-muted-foreground">{t('about.value.healingDesc')}</p>
               </div>
               <div className="text-center">
                 <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <User className="w-8 h-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Therapist Well-being</h3>
-                <p className="text-muted-foreground">We prioritize the well-being and fair treatment of our mental health professionals.</p>
+                <h3 className="text-xl font-semibold mb-3">{t('about.value.wellbeing')}</h3>
+                <p className="text-muted-foreground">{t('about.value.wellbeingDesc')}</p>
               </div>
             </div>
           </div>

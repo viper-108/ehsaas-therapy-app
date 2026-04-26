@@ -10,9 +10,11 @@ import { PaymentSuccess } from "@/components/PaymentSuccess";
 import { psychologists } from "@/data/psychologists";
 import { Psychologist, BookingSession } from "@/types/psychologist";
 import Navigation from "@/components/Navigation";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigate } from "react-router-dom";
 
 const Team = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>("");
@@ -71,9 +73,9 @@ const Team = () => {
         <div className="max-w-6xl mx-auto px-4">
           {/* Header */}
           <div className="text-center mb-16">
-            <h1 className="text-5xl font-bold text-foreground mb-6">Our Expert Team</h1>
+            <h1 className="text-5xl font-bold text-foreground mb-6">{t('teamPage.title')}</h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Meet our team of empathetic, experienced psychologists who are here to support your mental health journey
+              {t('teamPage.subtitle')}
             </p>
           </div>
 
@@ -84,7 +86,7 @@ const Team = () => {
                 {/* Search Bar */}
                 <div className="relative">
                   <Input
-                    placeholder="Search by name or specialization..."
+                    placeholder={t('teamPage.searchPlaceholder')}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full"

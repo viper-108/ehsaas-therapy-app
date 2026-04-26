@@ -3,8 +3,10 @@ import { ChevronDown, HelpCircle, Phone, Calendar, Shield, CreditCard } from "lu
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Navigation from "@/components/Navigation";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const FAQs = () => {
+  const { t } = useLanguage();
   const [openItems, setOpenItems] = useState<number[]>([]);
 
   const toggleItem = (index: number) => {
@@ -124,9 +126,9 @@ const FAQs = () => {
         <div className="max-w-4xl mx-auto px-4">
           {/* Header */}
           <div className="text-center mb-16">
-            <h1 className="text-5xl font-bold text-foreground mb-6">Frequently Asked Questions</h1>
+            <h1 className="text-5xl font-bold text-foreground mb-6">{t('faqs.title')}</h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Find answers to common questions about our therapy services, booking process, and more
+              {t('faqs.subtitle')}
             </p>
           </div>
 

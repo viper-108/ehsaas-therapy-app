@@ -117,6 +117,52 @@ const translations: Record<Language, Record<string, string>> = {
     'footer.blogs': 'Blogs',
     'footer.contactUs': 'Contact Us',
     'footer.copyright': '© 2024 EHSAAS. All rights reserved.',
+
+    // About page
+    'about.title': 'About EHSAAS',
+    'about.subtitle': 'Dedicated to providing compassionate, professional mental health care that empowers individuals to heal and thrive.',
+    'about.section.about': 'About EHSAAS',
+    'about.section.mission': 'Our Mission',
+    'about.section.vision': 'Our Vision',
+    'about.section.founder': 'About the Founder',
+    'about.section.values': 'Our Core Values',
+    'about.value.accessibility': 'Compassionate Accessibility',
+    'about.value.accessibilityDesc': 'We ensure mental health care is accessible with empathy and understanding at its core.',
+    'about.value.diversity': 'Affirming Diversity',
+    'about.value.diversityDesc': 'We celebrate and affirm all identities, creating inclusive spaces for everyone.',
+    'about.value.healing': 'Holistic Healing',
+    'about.value.healingDesc': 'We address the whole person, nurturing mind, body, and spirit in the healing process.',
+    'about.value.wellbeing': 'Therapist Well-being',
+    'about.value.wellbeingDesc': 'We prioritize the well-being and fair treatment of our mental health professionals.',
+
+    // Services page
+    'servicesPage.title': 'Our Services',
+    'servicesPage.subtitle': 'Comprehensive mental health services designed to support your unique healing journey',
+
+    // Team page
+    'teamPage.title': 'Our Team',
+    'teamPage.subtitle': 'Meet our team of empathetic, experienced psychologists who are here to support your mental health journey',
+    'teamPage.searchPlaceholder': 'Search by name or specialization...',
+    'teamPage.allSpecializations': 'All',
+    'teamPage.bookSession': 'Book a Session',
+
+    // Contact page
+    'contactPage.title': 'Contact Us',
+    'contactPage.subtitle': "We're here to listen, support, and guide you on your mental wellness journey",
+    'contactPage.getInTouch': 'Get in Touch',
+    'contactPage.form.name': 'Your Name',
+    'contactPage.form.email': 'Your Email',
+    'contactPage.form.message': 'Your Message',
+    'contactPage.form.send': 'Send Message',
+    'contactPage.form.sending': 'Sending...',
+
+    // FAQs page
+    'faqs.title': 'Frequently Asked Questions',
+    'faqs.subtitle': 'Find answers to common questions about our therapy services and what to expect',
+
+    // Blogs page
+    'blogsPage.title': 'Mental Health Insights',
+    'blogsPage.subtitle': 'Expert articles, tips, and insights to support your mental wellness journey',
   },
   hi: {
     'nav.home': 'होम',
@@ -218,6 +264,46 @@ const translations: Record<Language, Record<string, string>> = {
     'footer.blogs': 'ब्लॉग',
     'footer.contactUs': 'संपर्क करें',
     'footer.copyright': '© 2024 EHSAAS. सर्वाधिकार सुरक्षित।',
+
+    'about.title': 'EHSAAS के बारे में',
+    'about.subtitle': 'व्यक्तियों को स्वस्थ होने और पनपने के लिए दयालु, पेशेवर मानसिक स्वास्थ्य देखभाल प्रदान करने के लिए समर्पित।',
+    'about.section.about': 'EHSAAS के बारे में',
+    'about.section.mission': 'हमारा मिशन',
+    'about.section.vision': 'हमारी दृष्टि',
+    'about.section.founder': 'संस्थापक के बारे में',
+    'about.section.values': 'हमारे मूल मूल्य',
+    'about.value.accessibility': 'दयालु पहुँच',
+    'about.value.accessibilityDesc': 'हम सुनिश्चित करते हैं कि मानसिक स्वास्थ्य देखभाल सहानुभूति और समझ के साथ सुलभ हो।',
+    'about.value.diversity': 'विविधता को स्वीकार करना',
+    'about.value.diversityDesc': 'हम सभी पहचानों का जश्न मनाते हैं, सबके लिए समावेशी स्थान बनाते हैं।',
+    'about.value.healing': 'समग्र उपचार',
+    'about.value.healingDesc': 'हम पूरे व्यक्ति का ध्यान रखते हैं, मन, शरीर और आत्मा का पोषण करते हैं।',
+    'about.value.wellbeing': 'चिकित्सक का कल्याण',
+    'about.value.wellbeingDesc': 'हम अपने मानसिक स्वास्थ्य पेशेवरों के कल्याण और निष्पक्ष व्यवहार को प्राथमिकता देते हैं।',
+
+    'servicesPage.title': 'हमारी सेवाएं',
+    'servicesPage.subtitle': 'आपकी अनूठी हीलिंग यात्रा का समर्थन करने के लिए डिज़ाइन की गई व्यापक मानसिक स्वास्थ्य सेवाएं',
+
+    'teamPage.title': 'हमारी टीम',
+    'teamPage.subtitle': 'हमारी सहानुभूतिपूर्ण, अनुभवी मनोवैज्ञानिकों की टीम से मिलें जो आपकी मानसिक स्वास्थ्य यात्रा में मदद करने के लिए यहाँ हैं',
+    'teamPage.searchPlaceholder': 'नाम या विशेषज्ञता द्वारा खोजें...',
+    'teamPage.allSpecializations': 'सभी',
+    'teamPage.bookSession': 'सत्र बुक करें',
+
+    'contactPage.title': 'संपर्क करें',
+    'contactPage.subtitle': 'हम आपकी मानसिक कल्याण यात्रा में सुनने, समर्थन देने और मार्गदर्शन देने के लिए यहाँ हैं',
+    'contactPage.getInTouch': 'संपर्क में रहें',
+    'contactPage.form.name': 'आपका नाम',
+    'contactPage.form.email': 'आपका ईमेल',
+    'contactPage.form.message': 'आपका संदेश',
+    'contactPage.form.send': 'संदेश भेजें',
+    'contactPage.form.sending': 'भेज रहा है...',
+
+    'faqs.title': 'अक्सर पूछे जाने वाले प्रश्न',
+    'faqs.subtitle': 'हमारी थेरेपी सेवाओं और क्या अपेक्षा करें के बारे में सामान्य प्रश्नों के उत्तर खोजें',
+
+    'blogsPage.title': 'मानसिक स्वास्थ्य अंतर्दृष्टि',
+    'blogsPage.subtitle': 'आपकी मानसिक कल्याण यात्रा का समर्थन करने के लिए विशेषज्ञ लेख, सुझाव और अंतर्दृष्टि',
   },
   mr: {
     'nav.home': 'मुख्यपृष्ठ',
@@ -319,6 +405,46 @@ const translations: Record<Language, Record<string, string>> = {
     'footer.blogs': 'ब्लॉग',
     'footer.contactUs': 'संपर्क करा',
     'footer.copyright': '© 2024 EHSAAS. सर्व हक्क राखीव.',
+
+    'about.title': 'EHSAAS बद्दल',
+    'about.subtitle': 'व्यक्तींना बरे होण्यासाठी आणि भरभराटीसाठी सक्षम करणारी सहानुभूतीशील, व्यावसायिक मानसिक आरोग्य सेवा प्रदान करण्यासाठी समर्पित.',
+    'about.section.about': 'EHSAAS बद्दल',
+    'about.section.mission': 'आमचे ध्येय',
+    'about.section.vision': 'आमची दृष्टी',
+    'about.section.founder': 'संस्थापकाबद्दल',
+    'about.section.values': 'आमची मूळ मूल्ये',
+    'about.value.accessibility': 'सहानुभूतीशील प्रवेश',
+    'about.value.accessibilityDesc': 'आम्ही सुनिश्चित करतो की मानसिक आरोग्य सेवा सहानुभूती आणि समजुतीने उपलब्ध असेल.',
+    'about.value.diversity': 'विविधतेला मान्यता',
+    'about.value.diversityDesc': 'आम्ही सर्व ओळखींचा सन्मान करतो, सर्वांसाठी समावेशक जागा निर्माण करतो.',
+    'about.value.healing': 'सर्वांगीण उपचार',
+    'about.value.healingDesc': 'आम्ही संपूर्ण व्यक्तीची काळजी घेतो, मन, शरीर आणि आत्म्याचे पोषण करतो.',
+    'about.value.wellbeing': 'थेरपिस्टचे कल्याण',
+    'about.value.wellbeingDesc': 'आम्ही आमच्या मानसिक आरोग्य व्यावसायिकांच्या कल्याणाला आणि न्याय्य वागणुकीला प्राधान्य देतो.',
+
+    'servicesPage.title': 'आमच्या सेवा',
+    'servicesPage.subtitle': 'तुमच्या अनोख्या हीलिंग प्रवासाला साथ देण्यासाठी डिझाइन केलेल्या सर्वसमावेशक मानसिक आरोग्य सेवा',
+
+    'teamPage.title': 'आमची टीम',
+    'teamPage.subtitle': 'आमच्या सहानुभूतीशील, अनुभवी मानसशास्त्रज्ञांच्या टीमला भेटा जे तुमच्या मानसिक आरोग्य प्रवासात मदत करण्यासाठी इथे आहेत',
+    'teamPage.searchPlaceholder': 'नाव किंवा विशेषज्ञतेनुसार शोधा...',
+    'teamPage.allSpecializations': 'सर्व',
+    'teamPage.bookSession': 'सत्र बुक करा',
+
+    'contactPage.title': 'संपर्क करा',
+    'contactPage.subtitle': 'आम्ही तुमच्या मानसिक आरोग्य प्रवासात ऐकण्यासाठी, मदत करण्यासाठी आणि मार्गदर्शन करण्यासाठी इथे आहोत',
+    'contactPage.getInTouch': 'संपर्कात रहा',
+    'contactPage.form.name': 'तुमचे नाव',
+    'contactPage.form.email': 'तुमचा ईमेल',
+    'contactPage.form.message': 'तुमचा संदेश',
+    'contactPage.form.send': 'संदेश पाठवा',
+    'contactPage.form.sending': 'पाठवत आहे...',
+
+    'faqs.title': 'वारंवार विचारले जाणारे प्रश्न',
+    'faqs.subtitle': 'आमच्या थेरपी सेवा आणि काय अपेक्षित आहे याबद्दल सामान्य प्रश्नांची उत्तरे शोधा',
+
+    'blogsPage.title': 'मानसिक आरोग्य अंतर्दृष्टी',
+    'blogsPage.subtitle': 'तुमच्या मानसिक आरोग्य प्रवासाला साथ देण्यासाठी तज्ञ लेख, सूचना आणि अंतर्दृष्टी',
   },
   kn: {
     'nav.home': 'ಮುಖಪುಟ',
@@ -420,6 +546,46 @@ const translations: Record<Language, Record<string, string>> = {
     'footer.blogs': 'ಬ್ಲಾಗ್',
     'footer.contactUs': 'ಸಂಪರ್ಕಿಸಿ',
     'footer.copyright': '© 2024 EHSAAS. ಎಲ್ಲಾ ಹಕ್ಕುಗಳು ಸಂರಕ್ಷಿಸಲ್ಪಟ್ಟಿವೆ.',
+
+    'about.title': 'EHSAAS ಬಗ್ಗೆ',
+    'about.subtitle': 'ವ್ಯಕ್ತಿಗಳನ್ನು ಗುಣಮುಖರಾಗಲು ಮತ್ತು ಬೆಳೆಯಲು ಸಶಕ್ತಗೊಳಿಸುವ ಸಹಾನುಭೂತಿಯ, ವೃತ್ತಿಪರ ಮಾನಸಿಕ ಆರೋಗ್ಯ ಸೇವೆಯನ್ನು ಒದಗಿಸಲು ಸಮರ್ಪಿತ.',
+    'about.section.about': 'EHSAAS ಬಗ್ಗೆ',
+    'about.section.mission': 'ನಮ್ಮ ಧ್ಯೇಯ',
+    'about.section.vision': 'ನಮ್ಮ ದೃಷ್ಟಿ',
+    'about.section.founder': 'ಸ್ಥಾಪಕರ ಬಗ್ಗೆ',
+    'about.section.values': 'ನಮ್ಮ ಮೂಲ ಮೌಲ್ಯಗಳು',
+    'about.value.accessibility': 'ಸಹಾನುಭೂತಿಯ ಪ್ರವೇಶ',
+    'about.value.accessibilityDesc': 'ನಾವು ಮಾನಸಿಕ ಆರೋಗ್ಯ ಸೇವೆಯು ಸಹಾನುಭೂತಿ ಮತ್ತು ತಿಳುವಳಿಕೆಯೊಂದಿಗೆ ಪ್ರವೇಶಿಸಬಹುದು ಎಂದು ಖಚಿತಪಡಿಸುತ್ತೇವೆ.',
+    'about.value.diversity': 'ವೈವಿಧ್ಯತೆಯ ದೃಢೀಕರಣ',
+    'about.value.diversityDesc': 'ನಾವು ಎಲ್ಲಾ ಗುರುತುಗಳನ್ನು ಆಚರಿಸುತ್ತೇವೆ ಮತ್ತು ಎಲ್ಲರಿಗೂ ಒಳಗೊಳ್ಳುವ ಸ್ಥಳಗಳನ್ನು ರಚಿಸುತ್ತೇವೆ.',
+    'about.value.healing': 'ಸಮಗ್ರ ಗುಣಪಡಿಸುವಿಕೆ',
+    'about.value.healingDesc': 'ನಾವು ಸಂಪೂರ್ಣ ವ್ಯಕ್ತಿಯನ್ನು ತಿಳಿಸುತ್ತೇವೆ, ಮನಸ್ಸು, ದೇಹ ಮತ್ತು ಆತ್ಮವನ್ನು ಪೋಷಿಸುತ್ತೇವೆ.',
+    'about.value.wellbeing': 'ಚಿಕಿತ್ಸಕರ ಯೋಗಕ್ಷೇಮ',
+    'about.value.wellbeingDesc': 'ನಾವು ನಮ್ಮ ಮಾನಸಿಕ ಆರೋಗ್ಯ ವೃತ್ತಿಪರರ ಯೋಗಕ್ಷೇಮ ಮತ್ತು ನ್ಯಾಯಯುತ ಚಿಕಿತ್ಸೆಗೆ ಆದ್ಯತೆ ನೀಡುತ್ತೇವೆ.',
+
+    'servicesPage.title': 'ನಮ್ಮ ಸೇವೆಗಳು',
+    'servicesPage.subtitle': 'ನಿಮ್ಮ ವಿಶಿಷ್ಟ ಗುಣಮುಖ ಪ್ರಯಾಣಕ್ಕೆ ಬೆಂಬಲವಾಗಿ ವಿನ್ಯಾಸಗೊಳಿಸಲಾದ ಸಮಗ್ರ ಮಾನಸಿಕ ಆರೋಗ್ಯ ಸೇವೆಗಳು',
+
+    'teamPage.title': 'ನಮ್ಮ ತಂಡ',
+    'teamPage.subtitle': 'ನಿಮ್ಮ ಮಾನಸಿಕ ಆರೋಗ್ಯ ಪ್ರಯಾಣದಲ್ಲಿ ನೆರವಾಗಲು ಇಲ್ಲಿರುವ ನಮ್ಮ ಸಹಾನುಭೂತಿಯ, ಅನುಭವಿ ಮನಶಾಸ್ತ್ರಜ್ಞರ ತಂಡವನ್ನು ಭೇಟಿಯಾಗಿ',
+    'teamPage.searchPlaceholder': 'ಹೆಸರು ಅಥವಾ ವಿಶೇಷತೆಯಿಂದ ಹುಡುಕಿ...',
+    'teamPage.allSpecializations': 'ಎಲ್ಲಾ',
+    'teamPage.bookSession': 'ಅವಧಿ ಬುಕ್ ಮಾಡಿ',
+
+    'contactPage.title': 'ಸಂಪರ್ಕಿಸಿ',
+    'contactPage.subtitle': 'ನಾವು ನಿಮ್ಮ ಮಾನಸಿಕ ಆರೋಗ್ಯ ಪ್ರಯಾಣದಲ್ಲಿ ಕೇಳಲು, ಬೆಂಬಲಿಸಲು ಮತ್ತು ಮಾರ್ಗದರ್ಶನ ಮಾಡಲು ಇಲ್ಲಿದ್ದೇವೆ',
+    'contactPage.getInTouch': 'ಸಂಪರ್ಕದಲ್ಲಿರಿ',
+    'contactPage.form.name': 'ನಿಮ್ಮ ಹೆಸರು',
+    'contactPage.form.email': 'ನಿಮ್ಮ ಇಮೇಲ್',
+    'contactPage.form.message': 'ನಿಮ್ಮ ಸಂದೇಶ',
+    'contactPage.form.send': 'ಸಂದೇಶ ಕಳುಹಿಸಿ',
+    'contactPage.form.sending': 'ಕಳುಹಿಸುತ್ತಿದೆ...',
+
+    'faqs.title': 'ಪದೇ ಪದೇ ಕೇಳಲಾಗುವ ಪ್ರಶ್ನೆಗಳು',
+    'faqs.subtitle': 'ನಮ್ಮ ಚಿಕಿತ್ಸಾ ಸೇವೆಗಳ ಮತ್ತು ಏನು ನಿರೀಕ್ಷಿಸಬೇಕು ಎಂಬುದರ ಬಗ್ಗೆ ಸಾಮಾನ್ಯ ಪ್ರಶ್ನೆಗಳಿಗೆ ಉತ್ತರಗಳನ್ನು ಹುಡುಕಿ',
+
+    'blogsPage.title': 'ಮಾನಸಿಕ ಆರೋಗ್ಯ ಒಳನೋಟಗಳು',
+    'blogsPage.subtitle': 'ನಿಮ್ಮ ಮಾನಸಿಕ ಆರೋಗ್ಯ ಪ್ರಯಾಣಕ್ಕೆ ಬೆಂಬಲ ನೀಡಲು ತಜ್ಞ ಲೇಖನಗಳು, ಸಲಹೆಗಳು ಮತ್ತು ಒಳನೋಟಗಳು',
   },
 };
 
