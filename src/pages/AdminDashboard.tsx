@@ -3,8 +3,11 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, UserCheck, UserX, Clock, Calendar, DollarSign, BarChart3,
   CheckCircle, XCircle, LogOut, ChevronRight, Shield, Loader2, Star, TrendingUp,
-  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays
+  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +61,8 @@ const AdminDashboard = () => {
   const [rejectModal, setRejectModal] = useState<{ open: boolean; therapistId: string; name: string }>({ open: false, therapistId: '', name: '' });
   const [interviewModal, setInterviewModal] = useState<{ open: boolean; therapistId: string; name: string; status: 'interview_scheduled' | 'in_process'; link: string; scheduledAt: string; notes: string }>({ open: false, therapistId: '', name: '', status: 'interview_scheduled', link: '', scheduledAt: '', notes: '' });
   const [interviewSubmitting, setInterviewSubmitting] = useState(false);
+  const [transferModal, setTransferModal] = useState<{ open: boolean; clientId: string; clientName: string; fromTherapistId: string; toTherapistId: string; reason: string }>({ open: false, clientId: '', clientName: '', fromTherapistId: '', toTherapistId: '', reason: '' });
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [detailModal, setDetailModal] = useState<{ open: boolean; type: 'therapist' | 'client'; data: any | null; loading: boolean }>({ open: false, type: 'therapist', data: null, loading: false });
   const [allReviews, setAllReviews] = useState<any[]>([]);
@@ -364,64 +369,67 @@ const AdminDashboard = () => {
                           </div>
                           <div className="min-w-0">
                             <p className="font-medium text-foreground truncate">{t.name}</p>
-                            <p className="text-sm text-muted-foreground truncate">{t.email} • {t.title}</p>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              {t.accountStatus === 'past' ? (
-                                <Badge className="bg-muted text-muted-foreground">Past</Badge>
-                              ) : (
-                                <Badge className="bg-success/10 text-success border-success/20">Active</Badge>
-                              )}
-                              {t.therapistType === 'psychiatrist' && (
-                                <Badge className="bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300">Psychiatrist</Badge>
-                              )}
-                              <Badge variant="outline" className="text-xs">
-                                <Percent className="w-3 h-3 mr-1" />
-                                Cut: {t.commissionPercent ?? 60}%
-                              </Badge>
-                            </div>
+                            <p className="text-sm text-muted-foreground truncate">{t.email}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap">
+
+                        {/* Front-of-card: status + earnings only */}
+                        <div className="flex items-center gap-3 flex-wrap">
                           {t.accountStatus === 'past' ? (
-                            <Button size="sm" variant="outline" onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                await fetch(`${(import.meta as any).env?.PROD ? '/api' : 'http://localhost:5001/api'}/admin/therapists/${t._id}/restore`, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('ehsaas_token')}` }
-                                });
-                                toast({ title: "Restored", description: `${t.name} is active again` });
-                                loadDashboard();
-                              } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                            }}>
-                              Restore
-                            </Button>
+                            <Badge className="bg-muted text-muted-foreground">Past</Badge>
                           ) : (
-                            <>
-                              {statusBadge(t.onboardingStatus || (t.isApproved ? 'approved' : 'not_started'))}
-                              {t.onboardingStatus === 'pending_approval' && (
-                                <Button size="sm" onClick={(e) => { e.stopPropagation(); handleApprove(t._id); }}>Approve</Button>
-                              )}
-                              <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setCommissionModal({ open: true, therapist: t, value: String(t.commissionPercent ?? 60) }); }}>
-                                <Percent className="w-3 h-3 mr-1" /> Commission
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={async (e) => {
-                                e.stopPropagation();
-                                const next = t.therapistType === 'psychiatrist' ? 'psychologist' : 'psychiatrist';
-                                try {
-                                  await api.setTherapistType(t._id, next);
-                                  toast({ title: "Updated", description: `Set to ${next}` });
-                                  loadDashboard();
-                                } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                              }}>
-                                {t.therapistType === 'psychiatrist' ? 'Make Psychologist' : 'Make Psychiatrist'}
-                              </Button>
-                              <Button size="sm" variant="outline" className="text-destructive hover:bg-destructive/10"
-                                onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ open: true, therapist: t }); }}>
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </>
+                            <Badge className="bg-success/10 text-success border-success/20">Active</Badge>
                           )}
+                          <span className="text-sm font-semibold text-foreground">₹{(t.totalEarnings || 0).toLocaleString('en-IN')}</span>
+
+                          {/* 3-dot menu — all actions */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenuItem onClick={() => openTherapistDetail(t._id)}>View Details</DropdownMenuItem>
+                              {t.accountStatus === 'past' ? (
+                                <DropdownMenuItem onClick={async () => {
+                                  try {
+                                    await fetch(`${(import.meta as any).env?.PROD ? '/api' : 'http://localhost:5001/api'}/admin/therapists/${t._id}/restore`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('ehsaas_token')}` }
+                                    });
+                                    toast({ title: "Restored", description: `${t.name} is active again` });
+                                    loadDashboard();
+                                  } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                                }}>
+                                  Restore
+                                </DropdownMenuItem>
+                              ) : (
+                                <>
+                                  {t.onboardingStatus === 'pending_approval' && (
+                                    <DropdownMenuItem onClick={() => handleApprove(t._id)}>Approve</DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem onClick={() => setCommissionModal({ open: true, therapist: t, value: String(t.commissionPercent ?? 60) })}>
+                                    <Percent className="w-3 h-3 mr-2" /> Set Commission ({t.commissionPercent ?? 60}%)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={async () => {
+                                    const next = t.therapistType === 'psychiatrist' ? 'psychologist' : 'psychiatrist';
+                                    try {
+                                      await api.setTherapistType(t._id, next);
+                                      toast({ title: "Updated", description: `Set to ${next}` });
+                                      loadDashboard();
+                                    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                                  }}>
+                                    {t.therapistType === 'psychiatrist' ? 'Mark as Psychologist' : 'Mark as Psychiatrist'}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-destructive" onClick={() => setDeleteConfirm({ open: true, therapist: t })}>
+                                    <Trash2 className="w-3 h-3 mr-2" /> Deactivate
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </Card>
@@ -438,52 +446,59 @@ const AdminDashboard = () => {
                   </Card>
                 ) : (
                   <div className="space-y-3">
-                    {allClients.map((c: any) => (
-                      <Card key={c._id} className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => openClientDetail(c._id)}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-sm font-bold text-secondary">
+                    {allClients.map((c: any) => {
+                      const flagged = c.flags?.highCancellations || c.flags?.highNoShows || c.flags?.frequentTherapistChanges;
+                      return (
+                      <Card key={c._id} className="p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer" onClick={() => openClientDetail(c._id)}>
+                            <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-sm font-bold text-secondary flex-shrink-0">
                               {c.name.split(' ').map((n: string) => n[0]).join('')}
                             </div>
-                            <div>
-                              <p className="font-medium text-foreground">{c.name}</p>
-                              <p className="text-sm text-muted-foreground">{c.email}</p>
-                              <div className="flex items-center gap-1 mt-1 flex-wrap">
-                                {c.flags?.highCancellations && (
-                                  <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs">
-                                    <Flag className="w-3 h-3 mr-1" /> {c.cancellationCount}+ cancellations
-                                  </Badge>
-                                )}
-                                {c.flags?.highNoShows && (
-                                  <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs">
-                                    <Flag className="w-3 h-3 mr-1" /> {c.noShowCount}+ no-shows
-                                  </Badge>
-                                )}
-                                {c.flags?.frequentTherapistChanges && (
-                                  <Badge className="bg-warm/10 text-warm border-warm/20 text-xs">
-                                    <AlertTriangle className="w-3 h-3 mr-1" /> Frequent therapist changes
-                                  </Badge>
-                                )}
-                              </div>
+                            <div className="min-w-0">
+                              <p className="font-medium text-foreground truncate">{c.name}</p>
+                              <p className="text-sm text-muted-foreground truncate">{c.email}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            {c.phone && <span className="text-sm text-muted-foreground">{c.phone}</span>}
-                            <span className="text-xs text-muted-foreground">
-                              Joined {new Date(c.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </span>
-                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+
+                          {/* Front-of-card: status + spend only */}
+                          <div className="flex items-center gap-3 flex-wrap">
+                            {flagged ? (
+                              <Badge className="bg-destructive/10 text-destructive border-destructive/20"><Flag className="w-3 h-3 mr-1" />Flagged</Badge>
+                            ) : (
+                              <Badge className="bg-success/10 text-success border-success/20">Active</Badge>
+                            )}
+                            <span className="text-sm font-semibold text-foreground">₹{(c.totalSpent || 0).toLocaleString('en-IN')}</span>
+
+                            {/* 3-dot menu — all actions */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenuItem onClick={() => openClientDetail(c._id)}>View Details</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setTransferModal({ open: true, clientId: c._id, clientName: c.name, fromTherapistId: '', toTherapistId: '', reason: '' })}>
+                                  <ArrowRight className="w-3 h-3 mr-2" /> Transfer to Another Therapist
+                                </DropdownMenuItem>
+                                {flagged && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                                      {c.flags?.highCancellations && `${c.cancellationCount}+ cancellations`}
+                                      {c.flags?.highNoShows && ` · ${c.noShowCount}+ no-shows`}
+                                      {c.flags?.frequentTherapistChanges && ` · frequent therapist changes`}
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
-                        {c.therapyPreferences?.concerns?.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1 ml-14">
-                            {c.therapyPreferences.concerns.map((concern: string) => (
-                              <Badge key={concern} variant="outline" className="text-xs">{concern}</Badge>
-                            ))}
-                          </div>
-                        )}
                       </Card>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>
@@ -804,6 +819,89 @@ const AdminDashboard = () => {
                 }}
               >
                 {interviewSubmitting ? 'Saving...' : 'Save & Notify'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer Client Modal */}
+      <Dialog open={transferModal.open} onOpenChange={(open) => { if (!open) setTransferModal(p => ({ ...p, open: false })); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Transfer {transferModal.clientName} to a New Therapist</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-900 dark:text-amber-100 space-y-1">
+                <p className="font-medium">This action will:</p>
+                <ul className="list-disc ml-4 space-y-0.5">
+                  <li>Mark the old therapist's relationship as <strong>past</strong> — they lose access to this client's notes/history</li>
+                  <li>Copy all client history & notes to the new therapist for continuity of care</li>
+                  <li>Cancel any future scheduled sessions with the old therapist</li>
+                  <li>Email both therapists and the client</li>
+                </ul>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1">From (current therapist) <span className="text-destructive">*</span></label>
+              <Select value={transferModal.fromTherapistId} onValueChange={(v) => setTransferModal(p => ({ ...p, fromTherapistId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select current therapist" /></SelectTrigger>
+                <SelectContent>
+                  {allTherapists.filter((t: any) => t.accountStatus !== 'past').map((t: any) => (
+                    <SelectItem key={t._id} value={t._id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1">To (new therapist) <span className="text-destructive">*</span></label>
+              <Select value={transferModal.toTherapistId} onValueChange={(v) => setTransferModal(p => ({ ...p, toTherapistId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select new therapist" /></SelectTrigger>
+                <SelectContent>
+                  {allTherapists.filter((t: any) => t.accountStatus !== 'past' && t._id !== transferModal.fromTherapistId).map((t: any) => (
+                    <SelectItem key={t._id} value={t._id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1">Reason (optional)</label>
+              <Textarea
+                placeholder="Why is this client being transferred?"
+                value={transferModal.reason}
+                onChange={(e) => setTransferModal(p => ({ ...p, reason: e.target.value }))}
+                rows={2}
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setTransferModal(p => ({ ...p, open: false }))}>Cancel</Button>
+              <Button
+                className="flex-1"
+                disabled={transferSubmitting || !transferModal.fromTherapistId || !transferModal.toTherapistId}
+                onClick={async () => {
+                  setTransferSubmitting(true);
+                  try {
+                    await api.transferClient({
+                      clientId: transferModal.clientId,
+                      fromTherapistId: transferModal.fromTherapistId,
+                      toTherapistId: transferModal.toTherapistId,
+                      reason: transferModal.reason,
+                    });
+                    toast({ title: "Transferred", description: `${transferModal.clientName} moved successfully. Both therapists & client have been emailed.` });
+                    setTransferModal(p => ({ ...p, open: false }));
+                    loadDashboard();
+                  } catch (e: any) {
+                    toast({ title: "Error", description: e.message, variant: "destructive" });
+                  } finally { setTransferSubmitting(false); }
+                }}
+              >
+                {transferSubmitting ? 'Transferring...' : 'Transfer Client'}
               </Button>
             </div>
           </div>

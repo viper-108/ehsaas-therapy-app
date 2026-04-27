@@ -410,19 +410,30 @@ router.put('/dashboard/sessions/:sessionId/status', protect, therapistOnly, asyn
 // GET /api/therapists/dashboard/sessions/:sessionId/notes
 router.get('/dashboard/sessions/:sessionId/notes', protect, therapistOnly, async (req, res) => {
   try {
-    const session = await Session.findOne({ _id: req.params.sessionId, therapistId: req.userId })
-      .populate('clientId', 'name');
+    const { hasActiveAccess, isPastRelationship } = await import('../utils/relationshipAccess.js');
+    // Find session by id (any therapist who conducted it OR has active relationship can read)
+    const session = await Session.findById(req.params.sessionId).populate('clientId', 'name');
     if (!session) return res.status(404).json({ message: 'Session not found' });
 
-    // Calculate session number (count of this therapist-client pair's completed sessions up to this date)
+    const isOwner = String(session.therapistId) === String(req.userId);
+    const hasAccess = await hasActiveAccess(req.userId, session.clientId._id);
+    const wasTransferredAway = isOwner && await isPastRelationship(req.userId, session.clientId._id);
+
+    if (wasTransferredAway) {
+      return res.status(403).json({ message: 'This client has been transferred to another therapist. You no longer have access to these notes.' });
+    }
+    if (!isOwner && !hasAccess) {
+      return res.status(403).json({ message: 'Not authorized to view these notes' });
+    }
+
+    // Session number — count across all therapists for this client (transferred-in therapists see complete history)
     const sessionNumber = await Session.countDocuments({
-      therapistId: req.userId,
       clientId: session.clientId._id,
       status: 'completed',
       date: { $lte: session.date },
     });
 
-    const therapist = await Therapist.findById(req.userId).select('name');
+    const therapist = await Therapist.findById(session.therapistId).select('name');
 
     res.json({
       notes: session.notes || {},
@@ -430,8 +441,10 @@ router.get('/dashboard/sessions/:sessionId/notes', protect, therapistOnly, async
       clientName: session.clientId?.name || 'Client',
       therapistName: therapist?.name || 'Therapist',
       sessionDate: session.date,
+      conductedByOtherTherapist: !isOwner,
     });
   } catch (error) {
+    console.error('Get notes error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -440,8 +453,13 @@ router.get('/dashboard/sessions/:sessionId/notes', protect, therapistOnly, async
 router.put('/dashboard/sessions/:sessionId/notes', protect, therapistOnly, async (req, res) => {
   try {
     const { notes } = req.body;
+    const { isPastRelationship } = await import('../utils/relationshipAccess.js');
     const session = await Session.findOne({ _id: req.params.sessionId, therapistId: req.userId });
-    if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (!session) return res.status(404).json({ message: 'Session not found, or you are not the conducting therapist' });
+    // Block writes if therapist was transferred away
+    if (await isPastRelationship(req.userId, session.clientId)) {
+      return res.status(403).json({ message: 'You no longer have access to this client.' });
+    }
     if (session.status !== 'completed') return res.status(400).json({ message: 'Can only add notes to completed sessions' });
 
     // Validate mandatory fields
@@ -466,9 +484,26 @@ router.put('/dashboard/sessions/:sessionId/notes', protect, therapistOnly, async
 router.get('/dashboard/client-history/:clientId', protect, therapistOnly, async (req, res) => {
   try {
     const ClientHistory = (await import('../models/ClientHistory.js')).default;
-    const history = await ClientHistory.findOne({ clientId: req.params.clientId, therapistId: req.userId });
+    const { hasActiveAccess, isPastRelationship } = await import('../utils/relationshipAccess.js');
+
+    // Block if therapist was transferred away
+    if (await isPastRelationship(req.userId, req.params.clientId)) {
+      return res.status(403).json({ message: 'You no longer have access to this client.' });
+    }
+
+    // Try therapist's own history first, then fall back to any history for this client
+    // (so a transferred-in therapist sees the previous therapist's recorded history)
+    let history = await ClientHistory.findOne({ clientId: req.params.clientId, therapistId: req.userId });
+    if (!history) {
+      const hasAccess = await hasActiveAccess(req.userId, req.params.clientId);
+      if (hasAccess) {
+        // Read-only view of any prior therapist's history
+        history = await ClientHistory.findOne({ clientId: req.params.clientId }).sort({ updatedAt: -1 });
+      }
+    }
     res.json(history || null);
   } catch (error) {
+    console.error('Get client history error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -477,7 +512,12 @@ router.get('/dashboard/client-history/:clientId', protect, therapistOnly, async 
 router.post('/dashboard/client-history', protect, therapistOnly, async (req, res) => {
   try {
     const ClientHistory = (await import('../models/ClientHistory.js')).default;
+    const { isPastRelationship } = await import('../utils/relationshipAccess.js');
     const { clientId, ...data } = req.body;
+
+    if (await isPastRelationship(req.userId, clientId)) {
+      return res.status(403).json({ message: 'You no longer have access to this client.' });
+    }
 
     // Check if already exists (upsert)
     const existing = await ClientHistory.findOne({ clientId, therapistId: req.userId });
@@ -520,11 +560,31 @@ router.get('/dashboard/my-clients', protect, therapistOnly, async (req, res) => 
   try {
     const mongoose = (await import('mongoose')).default;
     const therapistOid = new mongoose.Types.ObjectId(req.userId);
-    const clientIds = await Session.find({ therapistId: therapistOid }).distinct('clientId');
+    const Relationship = (await import('../models/ClientTherapistRelationship.js')).default;
+
+    // Active client IDs from relationships table
+    const activeRels = await Relationship.find({ therapistId: therapistOid, status: 'active' }).select('clientId');
+    let clientIds = activeRels.map(r => r.clientId);
+
+    // Fallback for clients with sessions but no relationship row yet (legacy data) — backfill as active
+    const sessionClientIds = await Session.find({ therapistId: therapistOid }).distinct('clientId');
+    const haveRelFor = new Set(await Relationship.find({ therapistId: therapistOid }).distinct('clientId').then(arr => arr.map(String)));
+    const missing = sessionClientIds.filter(id => !haveRelFor.has(String(id)));
+    if (missing.length > 0) {
+      // Backfill (active by default) — best effort, ignore duplicates
+      await Promise.all(missing.map(cid => Relationship.findOneAndUpdate(
+        { clientId: cid, therapistId: therapistOid },
+        { $setOnInsert: { status: 'active', startedAt: new Date() } },
+        { upsert: true, new: true }
+      ).catch(() => null)));
+      clientIds = [...clientIds, ...missing];
+    }
+
     const Client = (await import('../models/Client.js')).default;
     const clients = await Client.find({ _id: { $in: clientIds } }).select('name email').sort({ name: 1 });
     res.json(clients);
   } catch (error) {
+    console.error('My-clients error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

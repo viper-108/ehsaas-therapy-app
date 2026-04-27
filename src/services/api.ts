@@ -307,6 +307,13 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  async transferClient(body: { clientId: string; fromTherapistId: string; toTherapistId: string; reason?: string }) {
+    const res = await fetch(`${API_BASE}/admin/transfer-client`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+
   async getAllClients() {
     const res = await fetch(`${API_BASE}/admin/all-clients`, { headers: this.getHeaders() });
     return this.handleResponse(res);

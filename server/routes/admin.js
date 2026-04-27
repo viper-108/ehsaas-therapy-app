@@ -112,6 +112,120 @@ router.put('/therapists/:id/reject', protect, adminOnly, async (req, res) => {
   }
 });
 
+// POST /api/admin/transfer-client — transfer a client from one therapist to another
+// Body: { clientId, fromTherapistId, toTherapistId, reason }
+router.post('/transfer-client', protect, adminOnly, async (req, res) => {
+  try {
+    const { clientId, fromTherapistId, toTherapistId, reason } = req.body || {};
+    if (!clientId || !fromTherapistId || !toTherapistId) {
+      return res.status(400).json({ message: 'clientId, fromTherapistId, toTherapistId are required' });
+    }
+    if (String(fromTherapistId) === String(toTherapistId)) {
+      return res.status(400).json({ message: 'Cannot transfer to the same therapist' });
+    }
+
+    const Relationship = (await import('../models/ClientTherapistRelationship.js')).default;
+    const ClientHistory = (await import('../models/ClientHistory.js')).default;
+    const Session = (await import('../models/Session.js')).default;
+    const Client = (await import('../models/Client.js')).default;
+    const Notification = (await import('../models/Notification.js')).default;
+
+    const [client, fromTherapist, toTherapist] = await Promise.all([
+      Client.findById(clientId).select('name email'),
+      Therapist.findById(fromTherapistId).select('name email'),
+      Therapist.findById(toTherapistId).select('name email accountStatus'),
+    ]);
+
+    if (!client) return res.status(404).json({ message: 'Client not found' });
+    if (!fromTherapist) return res.status(404).json({ message: 'Old therapist not found' });
+    if (!toTherapist) return res.status(404).json({ message: 'New therapist not found' });
+    if (toTherapist.accountStatus === 'past') return res.status(400).json({ message: 'Cannot transfer to a past/deactivated therapist' });
+
+    const now = new Date();
+
+    // 1. Mark OLD relationship as 'past'
+    await Relationship.findOneAndUpdate(
+      { clientId, therapistId: fromTherapistId },
+      {
+        $set: {
+          status: 'past',
+          endedAt: now,
+          transferredToTherapistId: toTherapistId,
+          transferReason: reason || '',
+          transferredAt: now,
+        }
+      },
+      { upsert: true, new: true }
+    );
+
+    // 2. Mark NEW relationship as 'active' (or upsert)
+    await Relationship.findOneAndUpdate(
+      { clientId, therapistId: toTherapistId },
+      {
+        $set: {
+          status: 'active',
+          startedAt: now,
+          transferredFromTherapistId: fromTherapistId,
+          endedAt: null,
+          transferredToTherapistId: null,
+        }
+      },
+      { upsert: true, new: true }
+    );
+
+    // 3. Cancel any future sessions still scheduled with old therapist
+    await Session.updateMany(
+      { clientId, therapistId: fromTherapistId, status: 'scheduled', date: { $gte: now } },
+      { $set: { status: 'cancelled', cancelledBy: 'admin', cancellationReason: 'Client transferred to new therapist', cancelledAt: now } }
+    );
+
+    // 4. Copy ClientHistory (if old therapist had it) to new therapist for continuity
+    const oldHistory = await ClientHistory.findOne({ clientId, therapistId: fromTherapistId });
+    if (oldHistory) {
+      const existingNew = await ClientHistory.findOne({ clientId, therapistId: toTherapistId });
+      if (!existingNew) {
+        await ClientHistory.create({
+          clientId,
+          therapistId: toTherapistId,
+          socioDemographics: oldHistory.socioDemographics,
+          dateOfFirstSession: oldHistory.dateOfFirstSession,
+          presentingConcerns: oldHistory.presentingConcerns,
+          historyOfPresentingConcerns: oldHistory.historyOfPresentingConcerns,
+          familyHistoryMentalHealth: oldHistory.familyHistoryMentalHealth,
+          personalHistory: oldHistory.personalHistory,
+          premorbidPersonality: oldHistory.premorbidPersonality,
+          clientEngagementMotivation: oldHistory.clientEngagementMotivation,
+        });
+      }
+    }
+
+    // 5. Notify client
+    Notification.notify(clientId, 'client', 'transfer',
+      'Your therapist has been changed',
+      `You've been transferred from ${fromTherapist.name} to ${toTherapist.name}. Your full history has been shared with your new therapist.`,
+      '/client-dashboard'
+    ).catch(() => {});
+
+    // 6. Email both therapists
+    try {
+      const { sendEmail } = await import('../utils/email.js');
+      const oldEmailHtml = `<p>Hi ${fromTherapist.name},</p><p>Client <strong>${client.name}</strong> has been transferred to ${toTherapist.name}. You no longer have access to this client's records.</p>${reason ? `<p>Reason: ${reason}</p>` : ''}<p>— Ehsaas Admin</p>`;
+      const newEmailHtml = `<p>Hi ${toTherapist.name},</p><p>Client <strong>${client.name}</strong> has been transferred to you. Their full history and notes are now visible in your dashboard.</p><p>— Ehsaas Admin</p>`;
+      const clientEmailHtml = `<p>Hi ${client.name},</p><p>You've been transferred from ${fromTherapist.name} to ${toTherapist.name}. Your therapy history will be shared with your new therapist for continuity of care.</p><p>If you have questions, reach out at sessions@ehsaastherapycentre.com.</p>`;
+      sendEmail(fromTherapist.email, 'Client transferred — Ehsaas', oldEmailHtml).catch(() => {});
+      sendEmail(toTherapist.email, 'New client transferred to you — Ehsaas', newEmailHtml).catch(() => {});
+      if (client.email) sendEmail(client.email, 'Therapist change — Ehsaas', clientEmailHtml).catch(() => {});
+    } catch (e) { console.error('[TRANSFER EMAIL]', e.message); }
+
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'client_transferred', 'Client', clientId, { from: fromTherapist.name, to: toTherapist.name, reason }); } catch {}
+
+    res.json({ message: 'Transfer completed successfully', client: client.name, from: fromTherapist.name, to: toTherapist.name });
+  } catch (error) {
+    console.error('Transfer client error:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+});
+
 // PUT /api/admin/therapists/:id/interview — schedule interview / set in-process
 router.put('/therapists/:id/interview', protect, adminOnly, async (req, res) => {
   try {

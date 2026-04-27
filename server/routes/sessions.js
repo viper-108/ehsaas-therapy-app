@@ -55,6 +55,12 @@ router.post('/', protect, clientOnly, async (req, res) => {
       sessionType: sessionType || 'individual', status: 'scheduled'
     });
 
+    // Ensure active relationship exists (used for transfer access control)
+    try {
+      const { ensureActiveRelationship } = await import('../utils/relationshipAccess.js');
+      ensureActiveRelationship(therapistId, req.userId).catch(() => {});
+    } catch {}
+
     // Check if client has switched therapists 3+ times (fire-and-forget)
     import('../utils/clientFlags.js').then(m => m.checkTherapistChangeFlag(req.userId).catch(e => console.error('[FLAG]', e)));
 
@@ -164,6 +170,12 @@ router.post('/recurring', protect, clientOnly, async (req, res) => {
       });
       sessions.push(session);
     }
+
+    // Ensure active relationship exists
+    try {
+      const { ensureActiveRelationship } = await import('../utils/relationshipAccess.js');
+      ensureActiveRelationship(therapistId, req.userId).catch(() => {});
+    } catch {}
 
     const populated = await Session.find({ recurringGroupId })
       .populate('therapistId', 'name title image')
