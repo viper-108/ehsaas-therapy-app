@@ -52,11 +52,13 @@ router.get('/', async (req, res) => {
     const bookedMap = new Map(bookedAgg.map(b => [String(b._id), b.count]));
 
     // Convert pricing Map to plain objects + add isFullToday flag
+    // Strip pricingMin (admin-only) from public listing
     const result = therapists.map(t => {
       const obj = t.toObject();
       if (obj.pricing instanceof Map) {
         obj.pricing = Object.fromEntries(obj.pricing);
       }
+      delete obj.pricingMin; // never expose minimum to public/clients
       const todayBooked = bookedMap.get(String(t._id)) || 0;
       const maxPerDay = obj.maxSessionsPerDay || 8;
       obj.todayBookedCount = todayBooked;
@@ -86,6 +88,7 @@ router.get('/:id', async (req, res) => {
     if (obj.pricing instanceof Map) {
       obj.pricing = Object.fromEntries(obj.pricing);
     }
+    delete obj.pricingMin; // admin-only, never expose to public
     res.json(obj);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -221,9 +224,8 @@ router.get('/dashboard/profile', protect, therapistOnly, async (req, res) => {
   try {
     const therapist = await Therapist.findById(req.userId).select('-password');
     const obj = therapist.toObject();
-    if (obj.pricing instanceof Map) {
-      obj.pricing = Object.fromEntries(obj.pricing);
-    }
+    if (obj.pricing instanceof Map) obj.pricing = Object.fromEntries(obj.pricing);
+    if (obj.pricingMin instanceof Map) obj.pricingMin = Object.fromEntries(obj.pricingMin);
     res.json(obj);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -233,7 +235,7 @@ router.get('/dashboard/profile', protect, therapistOnly, async (req, res) => {
 // PUT /api/therapists/dashboard/profile
 router.put('/dashboard/profile', protect, therapistOnly, async (req, res) => {
   try {
-    const allowed = ['name', 'title', 'phone', 'specializations', 'experience', 'bio', 'languages', 'pricing', 'calendlyLink', 'image', 'maxSessionsPerDay', 'educationBackground', 'courses', 'highestEducation'];
+    const allowed = ['name', 'title', 'phone', 'specializations', 'experience', 'bio', 'languages', 'pricing', 'pricingMin', 'calendlyLink', 'image', 'maxSessionsPerDay', 'educationBackground', 'courses', 'highestEducation'];
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
@@ -243,9 +245,8 @@ router.put('/dashboard/profile', protect, therapistOnly, async (req, res) => {
 
     const therapist = await Therapist.findByIdAndUpdate(req.userId, updates, { new: true }).select('-password');
     const obj = therapist.toObject();
-    if (obj.pricing instanceof Map) {
-      obj.pricing = Object.fromEntries(obj.pricing);
-    }
+    if (obj.pricing instanceof Map) obj.pricing = Object.fromEntries(obj.pricing);
+    if (obj.pricingMin instanceof Map) obj.pricingMin = Object.fromEntries(obj.pricingMin);
     res.json(obj);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });

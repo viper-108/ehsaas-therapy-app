@@ -127,8 +127,8 @@ const Services = () => {
                 <Card key={index} className="p-8 h-full hover:shadow-large transition-all duration-300">
                   <CardContent className="pt-6">
                     <div className="flex items-start gap-6">
-                      <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <service.icon className="w-8 h-8 text-secondary" />
+                      <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                        <service.icon className="w-8 h-8 text-primary" />
                       </div>
                       <div className="flex-1">
                         <h3 className="text-2xl font-semibold mb-3">{service.title}</h3>
@@ -137,13 +137,13 @@ const Services = () => {
                         <div className="space-y-2 mb-6">
                           {service.features.map((feature, idx) => (
                             <div key={idx} className="flex items-center text-sm">
-                              <div className="w-2 h-2 bg-secondary rounded-full mr-3"></div>
+                              <div className="w-2 h-2 bg-primary rounded-full mr-3"></div>
                               <span>{feature}</span>
                             </div>
                           ))}
                         </div>
                         
-                        <Button asChild variant="secondary">
+                        <Button asChild variant="default">
                           <Link to="/contact">Get Quote</Link>
                         </Button>
                       </div>
@@ -166,8 +166,8 @@ const Services = () => {
                 <Card key={index} className="p-6 h-full hover:shadow-large transition-all duration-300">
                   <CardContent className="pt-6">
                     <div className="text-center mb-6">
-                      <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <service.icon className="w-8 h-8 text-accent" />
+                      <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <service.icon className="w-8 h-8 text-primary" />
                       </div>
                       <h3 className="text-2xl font-semibold mb-3">{service.title}</h3>
                       <p className="text-muted-foreground">{service.description}</p>
@@ -176,7 +176,7 @@ const Services = () => {
                     <div className="space-y-2 mb-6">
                       {service.features.map((feature, idx) => (
                         <div key={idx} className="flex items-center text-sm">
-                          <div className="w-2 h-2 bg-accent rounded-full mr-3"></div>
+                          <div className="w-2 h-2 bg-primary rounded-full mr-3"></div>
                           <span>{feature}</span>
                         </div>
                       ))}
@@ -200,7 +200,7 @@ const Services = () => {
               Choose the service that fits your needs and begin your journey towards better mental health
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild size="lg" variant="secondary">
+              <Button asChild size="lg" variant="default">
                 <Link to="/team">Book a Session</Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="bg-white/10 border-white text-white hover:bg-white hover:text-primary">

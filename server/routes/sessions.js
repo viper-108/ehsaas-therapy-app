@@ -28,8 +28,15 @@ router.post('/', protect, clientOnly, async (req, res) => {
     }
 
     const pricing = therapist.pricing instanceof Map ? Object.fromEntries(therapist.pricing) : therapist.pricing;
-    const amount = pricing[String(duration)];
-    if (!amount) return res.status(400).json({ message: `Therapist does not offer ${duration} minute sessions` });
+    const baseAmount = pricing[String(duration)];
+    if (!baseAmount) return res.status(400).json({ message: `Therapist does not offer ${duration} minute sessions` });
+
+    // Apply approved per-client price negotiation (uses negotiated price if approved, else max price)
+    let amount = baseAmount;
+    try {
+      const { getPriceForClient } = await import('./priceNegotiations.js');
+      amount = await getPriceForClient(therapistId, req.userId, duration);
+    } catch {}
 
     const endTime = calcEndTime(startTime, duration);
 
@@ -134,8 +141,15 @@ router.post('/recurring', protect, clientOnly, async (req, res) => {
     }
 
     const pricing = therapist.pricing instanceof Map ? Object.fromEntries(therapist.pricing) : therapist.pricing;
-    const amount = pricing[String(duration)];
-    if (!amount) return res.status(400).json({ message: `Therapist does not offer ${duration} minute sessions` });
+    const baseAmount = pricing[String(duration)];
+    if (!baseAmount) return res.status(400).json({ message: `Therapist does not offer ${duration} minute sessions` });
+
+    // Apply approved per-client price negotiation (uses negotiated price if approved, else max price)
+    let amount = baseAmount;
+    try {
+      const { getPriceForClient } = await import('./priceNegotiations.js');
+      amount = await getPriceForClient(therapistId, req.userId, duration);
+    } catch {}
 
     const endTime = calcEndTime(startTime, duration);
     const recurringGroupId = uuidv4();

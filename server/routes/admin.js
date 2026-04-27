@@ -9,11 +9,14 @@ import { sendApprovalEmail, sendRejectionEmail } from '../utils/email.js';
 
 const router = express.Router();
 
-// Helper to convert pricing Map
+// Helper to convert pricing Map (admin sees BOTH max and min)
 const convertPricing = (therapist) => {
   const obj = therapist.toObject ? therapist.toObject() : { ...therapist };
   if (obj.pricing instanceof Map) {
     obj.pricing = Object.fromEntries(obj.pricing);
+  }
+  if (obj.pricingMin instanceof Map) {
+    obj.pricingMin = Object.fromEntries(obj.pricingMin);
   }
   delete obj.password;
   return obj;

@@ -23,6 +23,7 @@ import { AnalyticsCharts } from "@/components/AnalyticsCharts";
 import { SessionsListWithFilters } from "@/components/SessionsListWithFilters";
 import { AdminReviewModeration } from "@/components/AdminReviewModeration";
 import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
+import { PriceNegotiationsPanel } from "@/components/PriceNegotiationsPanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
@@ -736,6 +737,14 @@ const AdminDashboard = () => {
                     ))}
                   </div>
                 )}
+
+                {/* Price Negotiations */}
+                <Card className="p-5 mt-6">
+                  <PriceNegotiationsPanel role="admin" adminEnableData={{
+                    clients: allClients.map((c: any) => ({ _id: c._id, name: c.name })),
+                    therapists: allTherapists.filter((t: any) => t.accountStatus !== 'past').map((t: any) => ({ _id: t._id, name: t.name, pricing: t.pricing, pricingMin: t.pricingMin })),
+                  }} />
+                </Card>
               </TabsContent>
             </Tabs>
                   </div>
@@ -975,8 +984,15 @@ const AdminDashboard = () => {
                     )}
                     {detailModal.data.pricing && (
                       <div>
-                        <p className="text-sm font-medium text-foreground mb-2">Pricing</p>
-                        <div className="flex gap-2">{Object.entries(detailModal.data.pricing).map(([d, p]: [string, any]) => <span key={d} className="bg-primary/10 text-primary px-2 py-1 rounded text-sm">₹{p}/{d}min</span>)}</div>
+                        <p className="text-sm font-medium text-foreground mb-2">Pricing (Max — shown to clients)</p>
+                        <div className="flex gap-2 flex-wrap">{Object.entries(detailModal.data.pricing).map(([d, p]: [string, any]) => <span key={d} className="bg-primary/10 text-primary px-2 py-1 rounded text-sm">₹{p}/{d}min</span>)}</div>
+                      </div>
+                    )}
+                    {detailModal.data.pricingMin && Object.keys(detailModal.data.pricingMin).length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-foreground mb-2">Pricing (Min — admin only)</p>
+                        <div className="flex gap-2 flex-wrap">{Object.entries(detailModal.data.pricingMin).map(([d, p]: [string, any]) => <span key={d} className="bg-amber-500/10 text-amber-700 dark:text-amber-300 px-2 py-1 rounded text-sm">₹{p}/{d}min</span>)}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Therapist will accept any price between min and max for negotiations.</p>
                       </div>
                     )}
 

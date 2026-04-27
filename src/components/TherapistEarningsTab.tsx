@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, DollarSign, Building2, User, CalendarDays } from "lucide-react";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { PriceNegotiationsPanel } from "@/components/PriceNegotiationsPanel";
 
 interface MonthlyRow {
   month: string;
@@ -179,6 +180,11 @@ export function TherapistEarningsTab() {
         <p className="text-xs text-muted-foreground mt-3 italic">
           Note: Earnings figures are synced with the admin dashboard. Your commission rate is set by Ehsaas administration.
         </p>
+      </Card>
+
+      {/* Price Negotiations */}
+      <Card className="p-5">
+        <PriceNegotiationsPanel role="therapist" />
       </Card>
     </div>
   );

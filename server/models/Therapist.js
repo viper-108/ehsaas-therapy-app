@@ -23,10 +23,18 @@ const therapistSchema = new mongoose.Schema({
   image: { type: String, default: '' },
   rating: { type: Number, default: 5.0, min: 0, max: 5 },
   totalSessions: { type: Number, default: 0 },
+  // Pricing — Map of duration → max price (the public/displayed price)
   pricing: {
     type: Map,
     of: Number,
     default: { '30': 600, '50': 900 }
+  },
+  // Optional minimum price the therapist is willing to negotiate down to (per duration)
+  // Visible only to admin; clients only see the `pricing` (max) value
+  pricingMin: {
+    type: Map,
+    of: Number,
+    default: {}
   },
   availability: [availabilitySlotSchema],
   calendlyLink: { type: String, default: '' },
@@ -87,6 +95,9 @@ therapistSchema.methods.toPublicJSON = function() {
   // Convert pricing Map to plain object
   if (obj.pricing instanceof Map) {
     obj.pricing = Object.fromEntries(obj.pricing);
+  }
+  if (obj.pricingMin instanceof Map) {
+    obj.pricingMin = Object.fromEntries(obj.pricingMin);
   }
   return obj;
 };

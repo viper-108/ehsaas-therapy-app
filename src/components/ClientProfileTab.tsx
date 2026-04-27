@@ -10,6 +10,7 @@ import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { EhsaasReviewCard } from "@/components/EhsaasReviewCard";
+import { PriceNegotiationsPanel } from "@/components/PriceNegotiationsPanel";
 
 const THERAPY_TYPES = ["Anxiety", "Depression", "Relationships", "Trauma", "Grief", "Self-esteem", "Stress", "Career", "Family", "Couple"];
 
@@ -154,6 +155,10 @@ export function ClientProfileTab() {
         <Button onClick={handleSave} disabled={saving} size="lg">
           <Save className="w-4 h-4 mr-2" /> {saving ? 'Saving...' : 'Save Profile'}
         </Button>
+      </div>
+
+      <div className="border-t pt-6">
+        <PriceNegotiationsPanel role="client" />
       </div>
 
       <div className="border-t pt-6">

@@ -31,12 +31,9 @@ const Navigation = () => {
 
   const navItems = [
     { name: t('nav.home'), path: "/" },
-    { name: t('nav.about'), path: "/about" },
     { name: t('nav.team'), path: "/team" },
     { name: t('nav.services'), path: "/services" },
     { name: t('nav.blogs'), path: "/blogs" },
-    { name: t('nav.contact'), path: "/contact" },
-    { name: t('nav.faqs'), path: "/faqs" },
   ];
 
   const isActive = (path: string) => location.pathname === path;

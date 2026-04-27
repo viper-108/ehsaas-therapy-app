@@ -314,6 +314,36 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  // === Price Negotiations ===
+  async enablePriceNegotiation(body: { clientId: string; therapistId?: string; duration: string }) {
+    const res = await fetch(`${API_BASE}/price-negotiations/enable`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async proposePrice(id: string, proposedPrice: number) {
+    const res = await fetch(`${API_BASE}/price-negotiations/${id}/propose`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ proposedPrice })
+    });
+    return this.handleResponse(res);
+  }
+  async approvePriceNegotiation(id: string) {
+    const res = await fetch(`${API_BASE}/price-negotiations/${id}/approve`, {
+      method: 'POST', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+  async rejectPriceNegotiation(id: string, reason?: string) {
+    const res = await fetch(`${API_BASE}/price-negotiations/${id}/reject`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ reason: reason || '' })
+    });
+    return this.handleResponse(res);
+  }
+  async getMyPriceNegotiations() {
+    const res = await fetch(`${API_BASE}/price-negotiations/my`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+
   async getAllClients() {
     const res = await fetch(`${API_BASE}/admin/all-clients`, { headers: this.getHeaders() });
     return this.handleResponse(res);
