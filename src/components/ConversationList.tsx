@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { MessageCircle, Loader2, UserPlus, Ban } from "lucide-react";
+import { MessageCircle, Loader2, UserPlus, Ban, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 
 interface ConversationListProps {
   onSelectConversation: (conversationKey: string, otherUser: any) => void;
@@ -12,18 +13,29 @@ interface ConversationListProps {
 }
 
 export const ConversationList = ({ onSelectConversation, selectedKey }: ConversationListProps) => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [conversations, setConversations] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showContacts, setShowContacts] = useState(false);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+
+  const loadGroups = async () => {
+    try { const d = await api.getMyChatGroups(); setGroups(d || []); } catch {}
+  };
+  useEffect(() => { loadGroups(); }, []);
 
   useEffect(() => {
     loadConversations();
-    loadContacts();
     const interval = setInterval(loadConversations, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  // When user opens the "New Chat" tab, fetch the full directory (all therapists, peers, admin)
+  useEffect(() => {
+    if (showContacts) loadContacts('all');
+  }, [showContacts]);
 
   const loadConversations = async () => {
     try {
@@ -35,9 +47,9 @@ export const ConversationList = ({ onSelectConversation, selectedKey }: Conversa
     }
   };
 
-  const loadContacts = async () => {
+  const loadContacts = async (scope: 'all' | 'sessions' = 'sessions') => {
     try {
-      const data = await api.getContacts();
+      const data = await api.getContacts(scope);
       setContacts(data);
     } catch {}
   };
@@ -87,11 +99,46 @@ export const ConversationList = ({ onSelectConversation, selectedKey }: Conversa
         </Button>
       </div>
 
+      {/* Therapist-only: Create Group button */}
+      {role === 'therapist' && (
+        <Button variant="outline" size="sm" className="w-full text-xs h-8 mb-1" onClick={() => setShowCreateGroup(true)}>
+          <Users className="w-3 h-3 mr-1" /> Create Group Chat
+        </Button>
+      )}
+
+      {/* Group chats list */}
+      {!showContacts && groups.length > 0 && (
+        <div className="space-y-1 pb-2 border-b mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1 mt-1">Groups</p>
+          {groups.map(g => {
+            const key = `group_${g._id}`;
+            const isSelected = selectedKey === key;
+            return (
+              <Card
+                key={g._id}
+                className={`p-2 cursor-pointer transition-colors ${isSelected ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted/40'}`}
+                onClick={() => onSelectConversation(key, { _id: g._id, name: g.name, role: 'group', isGroup: true, members: g.members })}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center"><Users className="w-3.5 h-3.5 text-primary" /></div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{g.name}</p>
+                    <p className="text-xs text-muted-foreground">{g.members.length} members</p>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <CreateGroupDialog isOpen={showCreateGroup} onClose={() => setShowCreateGroup(false)} onCreated={loadGroups} />
+
       {showContacts ? (
-        /* ===== CONTACTS (session-based) ===== */
+        /* ===== CONTACTS (full directory) ===== */
         <div>
           <p className="text-xs text-muted-foreground px-1 mb-2">
-            People from your sessions:
+            Start a chat with any therapist, your clients, or Ehsaas support:
           </p>
 
           {contacts.filter(c => !c.isBlocked).length === 0 ? (

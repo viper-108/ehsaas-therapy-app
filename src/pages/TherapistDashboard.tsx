@@ -128,14 +128,52 @@ const TherapistDashboard = () => {
       if (existing) {
         return prev.map(a => a.dayOfWeek === dayOfWeek ? { ...a, isAvailable: !a.isAvailable } : a);
       } else {
-        return [...prev, { dayOfWeek, startTime: '09:00', endTime: '18:00', isAvailable: true }];
+        return [...prev, { dayOfWeek, startTime: '09:00', endTime: '18:00', chunks: [{ startTime: '09:00', endTime: '18:00' }], isAvailable: true }];
       }
     });
   };
 
-  const updateDayTime = (dayOfWeek: number, field: string, value: string) => {
+  const updateChunk = (dayOfWeek: number, chunkIdx: number, field: 'startTime' | 'endTime', value: string) => {
     setAvailability(prev =>
-      prev.map(a => a.dayOfWeek === dayOfWeek ? { ...a, [field]: value } : a)
+      prev.map(a => {
+        if (a.dayOfWeek !== dayOfWeek) return a;
+        const chunks = Array.isArray(a.chunks) && a.chunks.length > 0
+          ? [...a.chunks]
+          : [{ startTime: a.startTime || '09:00', endTime: a.endTime || '18:00' }];
+        chunks[chunkIdx] = { ...chunks[chunkIdx], [field]: value };
+        // Keep legacy fields synced to first chunk for backward compat
+        return {
+          ...a,
+          chunks,
+          startTime: chunks[0]?.startTime || a.startTime,
+          endTime: chunks[chunks.length - 1]?.endTime || a.endTime,
+        };
+      })
+    );
+  };
+
+  const addChunk = (dayOfWeek: number) => {
+    setAvailability(prev =>
+      prev.map(a => {
+        if (a.dayOfWeek !== dayOfWeek) return a;
+        const chunks = Array.isArray(a.chunks) && a.chunks.length > 0
+          ? [...a.chunks]
+          : [{ startTime: a.startTime || '09:00', endTime: a.endTime || '18:00' }];
+        chunks.push({ startTime: '14:00', endTime: '17:00' });
+        return { ...a, chunks };
+      })
+    );
+  };
+
+  const removeChunk = (dayOfWeek: number, chunkIdx: number) => {
+    setAvailability(prev =>
+      prev.map(a => {
+        if (a.dayOfWeek !== dayOfWeek) return a;
+        const chunks = (Array.isArray(a.chunks) && a.chunks.length > 0 ? [...a.chunks] : []);
+        if (chunks.length <= 1) return a; // keep at least one chunk
+        chunks.splice(chunkIdx, 1);
+        return { ...a, chunks };
+      })
     );
   };
 
@@ -437,33 +475,23 @@ const TherapistDashboard = () => {
                   {DAYS.map((day, index) => {
                     const slot = availability.find(a => a.dayOfWeek === index);
                     const isActive = slot?.isAvailable ?? false;
+                    const chunks = (Array.isArray(slot?.chunks) && slot.chunks.length > 0)
+                      ? slot.chunks
+                      : [{ startTime: slot?.startTime || '09:00', endTime: slot?.endTime || '18:00' }];
 
                     return (
-                      <div key={index} className="flex items-center gap-4 p-4 border rounded-lg flex-wrap">
-                        <div className="w-28">
-                          <p className="font-medium text-foreground">{day}</p>
-                        </div>
-                        <Switch
-                          checked={isActive}
-                          onCheckedChange={() => toggleDay(index)}
-                        />
-                        {isActive && (
-                          <>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="time"
-                                value={slot?.startTime || '09:00'}
-                                onChange={e => updateDayTime(index, 'startTime', e.target.value)}
-                                className="w-32"
-                              />
-                              <span className="text-muted-foreground">to</span>
-                              <Input
-                                type="time"
-                                value={slot?.endTime || '18:00'}
-                                onChange={e => updateDayTime(index, 'endTime', e.target.value)}
-                                className="w-32"
-                              />
-                            </div>
+                      <div key={index} className="p-4 border rounded-lg">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <div className="w-28">
+                            <p className="font-medium text-foreground">{day}</p>
+                          </div>
+                          <Switch
+                            checked={isActive}
+                            onCheckedChange={() => toggleDay(index)}
+                          />
+                          {!isActive && <span className="text-sm text-muted-foreground">Not available</span>}
+
+                          {isActive && (
                             <div className="flex items-center gap-2 ml-auto">
                               <label className="text-xs text-muted-foreground">Max sessions:</label>
                               <Input
@@ -477,9 +505,39 @@ const TherapistDashboard = () => {
                                 title="Leave empty to use the default daily limit below"
                               />
                             </div>
-                          </>
+                          )}
+                        </div>
+
+                        {isActive && (
+                          <div className="mt-3 space-y-2 pl-32">
+                            {chunks.map((c: any, cIdx: number) => (
+                              <div key={cIdx} className="flex items-center gap-2 flex-wrap">
+                                <Input
+                                  type="time"
+                                  value={c.startTime || '09:00'}
+                                  onChange={e => updateChunk(index, cIdx, 'startTime', e.target.value)}
+                                  className="w-32"
+                                />
+                                <span className="text-muted-foreground">to</span>
+                                <Input
+                                  type="time"
+                                  value={c.endTime || '18:00'}
+                                  onChange={e => updateChunk(index, cIdx, 'endTime', e.target.value)}
+                                  className="w-32"
+                                />
+                                {chunks.length > 1 && (
+                                  <Button size="sm" variant="ghost" onClick={() => removeChunk(index, cIdx)} className="text-destructive">
+                                    Remove
+                                  </Button>
+                                )}
+                              </div>
+                            ))}
+                            <Button size="sm" variant="outline" onClick={() => addChunk(index)}>
+                              + Add another time slot
+                            </Button>
+                            <p className="text-xs text-muted-foreground italic">e.g. 9:00–12:00 and 14:00–18:00 (lunch break in between).</p>
+                          </div>
                         )}
-                        {!isActive && <span className="text-sm text-muted-foreground">Not available</span>}
                       </div>
                     );
                   })}

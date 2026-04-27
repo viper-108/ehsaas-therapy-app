@@ -143,20 +143,26 @@ router.get('/:id/available-slots', async (req, res) => {
       return res.json({ slots: [], message: 'All sessions are booked for this day', fullyBooked: true });
     }
 
-    // Generate available slots (hourly)
-    const slots = [];
-    const startHour = parseInt(dayAvailability.startTime.split(':')[0]);
-    const endHour = parseInt(dayAvailability.endTime.split(':')[0]);
+    // Generate available slots (hourly) — iterate across all configured chunks for this day.
+    // If `chunks` is non-empty, use it; otherwise fall back to the legacy single startTime–endTime range.
+    const ranges = (Array.isArray(dayAvailability.chunks) && dayAvailability.chunks.length > 0)
+      ? dayAvailability.chunks
+      : [{ startTime: dayAvailability.startTime || '09:00', endTime: dayAvailability.endTime || '18:00' }];
 
-    for (let hour = startHour; hour < endHour; hour++) {
-      const timeStr = `${hour.toString().padStart(2, '0')}:00`;
-      if (!bookedTimes.includes(timeStr)) {
-        slots.push({
-          time: timeStr,
-          available: true
-        });
+    const slots = [];
+    const seen = new Set();
+    for (const range of ranges) {
+      const sH = parseInt(String(range.startTime).split(':')[0]);
+      const eH = parseInt(String(range.endTime).split(':')[0]);
+      if (!Number.isFinite(sH) || !Number.isFinite(eH) || sH >= eH) continue;
+      for (let hour = sH; hour < eH; hour++) {
+        const timeStr = `${hour.toString().padStart(2, '0')}:00`;
+        if (seen.has(timeStr) || bookedTimes.includes(timeStr)) continue;
+        seen.add(timeStr);
+        slots.push({ time: timeStr, available: true });
       }
     }
+    slots.sort((a, b) => a.time.localeCompare(b.time));
 
     res.json({ slots, maxPerDay: dayLimit, bookedCount: bookedSessions.length });
   } catch (error) {

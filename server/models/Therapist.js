@@ -1,12 +1,20 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+// A single time chunk within a day, e.g. 09:00–12:00
+const timeChunkSchema = new mongoose.Schema({
+  startTime: { type: String, required: true }, // "09:00"
+  endTime: { type: String, required: true },   // "12:00"
+}, { _id: false });
+
 const availabilitySlotSchema = new mongoose.Schema({
   dayOfWeek: { type: Number, required: true, min: 0, max: 6 }, // 0=Sunday, 6=Saturday
-  startTime: { type: String, required: true }, // "09:00"
-  endTime: { type: String, required: true },   // "18:00"
+  // Legacy single-range fields (kept for backwards compatibility with existing data)
+  startTime: { type: String, default: '09:00' },
+  endTime: { type: String, default: '18:00' },
+  // New: array of multiple chunks per day. If `chunks` has entries, they take precedence over startTime/endTime.
+  chunks: { type: [timeChunkSchema], default: [] },
   isAvailable: { type: Boolean, default: true },
-  // Max number of sessions on this specific day (overrides therapist.maxSessionsPerDay if set)
   maxSessionsThisDay: { type: Number, default: null, min: 0, max: 20 },
 }, { _id: false });
 

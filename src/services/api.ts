@@ -527,9 +527,31 @@ class ApiService {
     return this.handleResponse(res);
   }
 
-  // Contacts (session-based)
-  async getContacts() {
-    const res = await fetch(`${API_BASE}/messages/contacts`, { headers: this.getHeaders() });
+  // Contacts. scope='sessions' = my session contacts; scope='all' = full directory for "Start chat".
+  async getContacts(scope: 'sessions' | 'all' = 'sessions') {
+    const res = await fetch(`${API_BASE}/messages/contacts?scope=${scope}`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+
+  // === Group chat ===
+  async createChatGroup(body: { name: string; description?: string; clientIds: string[] }) {
+    const res = await fetch(`${API_BASE}/messages/groups`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async getMyChatGroups() {
+    const res = await fetch(`${API_BASE}/messages/groups/my`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async getGroupMessages(groupId: string) {
+    const res = await fetch(`${API_BASE}/messages/groups/${groupId}/messages`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async sendGroupMessage(groupId: string, content: string) {
+    const res = await fetch(`${API_BASE}/messages/groups/${groupId}/messages`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ content })
+    });
     return this.handleResponse(res);
   }
 

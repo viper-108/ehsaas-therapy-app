@@ -358,17 +358,40 @@ router.put('/:id/cancel', protect, async (req, res) => {
 
       if (waitlistEntries.length > 0) {
         const { sendEmail } = await import('../utils/email.js');
+        const Notification = (await import('../models/Notification.js')).default;
         const therapist = session.therapistId?.name ? session.therapistId : await Therapist.findById(therapistIdForWaitlist);
+        const dateStr = new Date(session.date).toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        const baseUrl = process.env.CLIENT_URL || '';
+        const bookUrl = `${baseUrl}/psychologist/${therapistIdForWaitlist}`;
 
         for (const entry of waitlistEntries) {
           entry.status = 'notified';
           await entry.save();
 
-          // Send notification email (fire and forget)
+          // Send notification email (fire-and-forget)
           if (entry.clientId?.email) {
-            const html = `<p>A slot has opened up with <strong>${therapist?.name || 'your therapist'}</strong> on ${session.date.toLocaleDateString('en-IN')}. Book now before it fills up!</p>`;
-            sendEmail(entry.clientId.email, `Slot Available — ${therapist?.name || 'Ehsaas'}`, html).catch(() => {});
+            const html = `
+              <div style="font-family:Arial;max-width:600px;margin:0 auto;padding:20px;">
+                <h2 style="color:#16a34a;">A slot just opened up!</h2>
+                <p>Hi ${entry.clientId?.name || 'there'},</p>
+                <p>A session slot has opened up with <strong>${therapist?.name || 'your therapist'}</strong> on <strong>${dateStr}</strong>.</p>
+                <p style="text-align:center;margin:24px 0;">
+                  <a href="${bookUrl}" style="display:inline-block;background:#D97706;color:white;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold;">Book This Slot</a>
+                </p>
+                <p style="color:#666;font-size:13px;">Hurry — slots usually go fast. If someone else books this slot first, you'll keep your place on the waitlist for the next opening.</p>
+              </div>`;
+            sendEmail(entry.clientId.email, `Slot opened with ${therapist?.name || 'your therapist'} — book now`, html).catch(() => {});
           }
+
+          // In-app notification (always fire, even if no email)
+          Notification.notify(
+            entry.clientId?._id || entry.clientId,
+            'client',
+            'waitlist_open',
+            'A waitlisted slot just opened!',
+            `${therapist?.name || 'Your therapist'} has an opening on ${dateStr}. Tap to book.`,
+            bookUrl
+          ).catch(() => {});
         }
         console.log(`[WAITLIST] Notified ${waitlistEntries.length} clients about cancellation`);
       }
