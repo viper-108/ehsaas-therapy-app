@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, UserCheck, UserX, Clock, Calendar, DollarSign, BarChart3,
   CheckCircle, XCircle, LogOut, ChevronRight, Shield, Loader2, Star, TrendingUp,
-  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight
+  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight, FileText, Download
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator
@@ -310,6 +310,23 @@ const AdminDashboard = () => {
                             <p className="text-foreground text-sm">{therapist.bio}</p>
                           </div>
                         )}
+
+                        {/* Resume */}
+                        <div className="mb-4 p-3 bg-muted/40 rounded-lg flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+                            <span className="text-sm font-medium">Resume</span>
+                          </div>
+                          {therapist.resume ? (
+                            <Button asChild size="sm" variant="outline">
+                              <a href={therapist.resume} target="_blank" rel="noopener noreferrer">
+                                <Download className="w-3 h-3 mr-1" /> View / Download
+                              </a>
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Not uploaded</span>
+                          )}
+                        </div>
 
                         <div className="text-xs text-muted-foreground mb-4">
                           Applied: {new Date(therapist.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -961,6 +978,30 @@ const AdminDashboard = () => {
                         <p className="text-sm font-medium text-foreground mb-2">Pricing</p>
                         <div className="flex gap-2">{Object.entries(detailModal.data.pricing).map(([d, p]: [string, any]) => <span key={d} className="bg-primary/10 text-primary px-2 py-1 rounded text-sm">₹{p}/{d}min</span>)}</div>
                       </div>
+                    )}
+
+                    {/* Resume / CV */}
+                    <div className="p-3 bg-muted/40 rounded-lg flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+                        <span className="text-sm font-medium">Resume / CV</span>
+                      </div>
+                      {detailModal.data.resume ? (
+                        <Button asChild size="sm" variant="outline">
+                          <a href={detailModal.data.resume} target="_blank" rel="noopener noreferrer">
+                            <Download className="w-3 h-3 mr-1" /> View / Download
+                          </a>
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Not uploaded</span>
+                      )}
+                    </div>
+
+                    {detailModal.data.educationBackground && (
+                      <div><p className="text-sm font-medium text-foreground mb-1">Education Background</p><p className="text-sm text-muted-foreground whitespace-pre-wrap">{detailModal.data.educationBackground}</p></div>
+                    )}
+                    {detailModal.data.highestEducation && (
+                      <div><p className="text-sm font-medium text-foreground mb-1">Highest Education</p><p className="text-sm text-muted-foreground">{detailModal.data.highestEducation}</p></div>
                     )}
                   </>
                 )}

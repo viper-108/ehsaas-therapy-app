@@ -251,42 +251,92 @@ export const TherapistOnboarding = () => {
     } finally { setSubmitting(false); }
   };
 
+  // Click handler that scrolls to a section by id
+  const scrollToStep = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const StepItem = ({
+    n, label, done, target,
+  }: { n: number; label: string; done: boolean; target: string }) => (
+    <button
+      type="button"
+      onClick={() => scrollToStep(target)}
+      className={`w-full flex items-start gap-3 text-left px-3 py-3 rounded-lg transition-all
+        ${done
+          ? 'bg-success/5 border border-success/20 hover:bg-success/10'
+          : 'bg-muted/30 border border-transparent hover:bg-muted/50 hover:border-muted-foreground/30'}`}
+    >
+      <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+        ${done ? 'bg-success text-white' : 'bg-muted-foreground/20 text-muted-foreground'}`}>
+        {done ? <Check className="w-4 h-4" /> : n}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm font-medium ${done ? 'text-success-foreground' : 'text-foreground'}`}>{label}</p>
+        <p className="text-xs text-muted-foreground">{done ? 'Completed' : 'Click to view'}</p>
+      </div>
+    </button>
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
       <div className="py-8">
-        <div className="max-w-3xl mx-auto px-4">
-          {/* Header with progress */}
+        <div className="max-w-6xl mx-auto px-4">
+          {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-foreground mb-2">Welcome to Ehsaas Therapy Centre</h1>
             <p className="text-muted-foreground">Complete your profile, upload your resume, and submit for admin review.</p>
           </div>
 
-          {/* Progress checklist */}
-          <Card className="p-4 mb-6 bg-muted/30">
-            <h3 className="font-semibold text-foreground mb-3 text-sm">Steps to complete:</h3>
-            <ul className="space-y-2">
-              <li className="flex items-center gap-2 text-sm">
-                {profileComplete ? <Check className="w-4 h-4 text-success" /> : <div className="w-4 h-4 rounded-full border-2 border-muted-foreground" />}
-                <span className={profileComplete ? 'text-foreground' : 'text-muted-foreground'}>1. Fill in your professional profile</span>
-              </li>
-              <li className="flex items-center gap-2 text-sm">
-                {resumeUrl ? <Check className="w-4 h-4 text-success" /> : <div className="w-4 h-4 rounded-full border-2 border-muted-foreground" />}
-                <span className={resumeUrl ? 'text-foreground' : 'text-muted-foreground'}>2. Upload your resume / CV</span>
-              </li>
-              <li className="flex items-center gap-2 text-sm">
-                {accepted ? <Check className="w-4 h-4 text-success" /> : <div className="w-4 h-4 rounded-full border-2 border-muted-foreground" />}
-                <span className={accepted ? 'text-foreground' : 'text-muted-foreground'}>3. Read and accept the Terms & Conditions</span>
-              </li>
-              <li className="flex items-center gap-2 text-sm">
-                <div className="w-4 h-4 rounded-full border-2 border-muted-foreground" />
-                <span className="text-muted-foreground">4. Submit for admin approval</span>
-              </li>
-            </ul>
-          </Card>
+          <div className="flex gap-6">
+            {/* LEFT — Sticky steps sidebar (desktop) */}
+            <aside className="hidden lg:block w-72 flex-shrink-0">
+              <Card className="p-4 sticky top-24">
+                <h3 className="font-semibold text-foreground mb-3 text-sm uppercase tracking-wide">Steps to Complete</h3>
+                <div className="space-y-2">
+                  <StepItem n={1} label="Professional Profile" done={profileComplete} target="step-profile" />
+                  <StepItem n={2} label="Upload Resume / CV" done={!!resumeUrl} target="step-resume" />
+                  <StepItem n={3} label="Accept Terms & Conditions" done={accepted} target="step-terms" />
+                  <StepItem n={4} label="Submit for Approval" done={false} target="step-submit" />
+                </div>
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-xs text-muted-foreground mb-2">Progress</p>
+                  <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${(((profileComplete ? 1 : 0) + (resumeUrl ? 1 : 0) + (accepted ? 1 : 0)) / 3) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </Card>
+            </aside>
 
-          {/* STEP 1 — PROFILE */}
-          <Card className="p-6 mb-6">
+            {/* MAIN — Form sections */}
+            <div className="flex-1 min-w-0">
+
+              {/* Mobile: condensed checklist */}
+              <Card className="p-3 mb-4 bg-muted/30 lg:hidden">
+                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Steps</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => scrollToStep('step-profile')} className={`text-left px-2 py-1.5 rounded text-xs ${profileComplete ? 'bg-success/10 text-success' : 'bg-background border'}`}>
+                    {profileComplete ? '✓' : '1.'} Profile
+                  </button>
+                  <button onClick={() => scrollToStep('step-resume')} className={`text-left px-2 py-1.5 rounded text-xs ${resumeUrl ? 'bg-success/10 text-success' : 'bg-background border'}`}>
+                    {resumeUrl ? '✓' : '2.'} Resume
+                  </button>
+                  <button onClick={() => scrollToStep('step-terms')} className={`text-left px-2 py-1.5 rounded text-xs ${accepted ? 'bg-success/10 text-success' : 'bg-background border'}`}>
+                    {accepted ? '✓' : '3.'} Terms
+                  </button>
+                  <button onClick={() => scrollToStep('step-submit')} className="text-left px-2 py-1.5 rounded text-xs bg-background border">
+                    4. Submit
+                  </button>
+                </div>
+              </Card>
+
+              {/* STEP 1 — PROFILE */}
+              <Card id="step-profile" className="p-6 mb-6 scroll-mt-24">
             <div className="flex items-center gap-2 mb-4">
               <User className="w-5 h-5 text-primary" />
               <h2 className="text-xl font-semibold text-foreground">Step 1 — Your Professional Profile</h2>
@@ -343,7 +393,7 @@ export const TherapistOnboarding = () => {
           </Card>
 
           {/* STEP 2 — RESUME */}
-          <Card className="p-6 mb-6">
+          <Card id="step-resume" className="p-6 mb-6 scroll-mt-24">
             <div className="flex items-center gap-2 mb-4">
               <FileText className="w-5 h-5 text-primary" />
               <h2 className="text-xl font-semibold text-foreground">Step 2 — Upload Your Resume / CV</h2>
@@ -379,7 +429,7 @@ export const TherapistOnboarding = () => {
           </Card>
 
           {/* STEP 3 — TERMS */}
-          <Card className="p-6 mb-6">
+          <Card id="step-terms" className="p-6 mb-6 scroll-mt-24">
             <div className="flex items-center gap-2 mb-4">
               <FileText className="w-5 h-5 text-primary" />
               <h2 className="text-xl font-semibold text-foreground">Step 3 — Terms & Conditions</h2>
@@ -398,18 +448,22 @@ export const TherapistOnboarding = () => {
             </div>
           </Card>
 
-          {/* STEP 4 — SUBMIT */}
-          <Button onClick={handleSubmit} disabled={!canSubmit} size="lg" className="w-full">
-            {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</> : 'Submit for Admin Approval'}
-          </Button>
+              {/* STEP 4 — SUBMIT */}
+              <div id="step-submit" className="scroll-mt-24">
+                <Button onClick={handleSubmit} disabled={!canSubmit} size="lg" className="w-full">
+                  {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</> : 'Submit for Admin Approval'}
+                </Button>
+                {!canSubmit && !submitting && (
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    {!profileComplete && '☝ Complete your profile first.'}
+                    {profileComplete && !resumeUrl && '☝ Upload your resume to continue.'}
+                    {profileComplete && resumeUrl && !accepted && '☝ Accept the terms to enable submit.'}
+                  </p>
+                )}
+              </div>
 
-          {!canSubmit && !submitting && (
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              {!profileComplete && '👆 Complete your profile first.'}
-              {profileComplete && !resumeUrl && '👆 Upload your resume to continue.'}
-              {profileComplete && resumeUrl && !accepted && '👆 Accept the terms to enable submit.'}
-            </p>
-          )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
