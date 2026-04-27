@@ -318,11 +318,12 @@ router.put('/:id/cancel', protect, async (req, res) => {
             </table>
             <p style="background:#fef3c7;padding:12px;border-radius:6px;border-left:4px solid #f59e0b;">
               ${hasCredit
-                ? '<strong>Good news:</strong> Your previous payment is preserved as credit. When you reschedule, you will not be charged again.'
+                ? '<strong>You have two choices:</strong> reschedule (your payment stays as credit, no recharge) OR request a refund.'
                 : 'Please choose a new date that works for you. Payment will be required at the time of rescheduling.'}
             </p>
             <p style="text-align:center;margin:24px 0;">
               <a href="${rescheduleUrl}" style="display:inline-block;background:#D97706;color:white;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold;">Reschedule Now</a>
+              ${hasCredit ? `<a href="${baseUrl}/client-dashboard?tab=past" style="display:inline-block;margin-left:8px;background:#fff;color:#D97706;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold;border:2px solid #D97706;">Request Refund Instead</a>` : ''}
             </p>
             <p style="color:#666;font-size:13px;">Questions? Reach out to us at sessions@ehsaastherapycentre.com.</p>
           </div>`;
@@ -401,6 +402,54 @@ router.put('/:id/cancel', protect, async (req, res) => {
 
     res.json(session);
   } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/sessions/:id/refund-request — client requests a refund instead of rescheduling
+// Only valid if session was cancelled by therapist AND payment is in 'refunded' (credit) state.
+router.post('/:id/refund-request', protect, clientOnly, async (req, res) => {
+  try {
+    const Notification = (await import('../models/Notification.js')).default;
+    const session = await Session.findById(req.params.id)
+      .populate('therapistId', 'name email');
+    if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (String(session.clientId) !== String(req.userId)) return res.status(403).json({ message: 'Not your session' });
+    if (session.status !== 'cancelled' || session.cancelledBy !== 'therapist') {
+      return res.status(400).json({ message: 'Refund only available for sessions cancelled by therapist' });
+    }
+    if (session.paymentStatus !== 'refunded') {
+      return res.status(400).json({ message: 'No paid amount to refund (or already refunded).' });
+    }
+    if (session.refundRequestedAt) {
+      return res.status(400).json({ message: 'Refund already requested. Admin will process shortly.' });
+    }
+    session.refundRequestedAt = new Date();
+    session.refundStatus = 'requested';
+    await session.save();
+
+    // Notify all admins
+    try {
+      const Admin = (await import('../models/Admin.js')).default;
+      const admins = await Admin.find({}).select('_id email name');
+      const { sendEmail } = await import('../utils/email.js');
+      for (const a of admins) {
+        Notification.notify(a._id, 'admin', 'refund_requested',
+          'Refund requested',
+          `A client has requested a refund for a cancelled session (₹${session.amount}). Process it manually.`,
+          '/admin-dashboard?tab=sessions'
+        ).catch(() => {});
+        if (a.email) {
+          sendEmail(a.email, 'Refund requested — Ehsaas',
+            `<p>Hi ${a.name || 'Admin'},</p><p>A client has requested a refund of <strong>₹${session.amount}</strong> for a session cancelled by ${session.therapistId?.name || 'a therapist'}.</p><p>Session ID: ${session._id}</p>`
+          ).catch(() => {});
+        }
+      }
+    } catch {}
+
+    res.json({ message: 'Refund requested. Admin has been notified.', session });
+  } catch (error) {
+    console.error('Refund request error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

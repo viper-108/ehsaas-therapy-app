@@ -47,6 +47,9 @@ const sessionSchema = new mongoose.Schema({
   cancelledBy: { type: String, enum: [null, 'client', 'therapist', 'admin'], default: null },
   cancellationReason: { type: String, default: '' },
   cancelledAt: { type: Date, default: null },
+  // Refund flow (when client opts for refund instead of rescheduling)
+  refundRequestedAt: { type: Date, default: null },
+  refundStatus: { type: String, enum: ['none', 'requested', 'processed', 'denied'], default: 'none' },
 }, { timestamps: true });
 
 // Index for efficient queries

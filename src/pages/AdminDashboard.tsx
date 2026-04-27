@@ -24,6 +24,7 @@ import { SessionsListWithFilters } from "@/components/SessionsListWithFilters";
 import { AdminReviewModeration } from "@/components/AdminReviewModeration";
 import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { PriceNegotiationsPanel } from "@/components/PriceNegotiationsPanel";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
@@ -52,9 +53,12 @@ const AdminDashboard = () => {
   const { user, role, logout, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState('pending');
   const [stats, setStats] = useState<any>(null);
   const [pending, setPending] = useState<any[]>([]);
+  const [pendingReviews, setPendingReviews] = useState<any[]>([]);
+  const [pendingNegotiations, setPendingNegotiations] = useState<any[]>([]);
   const [allTherapists, setAllTherapists] = useState<any[]>([]);
   const [allClients, setAllClients] = useState<any[]>([]);
   const [allSessions, setAllSessions] = useState<any[]>([]);
@@ -132,13 +136,15 @@ const AdminDashboard = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData] = await Promise.all([
+      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations] = await Promise.all([
         api.getAdminStats(),
         api.getPendingTherapists(),
         api.getAllTherapistsAdmin(),
         api.getAllClients(),
         api.getAllSessions(),
         api.getAllReviews().catch(() => []),
+        api.getPendingReviews().catch(() => []),
+        api.getMyPriceNegotiations().catch(() => []),
       ]);
       setStats(statsData);
       setPending(pendingData);
@@ -146,6 +152,8 @@ const AdminDashboard = () => {
       setAllClients(clientsData);
       setAllSessions(sessionsData);
       setAllReviews(reviewsData);
+      setPendingReviews(pendingReviewsData);
+      setPendingNegotiations((allNegotiations || []).filter((n: any) => ['proposed', 'partially_approved'].includes(n.status)));
     } catch (error) {
       console.error('Admin dashboard load error:', error);
     } finally {
@@ -154,6 +162,13 @@ const AdminDashboard = () => {
   };
 
   const handleApprove = async (id: string) => {
+    const t = pending.find(p => p._id === id) || allTherapists.find(p => p._id === id);
+    const ok = await confirm({
+      title: `Approve ${t?.name || 'this therapist'}?`,
+      description: 'They will be visible to clients and able to receive bookings. You can revoke this approval anytime.',
+      confirmLabel: 'Approve',
+    });
+    if (!ok) return;
     try {
       await api.approveTherapist(id);
       toast({ title: "Approved", description: "Therapist has been approved and is now visible to clients." });
@@ -226,7 +241,7 @@ const AdminDashboard = () => {
           ) : (
             (() => {
               const sidebarItems: SidebarItem[] = [
-                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: pending.length || null, group: 'Approvals' },
+                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length) || null, group: 'Approvals' },
                 { value: 'reviews', label: 'Reviews', icon: Star, group: 'Approvals' },
                 { value: 'therapists', label: 'Therapists', icon: UserCheck, group: 'People' },
                 { value: 'clients', label: 'Clients', icon: Users, group: 'People' },
@@ -244,16 +259,16 @@ const AdminDashboard = () => {
                         {sidebarItems.map(i => <TabsTrigger key={i.value} value={i.value}>{i.label}</TabsTrigger>)}
                       </TabsList>
 
-              {/* ========== PENDING REQUESTS ========== */}
+              {/* ========== PENDING APPROVALS (UNIFIED) ========== */}
               <TabsContent value="pending">
-                <h2 className="text-xl font-semibold text-foreground mb-4">Pending Therapist Requests</h2>
+                <h2 className="text-xl font-semibold text-foreground mb-4">Pending Approvals</h2>
                 {pending.length === 0 ? (
-                  <Card className="p-12 text-center">
-                    <CheckCircle className="w-12 h-12 text-success mx-auto mb-3" />
-                    <p className="text-muted-foreground">No pending requests. All caught up!</p>
-                  </Card>
+                  null
                 ) : (
                   <div className="space-y-6">
+                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      <UserCheck className="w-4 h-4 text-primary" /> Pending Therapist Applications ({pending.length})
+                    </h3>
                     {pending.map(therapist => (
                       <Card key={therapist._id} className="p-6">
                         <div className="flex justify-between items-start mb-4">
@@ -374,6 +389,109 @@ const AdminDashboard = () => {
                     ))}
                   </div>
                 )}
+
+                {/* ===== PENDING REVIEWS ===== */}
+                {pendingReviews.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <Star className="w-4 h-4 text-yellow-500" /> Pending Reviews ({pendingReviews.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {pendingReviews.map((r: any) => (
+                        <Card key={r._id} className="p-4">
+                          <div className="flex justify-between items-start gap-3 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <Badge variant={r.reviewType === 'ehsaas' ? 'default' : 'secondary'} className="text-xs">
+                                  {r.reviewType === 'ehsaas' ? 'For Ehsaas' : `For ${r.therapistId?.name || 'therapist'}`}
+                                </Badge>
+                                <div className="flex">
+                                  {[1,2,3,4,5].map(n => (
+                                    <Star key={n} className={`w-4 h-4 ${n <= r.rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted'}`} />
+                                  ))}
+                                </div>
+                              </div>
+                              <p className="text-sm text-muted-foreground">From: {r.clientId?.name} ({r.clientId?.email})</p>
+                              {r.comment && <p className="text-sm mt-2 bg-muted/30 p-2 rounded">{r.comment}</p>}
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50" onClick={async () => {
+                                if (!window.confirm(`Approve this ${r.rating}-star review?`)) return;
+                                try { await api.approveReview(r._id); toast({ title: "Approved" }); loadAll(); }
+                                catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}>
+                                <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                              </Button>
+                              <Button size="sm" variant="outline" className="border-red-500 text-red-600 hover:bg-red-50" onClick={async () => {
+                                const reason = window.prompt('Reason for rejection (optional):') || '';
+                                try { await api.rejectReview(r._id, reason); toast({ title: "Rejected" }); loadAll(); }
+                                catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}>
+                                <XCircle className="w-3 h-3 mr-1" /> Reject
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ===== PENDING PRICE NEGOTIATIONS ===== */}
+                {pendingNegotiations.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <IndianRupee className="w-4 h-4 text-primary" /> Pending Price Negotiations ({pendingNegotiations.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {pendingNegotiations.map((n: any) => (
+                        <Card key={n._id} className="p-4">
+                          <div className="flex justify-between items-start gap-3 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">
+                                {n.clientId?.name} → {n.therapistId?.name}
+                                <Badge variant="outline" className="ml-2 text-xs">{n.duration}-min</Badge>
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Range: ₹{n.minPrice}-₹{n.originalPrice}
+                                {n.proposedPrice && <> · <strong className="text-foreground">Client proposed: ₹{n.proposedPrice}</strong></>}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {n.therapistApproved ? '✓ Therapist approved' : '○ Therapist pending'} · {n.adminApproved ? '✓ Admin approved' : '○ Admin pending'}
+                              </p>
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              {!n.adminApproved && (
+                                <Button size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50" onClick={async () => {
+                                  if (!window.confirm(`Approve client's proposed price of ₹${n.proposedPrice}?`)) return;
+                                  try { await api.approvePriceNegotiation(n._id); toast({ title: "Approved" }); loadAll(); }
+                                  catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                }}>
+                                  <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                                </Button>
+                              )}
+                              <Button size="sm" variant="outline" className="border-red-500 text-red-600 hover:bg-red-50" onClick={async () => {
+                                const reason = window.prompt('Reason for rejection (optional):') || '';
+                                try { await api.rejectPriceNegotiation(n._id, reason); toast({ title: "Rejected" }); loadAll(); }
+                                catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}>
+                                <XCircle className="w-3 h-3 mr-1" /> Reject
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* "All caught up" — when literally nothing is pending */}
+                {pending.length === 0 && pendingReviews.length === 0 && pendingNegotiations.length === 0 && (
+                  <Card className="p-12 text-center mt-4">
+                    <CheckCircle className="w-12 h-12 text-success mx-auto mb-3" />
+                    <p className="text-muted-foreground">No pending items. All caught up!</p>
+                  </Card>
+                )}
               </TabsContent>
 
               {/* ========== ALL THERAPISTS ========== */}
@@ -397,6 +515,14 @@ const AdminDashboard = () => {
                         <div className="flex items-center gap-3 flex-wrap">
                           {t.accountStatus === 'past' ? (
                             <Badge className="bg-muted text-muted-foreground">Past</Badge>
+                          ) : !t.isApproved || ['pending_approval', 'interview_scheduled', 'in_process'].includes(t.onboardingStatus) ? (
+                            <Badge className="bg-warm/10 text-warm border-warm/20">
+                              {t.onboardingStatus === 'interview_scheduled' ? 'Interview Scheduled'
+                               : t.onboardingStatus === 'in_process' ? 'In Process'
+                               : 'Pending'}
+                            </Badge>
+                          ) : t.onboardingStatus === 'rejected' ? (
+                            <Badge className="bg-destructive/10 text-destructive border-destructive/20">Rejected</Badge>
                           ) : (
                             <Badge className="bg-success/10 text-success border-success/20">Active</Badge>
                           )}
@@ -428,6 +554,22 @@ const AdminDashboard = () => {
                                 <>
                                   {t.onboardingStatus === 'pending_approval' && (
                                     <DropdownMenuItem onClick={() => handleApprove(t._id)}>Approve</DropdownMenuItem>
+                                  )}
+                                  {t.isApproved && t.onboardingStatus === 'approved' && (
+                                    <DropdownMenuItem className="text-amber-600" onClick={async () => {
+                                      const ok = await confirm({
+                                        title: `Revoke approval for ${t.name}?`,
+                                        description: 'They will become invisible to clients and unable to receive new bookings. Existing sessions remain. You can re-approve them anytime.',
+                                        confirmLabel: 'Revoke Approval',
+                                        variant: 'destructive',
+                                      });
+                                      if (!ok) return;
+                                      const reason = window.prompt('Reason (optional, shown to therapist):') || '';
+                                      try { await api.revokeTherapistApproval(t._id, reason); toast({ title: "Approval revoked" }); loadAll(); }
+                                      catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                    }}>
+                                      Revoke Approval
+                                    </DropdownMenuItem>
                                   )}
                                   <DropdownMenuItem onClick={() => setCommissionModal({ open: true, therapist: t, value: String(t.commissionPercent ?? 60) })}>
                                     <Percent className="w-3 h-3 mr-2" /> Set Commission ({t.commissionPercent ?? 60}%)

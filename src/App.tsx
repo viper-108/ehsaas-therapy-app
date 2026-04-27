@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ChatProvider } from "@/components/ChatProvider";
+import { ConfirmProvider } from "@/components/ConfirmDialog";
 import { SOSButton } from "@/components/SOSButton";
 import Home from "./pages/Home";
 import About from "./pages/About";
@@ -47,6 +48,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <ChatProvider>
+          <ConfirmProvider>
           <ScrollToTop />
           <Routes>
             <Route path="/" element={<Home />} />
@@ -69,6 +71,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           <SOSButton />
+          </ConfirmProvider>
           </ChatProvider>
         </AuthProvider>
       </BrowserRouter>

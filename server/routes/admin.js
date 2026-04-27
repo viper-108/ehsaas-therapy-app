@@ -115,6 +115,101 @@ router.put('/therapists/:id/reject', protect, adminOnly, async (req, res) => {
   }
 });
 
+// PUT /api/admin/therapists/:id/revoke-approval — revoke a previously approved therapist
+// Sets onboardingStatus back to pending_approval, isApproved=false. Doesn't delete the account or sessions.
+router.put('/therapists/:id/revoke-approval', protect, adminOnly, async (req, res) => {
+  try {
+    const { reason } = req.body || {};
+    const therapist = await Therapist.findByIdAndUpdate(
+      req.params.id,
+      {
+        isApproved: false,
+        onboardingStatus: 'pending_approval',
+        rejectionReason: reason || 'Approval revoked by admin.',
+      },
+      { new: true }
+    ).select('-password');
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'therapist_approval_revoked', 'Therapist', therapist._id, { name: therapist.name, reason }); } catch {}
+
+    // Email + notification
+    try {
+      const { sendEmail } = await import('../utils/email.js');
+      const Notification = (await import('../models/Notification.js')).default;
+      const html = `<p>Hi ${therapist.name},</p><p>Your approval to practice on Ehsaas has been temporarily revoked${reason ? `: <em>${reason}</em>` : '.'}</p><p>You will not be visible to clients until re-approved. Please reach out to admin if you have questions.</p>`;
+      sendEmail(therapist.email, 'Approval revoked — Ehsaas', html).catch(() => {});
+      Notification.notify(therapist._id, 'therapist', 'approval_revoked',
+        'Your approval has been revoked',
+        reason || 'Admin temporarily revoked your active status. You will not be visible to clients until re-approved.',
+        '/therapist-dashboard'
+      ).catch(() => {});
+    } catch {}
+
+    res.json(convertPricing(therapist));
+  } catch (error) {
+    console.error('Revoke approval error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/admin/reviews/:id/revoke — un-approve a previously approved review
+router.put('/reviews/:id/revoke', protect, adminOnly, async (req, res) => {
+  try {
+    const Review = (await import('../models/Review.js')).default;
+    const TherapistModel = (await import('../models/Therapist.js')).default;
+    const review = await Review.findByIdAndUpdate(req.params.id, {
+      approvalStatus: 'pending',
+      approvedAt: null,
+      approvedBy: null,
+    }, { new: true });
+    if (!review) return res.status(404).json({ message: 'Review not found' });
+    // Recalc therapist rating
+    if (review.therapistId) {
+      const mongoose = (await import('mongoose')).default;
+      const agg = await Review.aggregate([
+        { $match: { therapistId: new mongoose.Types.ObjectId(String(review.therapistId)), reviewType: 'therapist', approvalStatus: 'approved' } },
+        { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } }
+      ]);
+      const avg = agg.length > 0 ? Math.round(agg[0].avg * 10) / 10 : 0;
+      const count = agg.length > 0 ? agg[0].count : 0;
+      await TherapistModel.findByIdAndUpdate(review.therapistId, { rating: avg, totalReviews: count });
+    }
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'review_revoked', 'Review', review._id, {}); } catch {}
+    res.json(review);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/admin/price-negotiations/:id/revoke — cancel an approved negotiation (reverts client to default pricing)
+router.put('/price-negotiations/:id/revoke', protect, adminOnly, async (req, res) => {
+  try {
+    const PriceNegotiation = (await import('../models/PriceNegotiation.js')).default;
+    const Notification = (await import('../models/Notification.js')).default;
+    const neg = await PriceNegotiation.findByIdAndUpdate(req.params.id, {
+      status: 'cancelled',
+      adminApproved: false,
+      therapistApproved: false,
+    }, { new: true });
+    if (!neg) return res.status(404).json({ message: 'Negotiation not found' });
+    Notification.notify(neg.clientId, 'client', 'price_negotiation',
+      'Negotiated price reverted',
+      'Your previously-approved negotiated price has been cancelled by admin. Future bookings will use the standard price.',
+      '/client-dashboard?tab=profile'
+    ).catch(() => {});
+    Notification.notify(neg.therapistId, 'therapist', 'price_negotiation',
+      'Negotiated price reverted',
+      'Admin cancelled a previously-approved negotiated price for one of your clients.',
+      '/therapist-dashboard?tab=earnings'
+    ).catch(() => {});
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'negotiation_revoked', 'PriceNegotiation', neg._id, {}); } catch {}
+    res.json(neg);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // POST /api/admin/transfer-client — transfer a client from one therapist to another
 // Body: { clientId, fromTherapistId, toTherapistId, reason }
 router.post('/transfer-client', protect, adminOnly, async (req, res) => {

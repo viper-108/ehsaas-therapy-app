@@ -436,6 +436,35 @@ const ClientDashboard = () => {
                           {session.reviewId && (
                             <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs">Reviewed</Badge>
                           )}
+
+                          {/* Therapist-cancelled session with paid credit: client can reschedule OR request refund */}
+                          {session.status === 'cancelled' && session.cancelledBy === 'therapist' && session.paymentStatus === 'refunded' && (
+                            <>
+                              {session.refundStatus === 'requested' ? (
+                                <Badge className="bg-amber-500/10 text-amber-600 text-xs">Refund requested</Badge>
+                              ) : session.refundStatus === 'processed' ? (
+                                <Badge className="bg-green-500/10 text-green-600 text-xs">Refund processed</Badge>
+                              ) : (
+                                <>
+                                  <Button size="sm" asChild>
+                                    <Link to={`/psychologist/${session.therapistId?._id || session.therapistId}`}>
+                                      <Calendar className="w-3 h-3 mr-1" /> Reschedule
+                                    </Link>
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="border-amber-500 text-amber-600 hover:bg-amber-50" onClick={async () => {
+                                    if (!window.confirm(`Request a refund of ₹${session.amount}? Admin will process it shortly.`)) return;
+                                    try {
+                                      await api.requestSessionRefund(session._id);
+                                      toast({ title: "Refund requested", description: "Admin has been notified." });
+                                      loadDashboard();
+                                    } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                  }}>
+                                    Refund
+                                  </Button>
+                                </>
+                              )}
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}

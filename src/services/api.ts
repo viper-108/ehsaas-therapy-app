@@ -132,6 +132,13 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  async requestSessionRefund(sessionId: string) {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/refund-request`, {
+      method: 'POST', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+
   async cancelSession(sessionId: string, reason?: string) {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/cancel`, {
       method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason: reason || '' })
@@ -318,6 +325,27 @@ class ApiService {
   async setTherapistInterview(id: string, body: { status: 'interview_scheduled' | 'in_process'; interviewLink?: string; interviewScheduledAt?: string; interviewNotes?: string }) {
     const res = await fetch(`${API_BASE}/admin/therapists/${id}/interview`, {
       method: 'PUT', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+
+  async revokeTherapistApproval(id: string, reason?: string) {
+    const res = await fetch(`${API_BASE}/admin/therapists/${id}/revoke-approval`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason: reason || '' })
+    });
+    return this.handleResponse(res);
+  }
+
+  async revokeReview(id: string) {
+    const res = await fetch(`${API_BASE}/admin/reviews/${id}/revoke`, {
+      method: 'PUT', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+
+  async revokePriceNegotiation(id: string) {
+    const res = await fetch(`${API_BASE}/admin/price-negotiations/${id}/revoke`, {
+      method: 'PUT', headers: this.getHeaders()
     });
     return this.handleResponse(res);
   }
