@@ -139,7 +139,17 @@ export const ChatWindow = ({ conversationKey, otherUser, onBack }: ChatWindowPro
           {otherUser.name.split(' ').map(n => n[0]).join('')}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-foreground text-sm truncate">{otherUser.name}</p>
+          {(otherUser.role === 'therapist' || otherUser.title) ? (
+            <a
+              href={`/psychologist/${otherUser._id}`}
+              className="font-medium text-foreground text-sm truncate hover:text-primary hover:underline cursor-pointer block"
+              title="View therapist profile"
+            >
+              {otherUser.name}
+            </a>
+          ) : (
+            <p className="font-medium text-foreground text-sm truncate">{otherUser.name}</p>
+          )}
           {otherUser.title && <p className="text-xs text-muted-foreground">{otherUser.title}</p>}
         </div>
 

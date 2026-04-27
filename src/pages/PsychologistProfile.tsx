@@ -50,6 +50,7 @@ const mongoToPsychologist = (t: any): Psychologist => {
     availability: availabilityStrings.length > 0 ? availabilityStrings : ['Contact for availability'],
     calendlyLink: t.calendlyLink || '',
     pricing,
+    slidingScaleAvailable: !!t.slidingScaleAvailable,
   };
 };
 
@@ -178,7 +179,7 @@ const PsychologistProfile = () => {
               <h1 className="text-xl font-bold text-foreground mb-1">{psychologist.name}</h1>
               <p className="text-muted-foreground mb-3">{psychologist.title}</p>
 
-              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3 flex-wrap">
                 <div className="flex items-center gap-1">
                   <Star className="w-4 h-4 fill-warm text-warm" />
                   <span className="font-medium">{psychologist.rating}</span>
@@ -191,6 +192,11 @@ const PsychologistProfile = () => {
                   <MessageCircle className="w-4 h-4" />
                   <span>{psychologist.totalSessions} sessions</span>
                 </div>
+                {(psychologist as any).slidingScaleAvailable && (
+                  <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200">
+                    Sliding scale available
+                  </Badge>
+                )}
               </div>
             </div>
           </div>

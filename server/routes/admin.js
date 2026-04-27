@@ -348,6 +348,62 @@ router.put('/therapists/:id/commission', protect, adminOnly, async (req, res) =>
   }
 });
 
+// PUT /api/admin/therapists/:id/pricing — admin sets the official min/max pricing
+// Body: { pricing: { '30': 900, '50': 1500 }, pricingMin: { '30': 600, '50': 1000 } }
+// Either field is optional; whatever is provided overwrites the therapist's values.
+router.put('/therapists/:id/pricing', protect, adminOnly, async (req, res) => {
+  try {
+    const { pricing, pricingMin } = req.body || {};
+    const updates = {};
+    const sanitize = (obj) => {
+      if (!obj || typeof obj !== 'object') return null;
+      const out = {};
+      for (const [k, v] of Object.entries(obj)) {
+        const n = Number(v);
+        if (Number.isFinite(n) && n >= 0) out[String(k)] = n;
+      }
+      return out;
+    };
+    const cleanMax = sanitize(pricing);
+    const cleanMin = sanitize(pricingMin);
+    if (cleanMax) updates.pricing = cleanMax;
+    if (cleanMin) updates.pricingMin = cleanMin;
+
+    // Validate min < max for any duration where both are set
+    const finalMax = cleanMax || {};
+    const finalMin = cleanMin || {};
+    for (const dur of Object.keys(finalMin)) {
+      if (finalMax[dur] != null && finalMin[dur] >= finalMax[dur]) {
+        return res.status(400).json({ message: `Min price for ${dur} min (₹${finalMin[dur]}) must be less than max (₹${finalMax[dur]})` });
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: 'No pricing fields provided' });
+    }
+
+    const therapist = await Therapist.findByIdAndUpdate(req.params.id, updates, { new: true }).select('-password');
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'pricing_updated', 'Therapist', therapist._id, { name: therapist.name, pricing: cleanMax, pricingMin: cleanMin }); } catch {}
+
+    // Notify therapist
+    try {
+      const Notification = (await import('../models/Notification.js')).default;
+      Notification.notify(therapist._id, 'therapist', 'pricing_updated',
+        'Your pricing has been updated by admin',
+        'Your session pricing was updated by Ehsaas administration. Check your profile.',
+        '/therapist-dashboard?tab=earnings'
+      ).catch(() => {});
+    } catch {}
+
+    res.json(convertPricing(therapist));
+  } catch (error) {
+    console.error('Set pricing error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // PUT /api/admin/therapists/:id/type — set therapist type (psychologist/psychiatrist)
 router.put('/therapists/:id/type', protect, adminOnly, async (req, res) => {
   try {

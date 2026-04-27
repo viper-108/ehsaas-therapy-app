@@ -71,6 +71,8 @@ const AdminDashboard = () => {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [commissionModal, setCommissionModal] = useState<{ open: boolean; therapist: any | null; value: string }>({ open: false, therapist: null, value: '' });
+  const [pricingModal, setPricingModal] = useState<{ open: boolean; therapist: any | null; max30: string; max50: string; min30: string; min50: string }>({ open: false, therapist: null, max30: '', max50: '', min30: '', min50: '' });
+  const [pricingSaving, setPricingSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; therapist: any | null }>({ open: false, therapist: null });
 
   const loadMonthlyAnalytics = async () => {
@@ -429,6 +431,19 @@ const AdminDashboard = () => {
                                   )}
                                   <DropdownMenuItem onClick={() => setCommissionModal({ open: true, therapist: t, value: String(t.commissionPercent ?? 60) })}>
                                     <Percent className="w-3 h-3 mr-2" /> Set Commission ({t.commissionPercent ?? 60}%)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => {
+                                    const p = t.pricing || {};
+                                    const pm = t.pricingMin || {};
+                                    setPricingModal({
+                                      open: true, therapist: t,
+                                      max30: p['30'] != null ? String(p['30']) : '',
+                                      max50: p['50'] != null ? String(p['50']) : '',
+                                      min30: pm['30'] != null ? String(pm['30']) : '',
+                                      min50: pm['50'] != null ? String(pm['50']) : '',
+                                    });
+                                  }}>
+                                    <IndianRupee className="w-3 h-3 mr-2" /> Set Pricing (Min/Max)
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={async () => {
                                     const next = t.therapistType === 'psychiatrist' ? 'psychologist' : 'psychiatrist';
@@ -1135,6 +1150,61 @@ const AdminDashboard = () => {
               </Button>
               <Button className="flex-1" onClick={handleSaveCommission}>
                 Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pricing Modal */}
+      <Dialog open={pricingModal.open} onOpenChange={(open) => { if (!open) setPricingModal({ open: false, therapist: null, max30: '', max50: '', min30: '', min50: '' }); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set Pricing for {pricingModal.therapist?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Set the official Min and Max prices for this therapist after their interview. Clients see only the Max price; Min is used for sliding-scale negotiations.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium block mb-1">30-min Max ₹</label>
+                <Input type="number" placeholder="900" value={pricingModal.max30} onChange={e => setPricingModal(p => ({ ...p, max30: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">30-min Min ₹</label>
+                <Input type="number" placeholder="600" value={pricingModal.min30} onChange={e => setPricingModal(p => ({ ...p, min30: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">50-min Max ₹</label>
+                <Input type="number" placeholder="1500" value={pricingModal.max50} onChange={e => setPricingModal(p => ({ ...p, max50: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">50-min Min ₹</label>
+                <Input type="number" placeholder="1000" value={pricingModal.min50} onChange={e => setPricingModal(p => ({ ...p, min50: e.target.value }))} />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Min price is required for sliding-scale negotiations. Leave blank if you don't want to allow negotiation for that duration.</p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setPricingModal({ open: false, therapist: null, max30: '', max50: '', min30: '', min50: '' })}>Cancel</Button>
+              <Button className="flex-1" disabled={pricingSaving} onClick={async () => {
+                if (!pricingModal.therapist) return;
+                const pricing: any = {};
+                const pricingMin: any = {};
+                if (pricingModal.max30) pricing['30'] = Number(pricingModal.max30);
+                if (pricingModal.max50) pricing['50'] = Number(pricingModal.max50);
+                if (pricingModal.min30) pricingMin['30'] = Number(pricingModal.min30);
+                if (pricingModal.min50) pricingMin['50'] = Number(pricingModal.min50);
+                setPricingSaving(true);
+                try {
+                  await api.setTherapistPricing(pricingModal.therapist._id, { pricing, pricingMin });
+                  toast({ title: "Pricing updated", description: `${pricingModal.therapist.name} has been notified.` });
+                  setPricingModal({ open: false, therapist: null, max30: '', max50: '', min30: '', min50: '' });
+                  loadDashboard();
+                } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                finally { setPricingSaving(false); }
+              }}>
+                {pricingSaving ? 'Saving...' : 'Save'}
               </Button>
             </div>
           </div>

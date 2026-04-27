@@ -121,7 +121,8 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
     }
     setLoading(true);
     try {
-      await api.requestOtp(loginEmail);
+      if (activeTab === 'therapist') await api.requestTherapistOtp(loginEmail);
+      else await api.requestOtp(loginEmail);
       setOtpSent(true);
       toast({ title: "Code sent", description: "Check your email for a 6-digit code" });
     } catch (e: any) {
@@ -138,7 +139,9 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
     }
     setLoading(true);
     try {
-      const data = await api.verifyOtp(loginEmail, otpCode);
+      const data = activeTab === 'therapist'
+        ? await api.verifyTherapistOtp(loginEmail, otpCode)
+        : await api.verifyOtp(loginEmail, otpCode);
       login(data.token, data.user, data.role);
       toast({ title: "Welcome back!", description: `Logged in as ${data.user.name}` });
       onClose();
@@ -444,21 +447,62 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
                         value={loginEmail} onChange={e => setLoginEmail(e.target.value)} />
                     </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-foreground mb-1 block">Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input type="password" placeholder="Your password" className="pl-10"
-                        value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
+                  {!useOtp ? (
+                    <div>
+                      <label className="text-sm font-medium text-foreground mb-1 block">Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input type="password" placeholder="Your password" className="pl-10"
+                          value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
+                      </div>
                     </div>
-                  </div>
+                  ) : otpSent ? (
+                    <div>
+                      <label className="text-sm font-medium text-foreground mb-1 block">6-Digit Code</label>
+                      <Input type="text" maxLength={6} placeholder="000000" className="text-center text-2xl tracking-widest"
+                        value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))} />
+                      <p className="text-xs text-muted-foreground mt-1">Check your email for the login code. Expires in 10 minutes.</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">We'll send a 6-digit code to your email for login.</p>
+                  )}
                 </div>
-                <Button onClick={handleLogin} disabled={loading} className="w-full" size="lg">
-                  {loading ? 'Logging in...' : 'Login as Therapist'}
-                </Button>
-                <div className="text-right">
-                  <a href="/forgot-password" className="text-sm text-primary hover:underline">Forgot password?</a>
-                </div>
+                {!useOtp ? (
+                  <>
+                    <Button onClick={handleLogin} disabled={loading} className="w-full" size="lg">
+                      {loading ? 'Logging in...' : 'Login as Therapist'}
+                    </Button>
+                    <div className="flex justify-between text-sm">
+                      <button type="button" onClick={() => { setUseOtp(true); setOtpSent(false); }} className="text-primary hover:underline">
+                        Login with OTP instead
+                      </button>
+                      <a href="/forgot-password" className="text-primary hover:underline">Forgot password?</a>
+                    </div>
+                  </>
+                ) : !otpSent ? (
+                  <>
+                    <Button onClick={handleRequestOtp} disabled={loading} className="w-full" size="lg">
+                      {loading ? 'Sending...' : 'Send Login Code'}
+                    </Button>
+                    <button type="button" onClick={() => setUseOtp(false)} className="text-sm text-primary hover:underline block w-full text-center">
+                      Back to password login
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Button onClick={handleVerifyOtp} disabled={loading} className="w-full" size="lg">
+                      {loading ? 'Verifying...' : 'Verify & Login'}
+                    </Button>
+                    <div className="flex justify-between text-sm">
+                      <button type="button" onClick={() => { setOtpSent(false); setOtpCode(''); }} className="text-primary hover:underline">
+                        Resend code
+                      </button>
+                      <button type="button" onClick={() => { setUseOtp(false); setOtpSent(false); setOtpCode(''); }} className="text-primary hover:underline">
+                        Back to password login
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </TabsContent>

@@ -45,7 +45,11 @@ router.post('/enable', protect, async (req, res) => {
     const minPrice = pricingMin[String(duration)];
     if (!maxPrice) return res.status(400).json({ message: `Therapist has no price set for ${duration} min` });
     if (!minPrice || minPrice >= maxPrice) {
-      return res.status(400).json({ message: `Therapist must set a minimum price (less than ₹${maxPrice}) for ${duration} min before negotiation can begin.` });
+      const who = req.userRole === 'admin' ? 'You haven\'t set a minimum price yet' : 'Admin needs to set a minimum price for this therapist';
+      return res.status(400).json({ message: `${who} (less than ₹${maxPrice}) for ${duration} min before negotiation can begin.` });
+    }
+    if (!therapist.slidingScaleAvailable) {
+      return res.status(400).json({ message: 'This therapist has not enabled sliding scale (price negotiation). Therapist or admin must turn it on first.' });
     }
 
     // Don't create duplicate active negotiation

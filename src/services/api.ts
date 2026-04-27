@@ -197,6 +197,21 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  // OTP login (therapists)
+  async requestTherapistOtp(email: string) {
+    const res = await fetch(`${API_BASE}/auth/therapist/request-otp`, {
+      method: 'POST', headers: this.getHeaders(false), body: JSON.stringify({ email })
+    });
+    return this.handleResponse(res);
+  }
+
+  async verifyTherapistOtp(email: string, otp: string) {
+    const res = await fetch(`${API_BASE}/auth/therapist/verify-otp`, {
+      method: 'POST', headers: this.getHeaders(false), body: JSON.stringify({ email, otp })
+    });
+    return this.handleResponse(res);
+  }
+
   // Admin therapist management
   async deleteTherapist(id: string) {
     const res = await fetch(`${API_BASE}/admin/therapists/${id}`, {
@@ -302,6 +317,13 @@ class ApiService {
 
   async setTherapistInterview(id: string, body: { status: 'interview_scheduled' | 'in_process'; interviewLink?: string; interviewScheduledAt?: string; interviewNotes?: string }) {
     const res = await fetch(`${API_BASE}/admin/therapists/${id}/interview`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+
+  async setTherapistPricing(id: string, body: { pricing?: any; pricingMin?: any }) {
+    const res = await fetch(`${API_BASE}/admin/therapists/${id}/pricing`, {
       method: 'PUT', headers: this.getHeaders(), body: JSON.stringify(body)
     });
     return this.handleResponse(res);

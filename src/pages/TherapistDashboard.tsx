@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Calendar, Clock, DollarSign, Users, TrendingUp, CheckCircle,
-  XCircle, Settings, BarChart3, ChevronRight, LogOut, FileText, MessageCircle, ClipboardList, Phone, BookOpen, Library
+  XCircle, Settings, BarChart3, ChevronRight, LogOut, FileText, MessageCircle, ClipboardList, Phone, BookOpen, Library,
+  MoreVertical, User as UserIcon
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +24,7 @@ import { TherapistResources } from "@/components/TherapistResources";
 import { PsychiatristPrescriptions } from "@/components/PsychiatristPrescriptions";
 import { SessionFilterBar, applySessionFilters, buildEntityOptions, defaultFilters } from "@/components/SessionFilterBar";
 import { TherapistEarningsTab } from "@/components/TherapistEarningsTab";
+import { TherapistProfileTab } from "@/components/TherapistProfileTab";
 import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { CancelSessionDialog } from "@/components/CancelSessionDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -171,6 +174,7 @@ const TherapistDashboard = () => {
             const sidebarItems: SidebarItem[] = [
               { value: 'overview', label: t('dashboard.overview'), icon: BarChart3, group: 'Overview' },
               { value: 'earnings', label: t('dashboard.earnings'), icon: DollarSign, group: 'Overview' },
+              { value: 'profile', label: 'Profile', icon: UserIcon, group: 'Overview' },
               { value: 'upcoming', label: t('dashboard.upcoming'), icon: Calendar, group: 'Sessions' },
               { value: 'past', label: t('dashboard.past'), icon: Clock, group: 'Sessions' },
               { value: 'availability', label: t('dashboard.availability'), icon: Settings, group: 'Sessions' },
@@ -312,47 +316,57 @@ const TherapistDashboard = () => {
                   ) : (
                   <div className="space-y-4">
                     {filtered.map(session => (
-                      <div key={session._id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <p className="font-medium text-foreground text-lg">{session.clientId?.name || 'Client'}</p>
-                          <p className="text-muted-foreground">
-                            {new Date(session.date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                      <div key={session._id} className="flex items-center justify-between p-4 border rounded-lg gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{session.clientId?.name || 'Client'}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(session.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })} · {session.startTime}
                           </p>
-                          <p className="text-sm text-muted-foreground">{session.startTime} - {session.endTime} ({session.duration} min)</p>
-                          {session.clientId?.email && (
-                            <p className="text-sm text-muted-foreground">{session.clientId.email}</p>
-                          )}
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <Badge variant="secondary" className="text-lg">₹{session.amount}</Badge>
+                        {/* Front: only price + recurring */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Badge variant="secondary" className="text-base">₹{session.amount}</Badge>
                           {session.isRecurring && <Badge variant="outline" className="text-xs">Recurring</Badge>}
-                          <div className="flex gap-2 flex-wrap justify-end">
-                            <CalendarSyncButton
-                              title={`Session with ${session.clientId?.name || 'Client'}`}
-                              date={session.date?.split('T')[0] || ''}
-                              startTime={session.startTime}
-                              endTime={session.endTime}
-                              duration={session.duration}
-                            />
-                            <Button size="sm" variant="outline" onClick={() => handleStatusUpdate(session._id, 'completed')}>
-                              <CheckCircle className="w-4 h-4 mr-1" /> Complete
-                            </Button>
-                            <Button size="sm" variant="outline" className="border-orange-500 text-orange-600 hover:bg-orange-50" onClick={() => {
-                              if (window.confirm(`Mark this session as no-show? Client will be emailed.`)) handleStatusUpdate(session._id, 'no-show');
-                            }}>
-                              No Show
-                            </Button>
-                            <Button size="sm" variant="destructive" onClick={() => setCancelDialog({
-                              open: true,
-                              sessionId: session._id,
-                              clientName: session.clientId?.name,
-                              sessionDate: new Date(session.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }),
-                              sessionTime: session.startTime,
-                              paymentStatus: session.paymentStatus,
-                            })}>
-                              <XCircle className="w-4 h-4 mr-1" /> Cancel
-                            </Button>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="sm" variant="ghost"><MoreVertical className="w-4 h-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(session._id, 'completed')}>
+                                <CheckCircle className="w-3 h-3 mr-2 text-green-600" /> Mark Complete
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                if (window.confirm(`Mark this session as no-show? Client will be emailed.`)) handleStatusUpdate(session._id, 'no-show');
+                              }}>
+                                <span className="w-3 h-3 mr-2 inline-flex items-center justify-center text-orange-600">○</span> Mark No-Show
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setCancelDialog({
+                                open: true,
+                                sessionId: session._id,
+                                clientName: session.clientId?.name,
+                                sessionDate: new Date(session.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }),
+                                sessionTime: session.startTime,
+                                paymentStatus: session.paymentStatus,
+                              })} className="text-destructive">
+                                <XCircle className="w-3 h-3 mr-2" /> Cancel Session
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem asChild>
+                                <div className="cursor-default">
+                                  <CalendarSyncButton
+                                    title={`Session with ${session.clientId?.name || 'Client'}`}
+                                    date={session.date?.split('T')[0] || ''}
+                                    startTime={session.startTime}
+                                    endTime={session.endTime}
+                                    duration={session.duration}
+                                  />
+                                </div>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem disabled className="text-xs">
+                                {session.endTime} · {session.duration} min · {session.clientId?.email || ''}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     ))}
@@ -641,6 +655,11 @@ const TherapistDashboard = () => {
             {/* ========== EARNINGS TAB ========== */}
             <TabsContent value="earnings">
               <TherapistEarningsTab />
+            </TabsContent>
+
+            {/* ========== PROFILE TAB ========== */}
+            <TabsContent value="profile">
+              <TherapistProfileTab />
             </TabsContent>
           </Tabs>
                 </div>

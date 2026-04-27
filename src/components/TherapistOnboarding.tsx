@@ -197,25 +197,10 @@ export const TherapistOnboarding = () => {
     const langs = form.languages.split(',').map(s => s.trim()).filter(Boolean);
     if (langs.length === 0) return toast({ title: "At least one language is required", variant: "destructive" });
 
+    // Pricing is now optional preference (admin finalizes after interview)
     const pricing: any = {};
-    const pricingMin: any = {};
     if (form.pricing30 && !isNaN(Number(form.pricing30))) pricing['30'] = Number(form.pricing30);
     if (form.pricing50 && !isNaN(Number(form.pricing50))) pricing['50'] = Number(form.pricing50);
-    if (Object.keys(pricing).length === 0) return toast({ title: "Set at least one pricing tier (30 or 50 min)", variant: "destructive" });
-
-    // Validate min < max if min provided
-    if (form.pricingMin30 && pricing['30']) {
-      const minN = Number(form.pricingMin30);
-      if (isNaN(minN) || minN <= 0) return toast({ title: "Invalid minimum price for 30-min", variant: "destructive" });
-      if (minN >= pricing['30']) return toast({ title: "Minimum price for 30-min must be LESS than the maximum price", variant: "destructive" });
-      pricingMin['30'] = minN;
-    }
-    if (form.pricingMin50 && pricing['50']) {
-      const minN = Number(form.pricingMin50);
-      if (isNaN(minN) || minN <= 0) return toast({ title: "Invalid minimum price for 50-min", variant: "destructive" });
-      if (minN >= pricing['50']) return toast({ title: "Minimum price for 50-min must be LESS than the maximum price", variant: "destructive" });
-      pricingMin['50'] = minN;
-    }
 
     setProfileSaving(true);
     try {
@@ -229,7 +214,6 @@ export const TherapistOnboarding = () => {
         educationBackground: form.educationBackground.trim(),
         highestEducation: form.highestEducation.trim(),
         pricing,
-        pricingMin,
       });
       if (data) updateUser(data);
       toast({ title: "Profile saved", description: "Now upload your resume and accept the terms to submit." });
@@ -255,8 +239,7 @@ export const TherapistOnboarding = () => {
 
   const profileComplete = !!(form.title.trim() && form.experience && form.bio.trim() &&
     form.specializations.split(',').filter(Boolean).length > 0 &&
-    form.languages.split(',').filter(Boolean).length > 0 &&
-    (form.pricing30 || form.pricing50));
+    form.languages.split(',').filter(Boolean).length > 0);
 
   const canSubmit = profileComplete && !!resumeUrl && accepted && !submitting;
 
@@ -400,32 +383,24 @@ export const TherapistOnboarding = () => {
               </div>
               <div className="md:col-span-2">
                 <div className="bg-muted/30 rounded-lg p-4 border border-border">
-                  <p className="text-sm font-semibold text-foreground mb-1">💰 Pricing</p>
+                  <p className="text-sm font-semibold text-foreground mb-1">💰 Pricing Preference (optional)</p>
                   <p className="text-xs text-muted-foreground mb-3">
-                    Enter your standard (max) price — clients see this. Optionally enter a minimum price you'd accept if a client requests a lower rate (admin-only, used for negotiations).
+                    Suggest your preferred prices below. <strong>The Ehsaas admin team will finalize the actual Min/Max prices after your interview</strong>, based on your experience and platform standards.
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label className="text-xs">30-min Max Price ₹ <span className="text-destructive">*</span></Label>
+                      <Label className="text-xs">30-min preferred ₹</Label>
                       <Input type="number" placeholder="900" value={form.pricing30} onChange={e => setForm(p => ({ ...p, pricing30: e.target.value }))} />
                     </div>
                     <div>
-                      <Label className="text-xs">30-min Min Price ₹</Label>
-                      <Input type="number" placeholder="600" value={form.pricingMin30} onChange={e => setForm(p => ({ ...p, pricingMin30: e.target.value }))} />
-                    </div>
-                    <div>
-                      <Label className="text-xs">50-min Max Price ₹</Label>
+                      <Label className="text-xs">50-min preferred ₹</Label>
                       <Input type="number" placeholder="1500" value={form.pricing50} onChange={e => setForm(p => ({ ...p, pricing50: e.target.value }))} />
-                    </div>
-                    <div>
-                      <Label className="text-xs">50-min Min Price ₹</Label>
-                      <Input type="number" placeholder="1000" value={form.pricingMin50} onChange={e => setForm(p => ({ ...p, pricingMin50: e.target.value }))} />
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-3">At least one max price (30 or 50 min) is required. Min must be less than max.</p>
+            <p className="text-xs text-muted-foreground mt-3">Pricing is finalized by Ehsaas admin after your interview.</p>
 
             <Button onClick={handleProfileSave} disabled={profileSaving} className="mt-4 w-full md:w-auto">
               {profileSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : 'Save Profile'}

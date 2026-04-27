@@ -123,6 +123,19 @@ import('./routes/priceNegotiations.js').then(m => app.use('/api/price-negotiatio
 // Static files (uploads)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Favicon — explicit route with no-cache so browsers always pick up the latest Ehsaas icon
+// (Browsers fetch /favicon.ico for any tab including PDF previews from /uploads/...)
+app.get('/favicon.ico', (req, res) => {
+  const distFav = path.join(__dirname, '..', 'dist', 'favicon.ico');
+  const publicFav = path.join(__dirname, '..', 'public', 'favicon.ico');
+  const file = fs.existsSync(distFav) ? distFav : publicFav;
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  if (fs.existsSync(file)) return res.sendFile(file);
+  res.status(404).end();
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

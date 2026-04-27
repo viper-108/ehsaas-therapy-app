@@ -20,6 +20,12 @@ interface Stats {
   lifetimeEhsaasShare: number;
   commissionPercent: number;
   monthlyBreakdown: MonthlyRow[];
+  totalSessions?: number;
+  completedSessions?: number;
+  noShowSessions?: number;
+  billableSessions?: number;
+  totalHours?: number;
+  upcomingSessions?: number;
 }
 
 const monthLabel = (key: string) => {
@@ -71,6 +77,28 @@ export function TherapistEarningsTab() {
 
   return (
     <div className="space-y-5">
+      {/* === Three stat blocks (sessions taken / completed / hours) === */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">Total Sessions Taken (Billable)</p>
+          <p className="text-3xl font-bold text-foreground mt-1">{stats.billableSessions ?? 0}</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            <span className="text-green-600 font-medium">{stats.completedSessions ?? 0} completed</span>
+            {(stats.noShowSessions ?? 0) > 0 && <> + <span className="text-orange-600 font-medium">{stats.noShowSessions} no-show</span></>}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">Successful Sessions</p>
+          <p className="text-3xl font-bold text-green-600 mt-1">{stats.completedSessions ?? 0}</p>
+          <p className="text-xs text-muted-foreground mt-2">Sessions you successfully conducted</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">Total Hours</p>
+          <p className="text-3xl font-bold text-primary mt-1">{stats.totalHours ?? 0}</p>
+          <p className="text-xs text-muted-foreground mt-2">Hours of completed sessions only (no-shows excluded)</p>
+        </Card>
+      </div>
+
       {/* Filter row */}
       <Card className="p-4">
         <div className="flex items-center gap-3 flex-wrap">

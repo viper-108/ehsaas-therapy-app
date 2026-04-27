@@ -230,7 +230,9 @@ const ClientDashboard = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between mb-2">
                             <div>
-                              <h3 className="text-xl font-semibold text-foreground">{therapist.name}</h3>
+                              <Link to={`/psychologist/${therapist._id}`} className="hover:text-primary transition-colors">
+                                <h3 className="text-xl font-semibold text-foreground hover:text-primary">{therapist.name}</h3>
+                              </Link>
                               <p className="text-sm text-muted-foreground">{therapist.title}</p>
                             </div>
                             <div className="flex items-center gap-1 text-sm">
@@ -245,6 +247,9 @@ const ClientDashboard = () => {
                             {therapist.specializations?.slice(0, 3).map((spec: string) => (
                               <Badge key={spec} variant="secondary" className="text-xs">{spec}</Badge>
                             ))}
+                            {therapist.slidingScaleAvailable && (
+                              <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 text-xs">Sliding scale</Badge>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">

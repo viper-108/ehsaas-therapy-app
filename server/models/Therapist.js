@@ -29,13 +29,15 @@ const therapistSchema = new mongoose.Schema({
     of: Number,
     default: { '30': 600, '50': 900 }
   },
-  // Optional minimum price the therapist is willing to negotiate down to (per duration)
-  // Visible only to admin; clients only see the `pricing` (max) value
+  // Optional minimum price (per duration). Set by ADMIN after interview.
+  // Visible to admin and the therapist only; never exposed in public listing.
   pricingMin: {
     type: Map,
     of: Number,
     default: {}
   },
+  // Therapist opts in/out of "sliding scale" — i.e. willing to negotiate down to pricingMin
+  slidingScaleAvailable: { type: Boolean, default: false },
   availability: [availabilitySlotSchema],
   calendlyLink: { type: String, default: '' },
   isApproved: { type: Boolean, default: false },
@@ -76,6 +78,9 @@ const therapistSchema = new mongoose.Schema({
   // Password reset
   resetPasswordToken: { type: String, default: null },
   resetPasswordExpires: { type: Date, default: null },
+  // OTP login (mirror of Client)
+  otpCode: { type: String, default: null },
+  otpExpires: { type: Date, default: null },
 }, { timestamps: true });
 
 therapistSchema.pre('save', async function(next) {

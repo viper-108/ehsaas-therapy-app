@@ -225,25 +225,28 @@ router.delete('/recurring/:groupId', protect, clientOnly, async (req, res) => {
 });
 
 // GET /api/sessions/my - get client's sessions
+// "upcoming" = status='scheduled' AND endTime hasn't passed yet (so an in-progress session stays here)
+// "past" = anything else (status in [completed/cancelled/no-show], OR scheduled session whose endTime passed)
 router.get('/my', protect, clientOnly, async (req, res) => {
   try {
     const { timeframe } = req.query;
-    let query = { clientId: req.userId };
-
-    if (timeframe === 'upcoming') {
-      query.date = { $gte: new Date() };
-      query.status = 'scheduled';
-    } else if (timeframe === 'past') {
-      query.$or = [
-        { date: { $lt: new Date() } },
-        { status: { $in: ['completed', 'cancelled', 'no-show'] } }
-      ];
-    }
-
-    const sessions = await Session.find(query)
+    const all = await Session.find({ clientId: req.userId })
       .populate('therapistId', 'name title image rating')
       .populate('reviewId')
-      .sort({ date: timeframe === 'upcoming' ? 1 : -1 });
+      .sort({ date: -1 });
+
+    const now = new Date();
+    const sessionEndAt = (s) => {
+      const d = new Date(s.date);
+      const [h, m] = (s.endTime || '00:00').split(':');
+      d.setHours(parseInt(h), parseInt(m), 0, 0);
+      return d;
+    };
+    const isUpcoming = (s) => s.status === 'scheduled' && sessionEndAt(s) >= now;
+
+    let sessions = all;
+    if (timeframe === 'upcoming') sessions = all.filter(isUpcoming).sort((a, b) => sessionEndAt(a) - sessionEndAt(b));
+    else if (timeframe === 'past') sessions = all.filter(s => !isUpcoming(s));
 
     res.json(sessions);
   } catch (error) {

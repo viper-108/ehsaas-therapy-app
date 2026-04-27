@@ -173,6 +173,62 @@ router.post('/client/verify-otp', async (req, res) => {
 
 // ==================== THERAPIST AUTH ====================
 
+// POST /api/auth/therapist/request-otp — sends 6-digit OTP to therapist email
+router.post('/therapist/request-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email required' });
+    const therapist = await Therapist.findOne({ email });
+    if (!therapist) {
+      return res.status(404).json({ message: 'This email is not registered as a therapist' });
+    }
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    therapist.otpCode = await bcrypt.hash(otp, 10);
+    therapist.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await therapist.save();
+    const html = `
+      <div style="font-family: Arial; max-width: 600px; margin: 0 auto;">
+        <div style="background: #D97706; color: white; padding: 20px;"><h2>Your Ehsaas login code</h2></div>
+        <div style="padding: 24px; border: 1px solid #eee;">
+          <p>Hi ${therapist.name},</p>
+          <p>Use this code to log in. It expires in 10 minutes.</p>
+          <p style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;padding:20px;background:#f5f5f5;border-radius:8px;">${otp}</p>
+          <p style="color:#666;font-size:13px;">If you didn't request this, you can ignore this email.</p>
+        </div>
+      </div>`;
+    sendEmail(therapist.email, `Your Ehsaas login code: ${otp}`, html).catch(err =>
+      console.error('[OTP] Therapist email send failed:', err.message)
+    );
+    res.json({ message: 'A 6-digit code has been sent to your email.' });
+  } catch (error) {
+    console.error('Therapist request OTP error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/auth/therapist/verify-otp — verify OTP and log therapist in
+router.post('/therapist/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });
+    const therapist = await Therapist.findOne({ email });
+    if (!therapist || !therapist.otpCode || !therapist.otpExpires) {
+      return res.status(400).json({ message: 'Invalid or expired code' });
+    }
+    if (therapist.otpExpires < new Date()) return res.status(400).json({ message: 'Code expired' });
+    const matches = await bcrypt.compare(otp, therapist.otpCode);
+    if (!matches) return res.status(400).json({ message: 'Invalid code' });
+    therapist.otpCode = null;
+    therapist.otpExpires = null;
+    await therapist.save();
+    const token = generateToken(therapist._id, 'therapist');
+    res.json({ token, user: therapist.toPublicJSON(), role: 'therapist' });
+  } catch (error) {
+    console.error('Therapist verify OTP error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // POST /api/auth/therapist/register
 router.post('/therapist/register', async (req, res) => {
   try {
