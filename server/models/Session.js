@@ -41,6 +41,12 @@ const sessionSchema = new mongoose.Schema({
   feedbackId: { type: mongoose.Schema.Types.ObjectId, ref: 'FeedbackSurvey' },
   progressId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProgressEntry' },
   noShowEmailSent: { type: Boolean, default: false },
+  // Payment status: unpaid (booking created without payment), paid (charge succeeded), refunded (cancelled with credit available)
+  paymentStatus: { type: String, enum: ['unpaid', 'paid', 'refunded'], default: 'unpaid' },
+  // Cancellation tracking
+  cancelledBy: { type: String, enum: [null, 'client', 'therapist', 'admin'], default: null },
+  cancellationReason: { type: String, default: '' },
+  cancelledAt: { type: Date, default: null },
 }, { timestamps: true });
 
 // Index for efficient queries

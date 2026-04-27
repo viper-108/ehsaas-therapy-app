@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { FileText, Video, BookOpen, Activity, Link as LinkIcon, Plus, Edit, Trash2, Share2, Globe, Lock, Users } from "lucide-react";
+import { FileText, Video, BookOpen, Activity, Link as LinkIcon, Plus, Edit, Trash2, Share2, Globe, Lock, Users, Library, Building } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { ResourceShareDialog } from "./ResourceShareDialog";
@@ -41,18 +42,20 @@ export const TherapistResources = () => {
     type: 'article',
     content: '',
     fileUrl: '',
-    isPublic: false,
+    visibility: 'private' as 'private' | 'all_therapists' | 'all_clients' | 'specific_clients',
     tags: '',
   });
 
+  const [activeTab, setActiveTab] = useState<'own' | 'therapist_central' | 'client_central'>('own');
+
   useEffect(() => {
     load();
-  }, []);
+  }, [activeTab]);
 
   const load = async () => {
     setLoading(true);
     try {
-      const data = await api.getMyResources();
+      const data = await api.getMyResources(activeTab);
       setResources(data || []);
     } catch (e: any) {
       toast({ title: "Error", description: e.message || "Failed to load", variant: "destructive" });
@@ -63,7 +66,7 @@ export const TherapistResources = () => {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ title: '', description: '', type: 'article', content: '', fileUrl: '', isPublic: false, tags: '' });
+    setForm({ title: '', description: '', type: 'article', content: '', fileUrl: '', visibility: 'private', tags: '' });
     setEditOpen(true);
   };
 
@@ -75,7 +78,7 @@ export const TherapistResources = () => {
       type: r.type || 'article',
       content: r.content || '',
       fileUrl: r.fileUrl || '',
-      isPublic: r.isPublic || false,
+      visibility: r.visibility || (r.isPublic ? 'all_clients' : 'private'),
       tags: (r.tags || []).join(', '),
     });
     setEditOpen(true);
@@ -121,17 +124,37 @@ export const TherapistResources = () => {
     setShareOpen(true);
   };
 
+  const visibilityLabel = (v: string, sharedCount: number = 0) => {
+    if (v === 'all_clients' || v === undefined) return { label: 'Public to all clients', icon: Globe, cls: 'bg-green-500/10 text-green-700' };
+    if (v === 'all_therapists') return { label: 'Shared with all therapists', icon: Building, cls: 'bg-blue-500/10 text-blue-700' };
+    if (v === 'specific_clients') return { label: `Shared with ${sharedCount} client${sharedCount === 1 ? '' : 's'}`, icon: Users, cls: 'bg-purple-500/10 text-purple-700' };
+    return { label: 'Private', icon: Lock, cls: 'bg-muted text-muted-foreground' };
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold">Resources</h2>
-          <p className="text-sm text-muted-foreground">Create and share articles, worksheets, videos with your clients</p>
+          <p className="text-sm text-muted-foreground">Browse central libraries or manage your own resource collection</p>
         </div>
         <Button onClick={openNew}>
           <Plus className="w-4 h-4 mr-2" /> New Resource
         </Button>
       </div>
+
+      <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
+        <TabsList>
+          <TabsTrigger value="own"><Lock className="w-3.5 h-3.5 mr-1.5" />My Library</TabsTrigger>
+          <TabsTrigger value="therapist_central"><Building className="w-3.5 h-3.5 mr-1.5" />Therapist Library</TabsTrigger>
+          <TabsTrigger value="client_central"><Globe className="w-3.5 h-3.5 mr-1.5" />Client Library</TabsTrigger>
+        </TabsList>
+        <p className="text-xs text-muted-foreground mt-2 mb-1">
+          {activeTab === 'own' && 'Your resources — both private (only you) and shared. Toggle visibility from the share button.'}
+          {activeTab === 'therapist_central' && 'Resources shared by other therapists, available for you to use with your clients.'}
+          {activeTab === 'client_central' && 'Public resources visible to every client on the platform.'}
+        </p>
+      </Tabs>
 
       {loading ? (
         <div className="text-center py-8 text-muted-foreground">Loading...</div>
@@ -163,15 +186,13 @@ export const TherapistResources = () => {
                       <h3 className="font-semibold truncate">{r.title}</h3>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <Badge variant="outline" className="text-xs capitalize">{r.type}</Badge>
-                        {r.isPublic ? (
-                          <Badge variant="secondary" className="text-xs"><Globe className="w-3 h-3 mr-1" />Public</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs"><Lock className="w-3 h-3 mr-1" />Private</Badge>
-                        )}
-                        {(r.sharedWith?.length > 0) && (
-                          <Badge variant="secondary" className="text-xs">
-                            <Users className="w-3 h-3 mr-1" />{r.sharedWith.length} shared
-                          </Badge>
+                        {(() => {
+                          const v = visibilityLabel(r.visibility || (r.isPublic ? 'all_clients' : 'private'), r.sharedWith?.length || 0);
+                          const VIcon = v.icon;
+                          return <Badge className={`text-xs ${v.cls}`}><VIcon className="w-3 h-3 mr-1" />{v.label}</Badge>;
+                        })()}
+                        {activeTab !== 'own' && r.therapistId?.name && (
+                          <Badge variant="outline" className="text-xs">By {r.therapistId.name}</Badge>
                         )}
                       </div>
                     </div>
@@ -192,17 +213,29 @@ export const TherapistResources = () => {
                       ))}
                     </div>
                   )}
-                  <div className="flex gap-2 mt-4">
-                    <Button size="sm" variant="outline" onClick={() => openShare(r)} className="flex-1">
-                      <Share2 className="w-3 h-3 mr-1" /> Share
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
-                      <Edit className="w-3 h-3" />
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDelete(r._id)}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
+                  {activeTab === 'own' ? (
+                    <div className="flex gap-2 mt-4">
+                      <Button size="sm" variant="outline" onClick={() => openShare(r)} className="flex-1">
+                        <Share2 className="w-3 h-3 mr-1" /> Share / Visibility
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDelete(r._id)}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 mt-4">
+                      {r.fileUrl && (
+                        <Button size="sm" variant="outline" asChild className="flex-1">
+                          <a href={r.fileUrl} target="_blank" rel="noopener noreferrer">
+                            <LinkIcon className="w-3 h-3 mr-1" /> Open
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -278,16 +311,20 @@ export const TherapistResources = () => {
                 placeholder="anxiety, grounding, breathing"
               />
             </div>
-            <div className="flex items-center justify-between p-3 border rounded-md">
-              <div>
-                <Label htmlFor="isPublic" className="cursor-pointer">Make Public</Label>
-                <p className="text-xs text-muted-foreground">Anyone can view this in the resource library</p>
-              </div>
-              <Switch
-                id="isPublic"
-                checked={form.isPublic}
-                onCheckedChange={(v) => setForm({ ...form, isPublic: v })}
-              />
+            <div>
+              <Label>Visibility</Label>
+              <Select value={form.visibility} onValueChange={(v: any) => setForm({ ...form, visibility: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">Private — only me</SelectItem>
+                  <SelectItem value="all_therapists">Therapist Library — all therapists can view</SelectItem>
+                  <SelectItem value="all_clients">Client Library — all clients can view</SelectItem>
+                  <SelectItem value="specific_clients">Specific Clients — share individually</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                You can change visibility later. For "Specific Clients", use the Share button after creating.
+              </p>
             </div>
           </div>
           <DialogFooter>

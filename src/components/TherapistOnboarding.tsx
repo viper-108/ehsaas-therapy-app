@@ -55,30 +55,100 @@ export const TherapistOnboarding = () => {
 
   if (!user) return null;
 
-  // If already onboarded but pending approval
+  // If already onboarded but pending approval — show status-aware screen
   if (user.isOnboarded && !user.isApproved) {
+    const status = user.onboardingStatus || 'pending_approval';
+    let statusUi: { icon: any; iconColor: string; bg: string; title: string; description: any; badge: string };
+    if (status === 'interview_scheduled') {
+      statusUi = {
+        icon: Clock,
+        iconColor: 'text-blue-600',
+        bg: 'bg-blue-500/10',
+        title: 'Interview Scheduled',
+        description: (
+          <>
+            Our team has scheduled an interview with you to learn more about your practice.
+            {user.interviewScheduledAt && <p className="mt-3 font-medium text-foreground">📅 {new Date(user.interviewScheduledAt).toLocaleString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>}
+            {user.interviewLink && (
+              <p className="mt-4">
+                <a href={user.interviewLink} target="_blank" rel="noopener noreferrer"
+                   className="inline-block bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium hover:opacity-90">
+                  Join Interview
+                </a>
+              </p>
+            )}
+            {user.interviewNotes && (
+              <p className="mt-4 text-sm bg-muted/40 p-3 rounded text-left">
+                <strong>Notes:</strong> {user.interviewNotes}
+              </p>
+            )}
+          </>
+        ),
+        badge: 'Interview Scheduled',
+      };
+    } else if (status === 'in_process') {
+      statusUi = {
+        icon: Clock,
+        iconColor: 'text-amber-600',
+        bg: 'bg-amber-500/10',
+        title: 'Application In Process',
+        description: (
+          <>
+            Your application is being actively reviewed by the Ehsaas team. We'll be in touch shortly with the next steps.
+            {user.interviewNotes && (
+              <p className="mt-4 text-sm bg-muted/40 p-3 rounded text-left">
+                <strong>Notes from team:</strong> {user.interviewNotes}
+              </p>
+            )}
+          </>
+        ),
+        badge: 'In Process',
+      };
+    } else if (status === 'rejected') {
+      statusUi = {
+        icon: Clock,
+        iconColor: 'text-destructive',
+        bg: 'bg-destructive/10',
+        title: 'Application Not Approved',
+        description: (
+          <>
+            Unfortunately, your application was not approved at this time.
+            {user.rejectionReason && (
+              <p className="mt-4 text-sm bg-destructive/10 p-3 rounded text-left">
+                <strong className="text-destructive">Reason:</strong> {user.rejectionReason}
+              </p>
+            )}
+            <p className="mt-4 text-xs text-muted-foreground">You may reapply after addressing the feedback. Reach out to sessions@ehsaastherapycentre.com if you have questions.</p>
+          </>
+        ),
+        badge: 'Rejected',
+      };
+    } else {
+      statusUi = {
+        icon: Clock,
+        iconColor: 'text-warm',
+        bg: 'bg-warm/10',
+        title: 'Profile Under Review',
+        description: <>Your profile has been submitted for review. Our admin team will review your application and get back to you within <strong>24 hours</strong>.</>,
+        badge: 'Pending Approval',
+      };
+    }
+
+    const StatusIcon = statusUi.icon;
+
     return (
       <div className="min-h-screen bg-background">
         <Navigation />
         <div className="flex items-center justify-center py-20 px-4">
           <Card className="max-w-lg w-full p-8 text-center">
-            <div className="w-16 h-16 bg-warm/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Clock className="w-8 h-8 text-warm" />
+            <div className={`w-16 h-16 ${statusUi.bg} rounded-full flex items-center justify-center mx-auto mb-4`}>
+              <StatusIcon className={`w-8 h-8 ${statusUi.iconColor}`} />
             </div>
-            <h2 className="text-2xl font-bold text-foreground mb-3">Profile Under Review</h2>
-            <p className="text-muted-foreground mb-6">
-              Your profile has been submitted for review. Our admin team will review your application
-              and get back to you within <strong>24 hours</strong>.
-            </p>
-            <Badge className="bg-warm/10 text-warm border-warm/20 text-sm">
-              Status: Pending Approval
+            <h2 className="text-2xl font-bold text-foreground mb-3">{statusUi.title}</h2>
+            <div className="text-muted-foreground mb-6">{statusUi.description}</div>
+            <Badge className={`${statusUi.bg} ${statusUi.iconColor} border-warm/20 text-sm`}>
+              Status: {statusUi.badge}
             </Badge>
-            {user.onboardingStatus === 'rejected' && user.rejectionReason && (
-              <div className="mt-4 p-4 bg-destructive/10 rounded-lg text-left">
-                <p className="text-sm font-medium text-destructive mb-1">Application was not approved:</p>
-                <p className="text-sm text-destructive/80">{user.rejectionReason}</p>
-              </div>
-            )}
           </Card>
         </div>
       </div>

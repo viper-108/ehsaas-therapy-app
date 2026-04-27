@@ -34,10 +34,15 @@ const therapistSchema = new mongoose.Schema({
   isOnboarded: { type: Boolean, default: false },
   onboardingStatus: {
     type: String,
-    enum: ['not_started', 'pending_approval', 'approved', 'rejected'],
+    // Application lifecycle: not_started -> pending_approval -> interview_scheduled -> in_process -> approved | rejected
+    enum: ['not_started', 'pending_approval', 'interview_scheduled', 'in_process', 'approved', 'rejected'],
     default: 'not_started'
   },
   rejectionReason: { type: String, default: '' },
+  // Interview / application coordination by admin
+  interviewLink: { type: String, default: '' },
+  interviewScheduledAt: { type: Date, default: null },
+  interviewNotes: { type: String, default: '' },
   stripeAccountId: { type: String, default: '' },
   totalEarnings: { type: Number, default: 0 },
   totalHours: { type: Number, default: 0 },

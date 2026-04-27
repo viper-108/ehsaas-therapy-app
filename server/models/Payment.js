@@ -17,6 +17,9 @@ const paymentSchema = new mongoose.Schema({
   invoiceNumber: { type: String, default: '' },
   discountCode: { type: String, default: '' },
   discountAmount: { type: Number, default: 0 },
+  // Recurring/multi-session payments — when one charge covers multiple sessions
+  recurringGroupId: { type: String, default: null },
+  sessionsCovered: { type: Number, default: 1 },
 }, { timestamps: true });
 
 paymentSchema.index({ clientId: 1 });

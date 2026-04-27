@@ -35,6 +35,7 @@ export const AnalyticsCharts = () => {
     { name: 'Completed', value: data.sessionStats.completed, color: '#16a34a' },
     { name: 'Scheduled', value: data.sessionStats.scheduled, color: '#2563eb' },
     { name: 'Cancelled', value: data.sessionStats.cancelled, color: '#dc2626' },
+    { name: 'No-Show', value: data.sessionStats.noShow || 0, color: '#f59e0b' },
   ].filter(d => d.value > 0);
 
   const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

@@ -25,7 +25,7 @@ const generateChecksum = (payload, endpoint) => {
 // POST /api/payments/create-checkout - create PhonePe payment
 router.post('/create-checkout', protect, clientOnly, async (req, res) => {
   try {
-    const { sessionId, therapistId, amount, duration } = req.body;
+    const { sessionId, therapistId, amount, duration, isRecurring, recurringGroupId } = req.body;
 
     const therapist = await Therapist.findById(therapistId);
     if (!therapist) {
@@ -44,6 +44,9 @@ router.post('/create-checkout', protect, clientOnly, async (req, res) => {
       status: 'pending',
       paymentMethod: 'phonepe',
       stripePaymentIntentId: merchantTransactionId, // reusing field for PhonePe txn ID
+      // For recurring: store group id so confirmation can mark all sessions paid
+      recurringGroupId: isRecurring ? recurringGroupId : undefined,
+      sessionsCovered: isRecurring ? 4 : 1,
     });
 
     // PhonePe payload
@@ -140,6 +143,22 @@ router.post('/confirm', protect, async (req, res) => {
     if (paymentStatus.success && paymentStatus.code === 'PAYMENT_SUCCESS') {
       payment.status = 'completed';
       await payment.save();
+
+      // For recurring: mark ALL sessions in group as paid
+      if (payment.recurringGroupId) {
+        try {
+          const Session = (await import('../models/Session.js')).default;
+          await Session.updateMany(
+            { recurringGroupId: payment.recurringGroupId },
+            { $set: { paymentStatus: 'paid' } }
+          );
+        } catch (e) { console.error('[RECURRING-PAID]', e.message); }
+      } else if (payment.sessionId) {
+        try {
+          const Session = (await import('../models/Session.js')).default;
+          await Session.findByIdAndUpdate(payment.sessionId, { paymentStatus: 'paid' });
+        } catch (e) { console.error('[SESSION-PAID]', e.message); }
+      }
 
       // Update therapist earnings
       await Therapist.findByIdAndUpdate(payment.therapistId, {

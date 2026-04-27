@@ -23,6 +23,7 @@ import { PsychiatristPrescriptions } from "@/components/PsychiatristPrescription
 import { SessionFilterBar, applySessionFilters, buildEntityOptions, defaultFilters } from "@/components/SessionFilterBar";
 import { TherapistEarningsTab } from "@/components/TherapistEarningsTab";
 import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
+import { CancelSessionDialog } from "@/components/CancelSessionDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/services/api";
@@ -41,6 +42,7 @@ const TherapistDashboard = () => {
   const [pastSessions, setPastSessions] = useState<any[]>([]);
   const [upcomingFilters, setUpcomingFilters] = useState(defaultFilters);
   const [pastFilters, setPastFilters] = useState(defaultFilters);
+  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; sessionId: string; clientName?: string; sessionDate?: string; sessionTime?: string; paymentStatus?: string } | null>(null);
   const [availability, setAvailability] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview');
   const [notesSessionId, setNotesSessionId] = useState<string | null>(null);
@@ -340,7 +342,14 @@ const TherapistDashboard = () => {
                             }}>
                               No Show
                             </Button>
-                            <Button size="sm" variant="destructive" onClick={() => handleStatusUpdate(session._id, 'cancelled')}>
+                            <Button size="sm" variant="destructive" onClick={() => setCancelDialog({
+                              open: true,
+                              sessionId: session._id,
+                              clientName: session.clientId?.name,
+                              sessionDate: new Date(session.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }),
+                              sessionTime: session.startTime,
+                              paymentStatus: session.paymentStatus,
+                            })}>
                               <XCircle className="w-4 h-4 mr-1" /> Cancel
                             </Button>
                           </div>
@@ -647,6 +656,20 @@ const TherapistDashboard = () => {
           sessionId={notesSessionId}
           isOpen={!!notesSessionId}
           onClose={() => { setNotesSessionId(null); loadDashboard(); }}
+        />
+      )}
+
+      {/* Cancel Session Dialog (mandatory reason + email) */}
+      {cancelDialog && (
+        <CancelSessionDialog
+          isOpen={cancelDialog.open}
+          onClose={() => setCancelDialog(null)}
+          onSuccess={() => loadDashboard()}
+          sessionId={cancelDialog.sessionId}
+          clientName={cancelDialog.clientName}
+          sessionDate={cancelDialog.sessionDate}
+          sessionTime={cancelDialog.sessionTime}
+          paymentStatus={cancelDialog.paymentStatus}
         />
       )}
 

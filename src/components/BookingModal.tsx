@@ -114,13 +114,18 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
           });
         }
 
-        // 2. Create PhonePe checkout
+        // 2. Create PhonePe checkout — use total amount for recurring
+        const totalAmount = isRecurring
+          ? psychologist.pricing[selectedDuration] * 4
+          : psychologist.pricing[selectedDuration];
         try {
           const checkout = await api.createCheckout({
             sessionId: session._id,
             therapistId: mongoTherapistId,
-            amount: psychologist.pricing[selectedDuration],
+            amount: totalAmount,
             duration: selectedDuration,
+            isRecurring: isRecurring || false,
+            recurringGroupId: isRecurring ? session.recurringGroupId : undefined,
           });
 
           if (checkout.url) {
@@ -356,10 +361,27 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
                 </span>
               </div>
             )}
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-sm text-muted-foreground">Amount:</span>
-              <span className="text-lg font-bold text-primary">₹{psychologist.pricing[selectedDuration]}</span>
-            </div>
+            {isRecurring ? (
+              <>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm text-muted-foreground">Per session:</span>
+                  <span className="text-sm font-medium">₹{psychologist.pricing[selectedDuration]}</span>
+                </div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm text-muted-foreground">Sessions:</span>
+                  <span className="text-sm font-medium">4 weekly sessions</span>
+                </div>
+                <div className="flex justify-between items-center mb-3 pt-2 border-t">
+                  <span className="text-sm text-muted-foreground font-medium">Total Amount:</span>
+                  <span className="text-lg font-bold text-primary">₹{psychologist.pricing[selectedDuration] * 4}</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm text-muted-foreground">Amount:</span>
+                <span className="text-lg font-bold text-primary">₹{psychologist.pricing[selectedDuration]}</span>
+              </div>
+            )}
             {!isLoggedInClient && (
               <div className="border-t pt-2">
                 <p className="text-xs text-muted-foreground">

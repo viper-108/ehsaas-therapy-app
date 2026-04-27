@@ -132,9 +132,9 @@ class ApiService {
     return this.handleResponse(res);
   }
 
-  async cancelSession(sessionId: string) {
+  async cancelSession(sessionId: string, reason?: string) {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/cancel`, {
-      method: 'PUT', headers: this.getHeaders()
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason: reason || '' })
     });
     return this.handleResponse(res);
   }
@@ -296,6 +296,13 @@ class ApiService {
   async rejectTherapist(id: string, reason?: string) {
     const res = await fetch(`${API_BASE}/admin/therapists/${id}/reject`, {
       method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason })
+    });
+    return this.handleResponse(res);
+  }
+
+  async setTherapistInterview(id: string, body: { status: 'interview_scheduled' | 'in_process'; interviewLink?: string; interviewScheduledAt?: string; interviewNotes?: string }) {
+    const res = await fetch(`${API_BASE}/admin/therapists/${id}/interview`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify(body)
     });
     return this.handleResponse(res);
   }
@@ -772,12 +779,20 @@ class ApiService {
     });
     return this.handleResponse(res);
   }
-  async getMyResources() {
-    const res = await fetch(`${API_BASE}/resources/my`, { headers: this.getHeaders() });
+  async getMyResources(tab?: 'own' | 'therapist_central' | 'client_central') {
+    const q = tab ? `?tab=${tab}` : '';
+    const res = await fetch(`${API_BASE}/resources/my${q}`, { headers: this.getHeaders() });
     return this.handleResponse(res);
   }
-  async getSharedResources() {
-    const res = await fetch(`${API_BASE}/resources/shared`, { headers: this.getHeaders() });
+  async getSharedResources(tab?: 'all' | 'assigned' | 'public') {
+    const q = tab ? `?tab=${tab}` : '';
+    const res = await fetch(`${API_BASE}/resources/shared${q}`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async setResourceVisibility(id: string, visibility: 'private' | 'all_therapists' | 'all_clients' | 'specific_clients') {
+    const res = await fetch(`${API_BASE}/resources/${id}/visibility`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ visibility })
+    });
     return this.handleResponse(res);
   }
   async getPublicResources() {

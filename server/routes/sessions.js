@@ -228,15 +228,24 @@ router.get('/my', protect, clientOnly, async (req, res) => {
 // PUT /api/sessions/:id/cancel - cancel a session + notify waitlist
 router.put('/:id/cancel', protect, async (req, res) => {
   try {
-    const session = await Session.findById(req.params.id);
+    const { reason } = req.body || {};
+    const session = await Session.findById(req.params.id)
+      .populate('clientId', 'name email')
+      .populate('therapistId', 'name email');
     if (!session) return res.status(404).json({ message: 'Session not found' });
 
-    const isOwner = (req.userRole === 'client' && session.clientId.toString() === req.userId) ||
-                    (req.userRole === 'therapist' && session.therapistId.toString() === req.userId);
-    if (!isOwner) return res.status(403).json({ message: 'Not authorized' });
+    const isClient = req.userRole === 'client' && session.clientId._id.toString() === req.userId;
+    const isTherapist = req.userRole === 'therapist' && session.therapistId._id.toString() === req.userId;
+    const isAdmin = req.userRole === 'admin';
+    if (!isClient && !isTherapist && !isAdmin) return res.status(403).json({ message: 'Not authorized' });
+
+    // Therapist must provide a reason
+    if (isTherapist && (!reason || reason.trim().length < 5)) {
+      return res.status(400).json({ message: 'A reason for cancellation is required (minimum 5 characters).' });
+    }
 
     // 24-hour cancellation restriction for clients
-    if (req.userRole === 'client') {
+    if (isClient) {
       const sessionDateTime = new Date(session.date);
       const [h, m] = session.startTime.split(':');
       sessionDateTime.setHours(parseInt(h), parseInt(m), 0, 0);
@@ -249,11 +258,59 @@ router.put('/:id/cancel', protect, async (req, res) => {
     }
 
     session.status = 'cancelled';
+    session.cancelledBy = isClient ? 'client' : isTherapist ? 'therapist' : 'admin';
+    session.cancellationReason = reason || '';
+    session.cancelledAt = new Date();
+    // If therapist cancels: existing payment becomes "credit" the client can use to reschedule
+    if (isTherapist && session.paymentStatus === 'paid') {
+      session.paymentStatus = 'refunded';
+    }
     await session.save();
 
+    // If therapist cancels: send email to client with reason + reschedule link
+    if (isTherapist) {
+      try {
+        const { sendEmail } = await import('../utils/email.js');
+        const Notification = (await import('../models/Notification.js')).default;
+        const sessionDate = new Date(session.date);
+        const dateStr = sessionDate.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        const baseUrl = process.env.CLIENT_URL || '';
+        const rescheduleUrl = `${baseUrl}/psychologist/${session.therapistId._id}?reschedule=${session._id}`;
+        const hasCredit = session.paymentStatus === 'refunded';
+        const html = `
+          <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #dc2626;">Your session has been cancelled by your therapist</h2>
+            <p>Hi ${session.clientId?.name || 'there'},</p>
+            <p>Your therapist <strong>${session.therapistId?.name || ''}</strong> had to cancel the following session:</p>
+            <table style="width:100%; border-collapse:collapse; margin:15px 0;">
+              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Date</td><td style="padding:8px; border:1px solid #ddd;">${dateStr}</td></tr>
+              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Time</td><td style="padding:8px; border:1px solid #ddd;">${session.startTime}</td></tr>
+              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Reason</td><td style="padding:8px; border:1px solid #ddd;">${reason}</td></tr>
+            </table>
+            <p style="background:#fef3c7;padding:12px;border-radius:6px;border-left:4px solid #f59e0b;">
+              ${hasCredit
+                ? '<strong>Good news:</strong> Your previous payment is preserved as credit. When you reschedule, you will not be charged again.'
+                : 'Please choose a new date that works for you. Payment will be required at the time of rescheduling.'}
+            </p>
+            <p style="text-align:center;margin:24px 0;">
+              <a href="${rescheduleUrl}" style="display:inline-block;background:#D97706;color:white;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold;">Reschedule Now</a>
+            </p>
+            <p style="color:#666;font-size:13px;">Questions? Reach out to us at sessions@ehsaastherapycentre.com.</p>
+          </div>`;
+        if (session.clientId?.email) {
+          sendEmail(session.clientId.email, 'Session cancelled by your therapist — please reschedule', html).catch(e => console.error('[CANCEL EMAIL]', e.message));
+        }
+        Notification.notify(session.clientId._id, 'client', 'cancellation',
+          'Session cancelled by therapist',
+          `${session.therapistId?.name || 'Your therapist'} cancelled: ${reason}. ${hasCredit ? 'Use your credit to reschedule.' : 'Please reschedule when ready.'}`,
+          rescheduleUrl
+        ).catch(() => {});
+      } catch (e) { console.error('[THERAPIST-CANCEL]', e.message); }
+    }
+
     // Check if client should be flagged for high cancellations (fire-and-forget)
-    if (req.userRole === 'client') {
-      import('../utils/clientFlags.js').then(m => m.checkCancellationFlag(session.clientId).catch(e => console.error('[FLAG]', e)));
+    if (isClient) {
+      import('../utils/clientFlags.js').then(m => m.checkCancellationFlag(session.clientId._id).catch(e => console.error('[FLAG]', e)));
     }
 
     // Notify waitlisted clients for this therapist+date
@@ -263,15 +320,16 @@ router.put('/:id/cancel', protect, async (req, res) => {
       const endOfDay = new Date(session.date);
       endOfDay.setHours(23, 59, 59, 999);
 
+      const therapistIdForWaitlist = session.therapistId._id || session.therapistId;
       const waitlistEntries = await Waitlist.find({
-        therapistId: session.therapistId,
+        therapistId: therapistIdForWaitlist,
         date: { $gte: startOfDay, $lte: endOfDay },
         status: 'waiting'
       }).populate('clientId', 'name email');
 
       if (waitlistEntries.length > 0) {
         const { sendEmail } = await import('../utils/email.js');
-        const therapist = await Therapist.findById(session.therapistId);
+        const therapist = session.therapistId?.name ? session.therapistId : await Therapist.findById(therapistIdForWaitlist);
 
         for (const entry of waitlistEntries) {
           entry.status = 'notified';

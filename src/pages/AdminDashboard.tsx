@@ -56,6 +56,8 @@ const AdminDashboard = () => {
   const [allSessions, setAllSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [rejectModal, setRejectModal] = useState<{ open: boolean; therapistId: string; name: string }>({ open: false, therapistId: '', name: '' });
+  const [interviewModal, setInterviewModal] = useState<{ open: boolean; therapistId: string; name: string; status: 'interview_scheduled' | 'in_process'; link: string; scheduledAt: string; notes: string }>({ open: false, therapistId: '', name: '', status: 'interview_scheduled', link: '', scheduledAt: '', notes: '' });
+  const [interviewSubmitting, setInterviewSubmitting] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [detailModal, setDetailModal] = useState<{ open: boolean; type: 'therapist' | 'client'; data: any | null; loading: boolean }>({ open: false, type: 'therapist', data: null, loading: false });
   const [allReviews, setAllReviews] = useState<any[]>([]);
@@ -308,13 +310,36 @@ const AdminDashboard = () => {
                           Applied: {new Date(therapist.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}
                         </div>
 
-                        <div className="flex gap-3">
-                          <Button onClick={() => handleApprove(therapist._id)} className="flex-1">
+                        {/* Current status / interview info */}
+                        {(therapist.onboardingStatus === 'interview_scheduled' || therapist.onboardingStatus === 'in_process') && (
+                          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded">
+                            {therapist.interviewScheduledAt && <p className="text-xs"><strong>Interview:</strong> {new Date(therapist.interviewScheduledAt).toLocaleString('en-IN')}</p>}
+                            {therapist.interviewLink && <p className="text-xs"><strong>Link:</strong> <a href={therapist.interviewLink} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">{therapist.interviewLink}</a></p>}
+                            {therapist.interviewNotes && <p className="text-xs mt-1"><strong>Notes:</strong> {therapist.interviewNotes}</p>}
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 flex-wrap">
+                          <Button onClick={() => handleApprove(therapist._id)} className="flex-1 min-w-[120px]">
                             <CheckCircle className="w-4 h-4 mr-2" /> Approve
                           </Button>
                           <Button
+                            variant="outline"
+                            className="flex-1 min-w-[120px] border-blue-500 text-blue-600 hover:bg-blue-50"
+                            onClick={() => setInterviewModal({ open: true, therapistId: therapist._id, name: therapist.name, status: 'interview_scheduled', link: therapist.interviewLink || '', scheduledAt: therapist.interviewScheduledAt || '', notes: therapist.interviewNotes || '' })}
+                          >
+                            Schedule Interview
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="flex-1 min-w-[120px] border-amber-500 text-amber-600 hover:bg-amber-50"
+                            onClick={() => setInterviewModal({ open: true, therapistId: therapist._id, name: therapist.name, status: 'in_process', link: therapist.interviewLink || '', scheduledAt: therapist.interviewScheduledAt || '', notes: therapist.interviewNotes || '' })}
+                          >
+                            Mark In Process
+                          </Button>
+                          <Button
                             variant="destructive"
-                            className="flex-1"
+                            className="flex-1 min-w-[120px]"
                             onClick={() => setRejectModal({ open: true, therapistId: therapist._id, name: therapist.name })}
                           >
                             <XCircle className="w-4 h-4 mr-2" /> Reject
@@ -711,6 +736,74 @@ const AdminDashboard = () => {
               </Button>
               <Button variant="destructive" className="flex-1" onClick={handleReject}>
                 Confirm Rejection
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Interview / In-Process Modal */}
+      <Dialog open={interviewModal.open} onOpenChange={(open) => { if (!open) setInterviewModal(p => ({ ...p, open: false })); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {interviewModal.status === 'interview_scheduled' ? `Schedule Interview with ${interviewModal.name}` : `Mark ${interviewModal.name} as In Process`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {interviewModal.status === 'interview_scheduled' && (
+              <>
+                <div>
+                  <label className="text-sm font-medium">Interview Link</label>
+                  <Input
+                    placeholder="https://meet.google.com/..."
+                    value={interviewModal.link}
+                    onChange={e => setInterviewModal(p => ({ ...p, link: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Date & Time</label>
+                  <Input
+                    type="datetime-local"
+                    value={interviewModal.scheduledAt ? new Date(interviewModal.scheduledAt).toISOString().slice(0,16) : ''}
+                    onChange={e => setInterviewModal(p => ({ ...p, scheduledAt: e.target.value }))}
+                  />
+                </div>
+              </>
+            )}
+            <div>
+              <label className="text-sm font-medium">Notes for therapist (optional)</label>
+              <Textarea
+                placeholder={interviewModal.status === 'interview_scheduled' ? 'e.g. Please bring your portfolio and licence' : 'e.g. We\'re reviewing your documents'}
+                value={interviewModal.notes}
+                onChange={e => setInterviewModal(p => ({ ...p, notes: e.target.value }))}
+                rows={3}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">An email will be sent to the therapist with these details.</p>
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setInterviewModal(p => ({ ...p, open: false }))}>Cancel</Button>
+              <Button
+                className="flex-1"
+                disabled={interviewSubmitting}
+                onClick={async () => {
+                  setInterviewSubmitting(true);
+                  try {
+                    await api.setTherapistInterview(interviewModal.therapistId, {
+                      status: interviewModal.status,
+                      interviewLink: interviewModal.link || undefined,
+                      interviewScheduledAt: interviewModal.scheduledAt || undefined,
+                      interviewNotes: interviewModal.notes || undefined,
+                    });
+                    toast({ title: "Updated", description: `Therapist notified by email.` });
+                    setInterviewModal(p => ({ ...p, open: false }));
+                    loadAll();
+                  } catch (e: any) {
+                    toast({ title: "Error", description: e.message, variant: "destructive" });
+                  } finally { setInterviewSubmitting(false); }
+                }}
+              >
+                {interviewSubmitting ? 'Saving...' : 'Save & Notify'}
               </Button>
             </div>
           </div>

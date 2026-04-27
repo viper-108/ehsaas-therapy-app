@@ -112,6 +112,54 @@ router.put('/therapists/:id/reject', protect, adminOnly, async (req, res) => {
   }
 });
 
+// PUT /api/admin/therapists/:id/interview — schedule interview / set in-process
+router.put('/therapists/:id/interview', protect, adminOnly, async (req, res) => {
+  try {
+    const { interviewLink, interviewScheduledAt, interviewNotes, status } = req.body || {};
+    // status can be 'interview_scheduled' or 'in_process'
+    const validStatus = status && ['interview_scheduled', 'in_process'].includes(status) ? status : 'interview_scheduled';
+    const update = {
+      onboardingStatus: validStatus,
+      interviewNotes: interviewNotes || '',
+    };
+    if (interviewLink !== undefined) update.interviewLink = interviewLink;
+    if (interviewScheduledAt) update.interviewScheduledAt = new Date(interviewScheduledAt);
+
+    const therapist = await Therapist.findByIdAndUpdate(req.params.id, update, { new: true }).select('-password');
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+
+    // Send email to therapist with interview link
+    try {
+      const { sendEmail } = await import('../utils/email.js');
+      const dateStr = interviewScheduledAt
+        ? new Date(interviewScheduledAt).toLocaleString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '';
+      const html = `
+        <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #D97706;">${validStatus === 'interview_scheduled' ? 'Your interview is scheduled!' : 'Your application is now in process'}</h2>
+          <p>Hi ${therapist.name || 'there'},</p>
+          ${validStatus === 'interview_scheduled'
+            ? `<p>Thank you for applying to Ehsaas Therapy Centre. We'd like to invite you for an interview.</p>
+              ${dateStr ? `<p><strong>Scheduled for:</strong> ${dateStr}</p>` : ''}
+              ${interviewLink ? `<p><strong>Join link:</strong> <a href="${interviewLink}">${interviewLink}</a></p>` : ''}
+              ${interviewNotes ? `<p><strong>Notes:</strong> ${interviewNotes}</p>` : ''}`
+            : `<p>Your application is currently being reviewed by our team. We'll get back to you soon.</p>
+              ${interviewNotes ? `<p><strong>Notes from team:</strong> ${interviewNotes}</p>` : ''}`}
+          <p>You can check the status of your application anytime by logging into your dashboard.</p>
+          <p>Warm regards,<br/>The Ehsaas Team</p>
+        </div>`;
+      sendEmail(therapist.email, validStatus === 'interview_scheduled' ? 'Interview scheduled — Ehsaas Therapy Centre' : 'Application in process — Ehsaas', html).catch(() => {});
+    } catch (e) { console.error('[INTERVIEW EMAIL]', e.message); }
+
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, `therapist_${validStatus}`, 'Therapist', therapist._id, { name: therapist.name, interviewLink }); } catch {}
+
+    res.json(convertPricing(therapist));
+  } catch (error) {
+    console.error('Set interview error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // DELETE /api/admin/therapists/:id — soft-delete therapist
 // Marks as 'past' (still visible to admin for history/earnings, but hidden from public,
 // logged out, cannot be booked, messages disabled, intro calls disabled).
@@ -480,6 +528,7 @@ router.get('/analytics', protect, adminOnly, async (req, res) => {
     const completedSessions = await Session.countDocuments({ status: 'completed' });
     const cancelledSessions = await Session.countDocuments({ status: 'cancelled' });
     const scheduledSessions = await Session.countDocuments({ status: 'scheduled' });
+    const noShowSessions = await Session.countDocuments({ status: 'no-show' });
     const completionRate = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
 
     // Top therapists by sessions and earnings
@@ -538,7 +587,7 @@ router.get('/analytics', protect, adminOnly, async (req, res) => {
 
     res.json({
       revenueData,
-      sessionStats: { total: totalSessions, completed: completedSessions, cancelled: cancelledSessions, scheduled: scheduledSessions, completionRate },
+      sessionStats: { total: totalSessions, completed: completedSessions, cancelled: cancelledSessions, scheduled: scheduledSessions, noShow: noShowSessions, completionRate },
       topTherapists,
       growthData,
       reviewStats: { total: totalReviews, avgRating: avgRating.length > 0 ? Math.round(avgRating[0].avg * 10) / 10 : 0 },

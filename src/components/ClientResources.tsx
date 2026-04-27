@@ -88,8 +88,8 @@ export const ClientResources = () => {
     setLoading(true);
     try {
       const [s, p] = await Promise.all([
-        api.getSharedResources().catch(() => []),
-        api.getPublicResources().catch(() => []),
+        api.getSharedResources('assigned').catch(() => []),
+        api.getSharedResources('public').catch(() => []),
       ]);
       setShared(s || []);
       setPublicRes(p || []);
