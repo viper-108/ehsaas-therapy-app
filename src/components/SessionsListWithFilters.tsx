@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Filter, X, Calendar as CalendarIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Filter, X, Calendar as CalendarIcon, SlidersHorizontal } from "lucide-react";
 
 interface SessionsListWithFiltersProps {
   sessions: any[];
@@ -81,75 +82,91 @@ export function SessionsListWithFilters({ sessions, role, renderSession }: Sessi
   };
 
   const hasFilters = dateFrom || dateTo || therapistFilter !== 'all' || clientFilter !== 'all';
+  const activeCount = [dateFrom !== '', dateTo !== '', therapistFilter !== 'all', clientFilter !== 'all', sortBy !== 'date-desc'].filter(Boolean).length;
+  const [filterOpen, setFilterOpen] = useState(false);
 
   return (
     <div className="space-y-4">
-      <Card className="p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Filter className="w-4 h-4 text-primary" />
-          <h3 className="font-semibold text-foreground">Filters & Sort</h3>
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="ml-auto">
-              <X className="w-3 h-3 mr-1" /> Clear
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-foreground">
+          {role === 'admin' ? 'All Sessions' : role === 'therapist' ? 'Sessions' : 'My Sessions'} ({filtered.length})
+        </h2>
+        <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="relative">
+              <SlidersHorizontal className="w-4 h-4 mr-2" />
+              Filter & Sort
+              {activeCount > 0 && (
+                <Badge className="ml-2 bg-primary text-primary-foreground text-xs px-1.5 h-5 min-w-5">
+                  {activeCount}
+                </Badge>
+              )}
             </Button>
-          )}
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">From Date</label>
-            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">To Date</label>
-            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9" />
-          </div>
-
-          {/* Therapist filter — shown for admin & client */}
-          {(role === 'admin' || role === 'client') && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">Therapist</label>
-              <Select value={therapistFilter} onValueChange={setTherapistFilter}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Therapists</SelectItem>
-                  {therapistOptions.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-3" align="end">
+            <div className="flex items-center gap-2 mb-3">
+              <Filter className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Filters & Sort</h3>
+              {hasFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="ml-auto h-7">
+                  <X className="w-3 h-3 mr-1" /> Clear
+                </Button>
+              )}
             </div>
-          )}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">From Date</label>
+                  <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">To Date</label>
+                  <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9" />
+                </div>
+              </div>
 
-          {/* Client filter — shown for admin & therapist */}
-          {(role === 'admin' || role === 'therapist') && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">Client</label>
-              <Select value={clientFilter} onValueChange={setClientFilter}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Clients</SelectItem>
-                  {clientOptions.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {(role === 'admin' || role === 'client') && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Therapist</label>
+                  <Select value={therapistFilter} onValueChange={setTherapistFilter}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Therapists</SelectItem>
+                      {therapistOptions.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {(role === 'admin' || role === 'therapist') && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Client</label>
+                  <Select value={clientFilter} onValueChange={setClientFilter}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Clients</SelectItem>
+                      {clientOptions.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Sort By</label>
+                <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date-desc">Date (Newest)</SelectItem>
+                    <SelectItem value="date-asc">Date (Oldest)</SelectItem>
+                    {(role === 'admin' || role === 'client') && <SelectItem value="therapist">Therapist Name</SelectItem>}
+                    {(role === 'admin' || role === 'therapist') && <SelectItem value="client">Client Name</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          )}
-
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Sort By</label>
-            <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date-desc">Date (Newest)</SelectItem>
-                <SelectItem value="date-asc">Date (Oldest)</SelectItem>
-                {(role === 'admin' || role === 'client') && <SelectItem value="therapist">Therapist Name</SelectItem>}
-                {(role === 'admin' || role === 'therapist') && <SelectItem value="client">Client Name</SelectItem>}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </Card>
-
-      <h2 className="text-xl font-semibold text-foreground">
-        {role === 'admin' ? 'All Sessions' : role === 'therapist' ? 'Sessions' : 'My Sessions'} ({filtered.length})
-      </h2>
+          </PopoverContent>
+        </Popover>
+      </div>
 
       {filtered.length === 0 ? (
         <Card className="p-12 text-center">

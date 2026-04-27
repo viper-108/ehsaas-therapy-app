@@ -154,8 +154,9 @@ router.get('/:id/available-slots', async (req, res) => {
       }
     }
 
-    res.json({ slots, maxPerDay, bookedCount: bookedSessions.length });
+    res.json({ slots, maxPerDay: dayLimit, bookedCount: bookedSessions.length });
   } catch (error) {
+    console.error('Available slots error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
