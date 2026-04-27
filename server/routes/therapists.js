@@ -164,6 +164,7 @@ router.get('/:id/available-slots', async (req, res) => {
 // ==================== THERAPIST ONBOARDING ====================
 
 // POST /api/therapists/onboard - accept T&C and request approval
+// Requires: profile fields (title, experience, specializations, languages, bio, pricing) AND resume
 router.post('/onboard', protect, therapistOnly, async (req, res) => {
   try {
     const therapist = await Therapist.findById(req.userId);
@@ -173,6 +174,24 @@ router.post('/onboard', protect, therapistOnly, async (req, res) => {
 
     if (therapist.isOnboarded) {
       return res.status(400).json({ message: 'Already onboarded', status: therapist.onboardingStatus });
+    }
+
+    // Validate required profile fields
+    const missing = [];
+    if (!therapist.title || !therapist.title.trim()) missing.push('Title');
+    if (therapist.experience == null || therapist.experience < 0) missing.push('Experience');
+    if (!therapist.bio || !therapist.bio.trim()) missing.push('Bio');
+    if (!therapist.specializations || therapist.specializations.length === 0) missing.push('Specializations');
+    if (!therapist.languages || therapist.languages.length === 0) missing.push('Languages');
+    const pricingObj = therapist.pricing instanceof Map ? Object.fromEntries(therapist.pricing) : (therapist.pricing || {});
+    if (Object.keys(pricingObj).length === 0) missing.push('Session pricing');
+    if (!therapist.resume || !therapist.resume.trim()) missing.push('Resume');
+
+    if (missing.length > 0) {
+      return res.status(400).json({
+        message: `Please complete the following before submitting for review: ${missing.join(', ')}`,
+        missing,
+      });
     }
 
     therapist.isOnboarded = true;
@@ -635,7 +654,7 @@ router.post('/dashboard/resume', protect, therapistOnly, async (req, res) => {
         { resume: `/uploads/resumes/${req.file.filename}` },
         { new: true }
       ).select('-password');
-      res.json({ resume: therapist.resume, message: 'Resume uploaded successfully' });
+      res.json({ resume: therapist.resume, user: therapist, message: 'Resume uploaded successfully' });
     } catch (error) {
       res.status(500).json({ message: 'Server error' });
     }
