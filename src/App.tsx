@@ -26,6 +26,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotificationsPage from "./pages/NotificationsPage";
 import ChooseService from "./pages/ChooseService";
+import GroupTherapyDetail from "./pages/GroupTherapyDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -65,6 +66,7 @@ const App = () => (
             <Route path="/payment-success" element={<PaymentSuccessPage />} />
             <Route path="/admin-dashboard" element={<AdminDashboard />} />
             <Route path="/group-therapy" element={<GroupTherapy />} />
+            <Route path="/group-therapy/:id" element={<GroupTherapyDetail />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/notifications" element={<NotificationsPage />} />

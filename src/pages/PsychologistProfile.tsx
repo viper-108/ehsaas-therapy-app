@@ -51,6 +51,8 @@ const mongoToPsychologist = (t: any): Psychologist => {
     calendlyLink: t.calendlyLink || '',
     pricing,
     slidingScaleAvailable: !!t.slidingScaleAvailable,
+    // Approved services this therapist offers (admin-finalized + therapist-accepted only)
+    approvedServices: Array.isArray(t.approvedServices) ? t.approvedServices : [],
   };
 };
 
@@ -233,6 +235,32 @@ const PsychologistProfile = () => {
             ))}
           </div>
         </Card>
+
+        {/* Services Offered (admin-approved + therapist-accepted) */}
+        {Array.isArray((psychologist as any).approvedServices) && (psychologist as any).approvedServices.length > 0 && (
+          <Card className="p-6">
+            <h2 className="font-semibold text-foreground mb-4">Services Offered</h2>
+            <div className="space-y-2">
+              {(psychologist as any).approvedServices.map((s: any) => {
+                const labels: Record<string, string> = {
+                  individual: 'Individual Therapy',
+                  couple: 'Couples Therapy',
+                  group: 'Group Therapy',
+                  family: 'Family Therapy',
+                  supervision: 'Supervision',
+                };
+                return (
+                  <div key={s.type} className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
+                    <span className="text-sm font-medium text-foreground">{labels[s.type] || s.type}</span>
+                    <span className="text-sm text-primary font-semibold">
+                      {s.minPrice && s.minPrice !== s.maxPrice ? `₹${s.minPrice} – ₹${s.maxPrice}` : `₹${s.maxPrice}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
         {/* About */}
         <Card className="p-6">

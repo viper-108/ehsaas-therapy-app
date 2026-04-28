@@ -97,7 +97,7 @@ const GroupTherapy = () => {
                 const myEnroll = enrollmentFor(g._id);
                 const startDate = new Date(g.sessionStartAt);
                 return (
-                  <Card key={g._id} className="p-5 hover:shadow-lg transition-all">
+                  <Card key={g._id} className="p-5 hover:shadow-lg hover:border-primary/40 transition-all cursor-pointer" onClick={() => navigate(`/group-therapy/${g._id}`)}>
                     <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
                       <Badge variant="outline" className="capitalize">{g.groupType}</Badge>
                       {statusBadge(g)}
@@ -118,12 +118,12 @@ const GroupTherapy = () => {
                         myEnroll ? (
                           <Badge variant="secondary" className="capitalize">{myEnroll.status.replace('_', ' ')}</Badge>
                         ) : (
-                          <Button size="sm" disabled={g.isLocked || g.liveStatus === 'completed'} onClick={() => setEnrollGroup(g)}>
+                          <Button size="sm" disabled={g.isLocked || g.liveStatus === 'completed'} onClick={(e) => { e.stopPropagation(); setEnrollGroup(g); }}>
                             <UserPlus className="w-3 h-3 mr-1" /> Apply
                           </Button>
                         )
                       ) : (
-                        <Button size="sm" variant="outline" onClick={() => navigate(`/group-therapy/${g._id}`)}>
+                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); navigate(`/group-therapy/${g._id}`); }}>
                           View Details
                         </Button>
                       )}

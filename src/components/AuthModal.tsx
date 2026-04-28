@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,6 +91,7 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
   const { login } = useAuth();
   const { toast } = useToast();
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string>(defaultTab);
   const [isSignUp, setIsSignUp] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -148,7 +150,7 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
       setUseOtp(false); setOtpSent(false); setOtpCode('');
       // First-time client login: redirect to service picker
       if (data.role === 'client' && !data.user.preferredServiceType) {
-        setTimeout(() => { window.location.href = '/choose-service'; }, 100);
+        setTimeout(() => navigate('/choose-service'), 100);
       }
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -189,7 +191,7 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
       toast({ title: "Welcome!", description: "Your account has been created successfully" });
       onClose();
       // New clients: send to service picker
-      setTimeout(() => { window.location.href = '/choose-service'; }, 100);
+      setTimeout(() => navigate('/choose-service'), 50);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -250,7 +252,7 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
       onClose();
       // First-time client login: redirect to service picker
       if (data.role === 'client' && !data.user.preferredServiceType) {
-        setTimeout(() => { window.location.href = '/choose-service'; }, 100);
+        setTimeout(() => navigate('/choose-service'), 100);
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });

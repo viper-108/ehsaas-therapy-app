@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, UserCheck, UserX, Clock, Calendar, DollarSign, BarChart3,
   CheckCircle, XCircle, LogOut, ChevronRight, Shield, Loader2, Star, TrendingUp,
-  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight, FileText, Download, Heart
+  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight, FileText, Download, Heart, Briefcase
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator
@@ -333,6 +333,50 @@ const AdminDashboard = () => {
                           <div className="mb-4">
                             <p className="text-sm text-muted-foreground mb-1">Bio</p>
                             <p className="text-foreground text-sm">{therapist.bio}</p>
+                          </div>
+                        )}
+
+                        {/* Services the therapist asked for (admin sees their original asks) */}
+                        {Array.isArray(therapist.servicesOffered) && therapist.servicesOffered.length > 0 && (
+                          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                              <Briefcase className="w-4 h-4 text-blue-700 dark:text-blue-300" />
+                              Services therapist offered (their asks — admin only)
+                            </p>
+                            <div className="space-y-1">
+                              {therapist.servicesOffered.map((s: any) => (
+                                <div key={s.type} className="flex items-center justify-between text-sm">
+                                  <span className="capitalize font-medium">{s.type === 'couple' ? 'Couples' : s.type} Therapy</span>
+                                  <span className="text-muted-foreground">₹{s.minPrice} — ₹{s.maxPrice}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-2 italic">
+                              Use the therapist's detail page to finalize per-service prices after interview.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Already-approved services (after admin finalizes) */}
+                        {Array.isArray(therapist.approvedServices) && therapist.approvedServices.length > 0 && (
+                          <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
+                            <p className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                              <CheckCircle className="w-4 h-4 text-green-700 dark:text-green-300" />
+                              Admin-approved services
+                            </p>
+                            <div className="space-y-1">
+                              {therapist.approvedServices.map((s: any) => (
+                                <div key={s.type} className="flex items-center justify-between text-sm gap-2">
+                                  <span className="capitalize font-medium">{s.type === 'couple' ? 'Couples' : s.type}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">₹{s.minPrice} — ₹{s.maxPrice}</span>
+                                    {s.therapistAccepted && <Badge className="bg-success/10 text-success text-[10px] px-1.5 py-0">accepted</Badge>}
+                                    {s.therapistRejected && <Badge className="bg-destructive/10 text-destructive text-[10px] px-1.5 py-0">rejected</Badge>}
+                                    {!s.therapistAccepted && !s.therapistRejected && <Badge className="bg-amber-500/10 text-amber-700 text-[10px] px-1.5 py-0">awaiting</Badge>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
 
