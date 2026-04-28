@@ -150,7 +150,7 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
       setUseOtp(false); setOtpSent(false); setOtpCode('');
       // First-time client login: redirect to service picker
       if (data.role === 'client' && !data.user.preferredServiceType) {
-        setTimeout(() => navigate('/choose-service'), 100);
+        setTimeout(() => navigate('/services'), 100);
       }
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -190,8 +190,8 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
       login(data.token, data.user, 'client');
       toast({ title: "Welcome!", description: "Your account has been created successfully" });
       onClose();
-      // New clients: send to service picker
-      setTimeout(() => navigate('/choose-service'), 50);
+      // New clients: send to services page (the canonical service picker)
+      setTimeout(() => navigate('/services'), 50);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -252,7 +252,7 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
       onClose();
       // First-time client login: redirect to service picker
       if (data.role === 'client' && !data.user.preferredServiceType) {
-        setTimeout(() => navigate('/choose-service'), 100);
+        setTimeout(() => navigate('/services'), 100);
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
