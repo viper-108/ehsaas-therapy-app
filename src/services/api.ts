@@ -352,6 +352,24 @@ class ApiService {
     });
     return this.handleResponse(res);
   }
+  async requestServiceChange(changes: { type: string; action: 'add' | 'remove'; minPrice?: number; maxPrice?: number; note?: string }[]) {
+    const res = await fetch(`${API_BASE}/therapists/dashboard/services/request-change`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ changes })
+    });
+    return this.handleResponse(res);
+  }
+  async listServiceChangeRequests() {
+    const res = await fetch(`${API_BASE}/admin/therapists/service-change-requests`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async decideServiceChange(therapistId: string, approve: boolean, reason?: string) {
+    const res = await fetch(`${API_BASE}/admin/therapists/${therapistId}/service-change-decision`, {
+      method: 'PUT', headers: this.getHeaders(),
+      body: JSON.stringify({ approve, reason: reason || '' })
+    });
+    return this.handleResponse(res);
+  }
+
   async setApprovedServicesForTherapist(therapistId: string, services: { type: string; minPrice: number; maxPrice: number }[]) {
     const res = await fetch(`${API_BASE}/admin/therapists/${therapistId}/services`, {
       method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ services })

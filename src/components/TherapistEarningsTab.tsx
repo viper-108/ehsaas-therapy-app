@@ -5,8 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, DollarSign, Building2, User, CalendarDays } from "lucide-react";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
-import { PriceNegotiationsPanel } from "@/components/PriceNegotiationsPanel";
-import { MyServicesPanel } from "@/components/MyServicesPanel";
 
 interface MonthlyRow {
   month: string;
@@ -211,13 +209,9 @@ export function TherapistEarningsTab() {
         </p>
       </Card>
 
-      {/* My Services (admin-approved + therapist accept/reject) */}
-      <MyServicesPanel />
-
-      {/* Price Negotiations */}
-      <Card className="p-5">
-        <PriceNegotiationsPanel role="therapist" />
-      </Card>
+      <p className="text-xs text-muted-foreground italic text-center">
+        Service approvals and sliding-scale (price negotiation) requests are now in the <strong>Approvals</strong> tab.
+      </p>
     </div>
   );
 }

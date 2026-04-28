@@ -238,6 +238,81 @@ router.post('/dashboard/services/:type/accept', protect, therapistOnly, async (r
   }
 });
 
+// POST /api/therapists/dashboard/services/request-change
+// Body: { changes: [{ type, action: 'add'|'remove', minPrice?, maxPrice?, note? }] }
+// Therapist (already approved) requests to add a new service or remove an existing one.
+// Admin must approve. Notifies all admins.
+router.post('/dashboard/services/request-change', protect, therapistOnly, async (req, res) => {
+  try {
+    const therapist = await Therapist.findById(req.userId);
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    if (!therapist.isApproved) return res.status(400).json({ message: 'Only approved therapists can request service changes. New applicants should use the onboarding form.' });
+
+    const { changes } = req.body || {};
+    if (!Array.isArray(changes) || changes.length === 0) return res.status(400).json({ message: 'changes array required' });
+    const validTypes = ['individual', 'couple', 'group', 'family', 'supervision'];
+    const validActions = ['add', 'remove'];
+    const cleaned = [];
+    for (const c of changes) {
+      if (!validTypes.includes(c?.type)) continue;
+      if (!validActions.includes(c?.action)) continue;
+      const item = {
+        type: c.type,
+        action: c.action,
+        minPrice: Math.max(0, Number(c.minPrice) || 0),
+        maxPrice: Math.max(0, Number(c.maxPrice) || 0),
+        note: c.note || '',
+        requestedAt: new Date(),
+      };
+      // Validation rules
+      if (c.action === 'add') {
+        if (item.maxPrice <= 0) return res.status(400).json({ message: `Max price required for adding "${c.type}".` });
+        if (item.minPrice > item.maxPrice) return res.status(400).json({ message: `Min must be ≤ max for "${c.type}".` });
+        // Don't allow adding a service the therapist already has approved+accepted
+        const already = (therapist.approvedServices || []).some(s => s.type === c.type && s.therapistAccepted);
+        if (already) return res.status(400).json({ message: `You already offer "${c.type}".` });
+      } else if (c.action === 'remove') {
+        // Must currently have it accepted
+        const has = (therapist.approvedServices || []).some(s => s.type === c.type && s.therapistAccepted);
+        if (!has) return res.status(400).json({ message: `You don't currently offer "${c.type}".` });
+      }
+      cleaned.push(item);
+    }
+    if (cleaned.length === 0) return res.status(400).json({ message: 'No valid changes to submit.' });
+
+    therapist.pendingServiceChanges = cleaned;
+    therapist.servicesPendingReview = true;
+    therapist.servicesPendingReviewAt = new Date();
+    await therapist.save();
+
+    // Notify admins
+    try {
+      const Admin = (await import('../models/Admin.js')).default;
+      const Notification = (await import('../models/Notification.js')).default;
+      const { sendEmail } = await import('../utils/email.js');
+      const admins = await Admin.find({}).select('_id name email');
+      const summary = cleaned.map(c => `${c.action.toUpperCase()} ${c.type}${c.action === 'add' ? ` (₹${c.minPrice}-${c.maxPrice})` : ''}`).join(', ');
+      for (const a of admins) {
+        Notification.notify(a._id, 'admin', 'service_change_request',
+          `Service change request: ${therapist.name}`,
+          summary,
+          '/admin-dashboard'
+        ).catch(() => {});
+        if (a.email) {
+          sendEmail(a.email, `Service change request — ${therapist.name}`,
+            `<p>Hi ${a.name || 'Admin'},</p><p>${therapist.name} has requested the following service changes:</p><ul>${cleaned.map(c => `<li>${c.action === 'add' ? '➕ Add' : '➖ Remove'} <strong>${c.type}</strong>${c.action === 'add' ? ` at ₹${c.minPrice}-${c.maxPrice}` : ''}${c.note ? ` — ${c.note}` : ''}</li>`).join('')}</ul><p>Review and approve in the admin dashboard.</p>`
+          ).catch(() => {});
+        }
+      }
+    } catch {}
+
+    res.json(therapist);
+  } catch (error) {
+    console.error('Service change request error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // POST /api/therapists/dashboard/services/:type/reject
 router.post('/dashboard/services/:type/reject', protect, therapistOnly, async (req, res) => {
   try {

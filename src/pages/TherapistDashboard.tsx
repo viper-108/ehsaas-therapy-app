@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Calendar, Clock, DollarSign, Users, TrendingUp, CheckCircle,
   XCircle, Settings, BarChart3, ChevronRight, LogOut, FileText, MessageCircle, ClipboardList, Phone, BookOpen, Library,
-  MoreVertical, User as UserIcon
+  MoreVertical, User as UserIcon, ClipboardCheck
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +25,7 @@ import { PsychiatristPrescriptions } from "@/components/PsychiatristPrescription
 import { SessionFilterBar, applySessionFilters, buildEntityOptions, defaultFilters } from "@/components/SessionFilterBar";
 import { TherapistEarningsTab } from "@/components/TherapistEarningsTab";
 import { TherapistGroupsTab } from "@/components/TherapistGroupsTab";
+import { TherapistApprovalsTab } from "@/components/TherapistApprovalsTab";
 import { TherapistProfileTab } from "@/components/TherapistProfileTab";
 import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { CancelSessionDialog } from "@/components/CancelSessionDialog";
@@ -212,6 +213,7 @@ const TherapistDashboard = () => {
             const pendingIntroCalls = introCalls.filter(c => c.status === 'pending').length;
             const sidebarItems: SidebarItem[] = [
               { value: 'overview', label: t('dashboard.overview'), icon: BarChart3, group: 'Overview' },
+              { value: 'approvals', label: 'Approvals', icon: ClipboardCheck, badge: ((user as any)?.approvedServices || []).filter((s: any) => !s.therapistAccepted && !s.therapistRejected).length || null, group: 'Overview' },
               { value: 'earnings', label: t('dashboard.earnings'), icon: DollarSign, group: 'Overview' },
               { value: 'profile', label: 'Profile', icon: UserIcon, group: 'Overview' },
               { value: 'upcoming', label: t('dashboard.upcoming'), icon: Calendar, group: 'Sessions' },
@@ -676,6 +678,11 @@ const TherapistDashboard = () => {
                   </div>
                 )}
               </Card>
+            </TabsContent>
+
+            {/* ========== APPROVALS TAB ========== */}
+            <TabsContent value="approvals">
+              <TherapistApprovalsTab />
             </TabsContent>
 
             {/* ========== GROUP THERAPY TAB ========== */}

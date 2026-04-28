@@ -62,6 +62,7 @@ const AdminDashboard = () => {
   const [pendingNegotiations, setPendingNegotiations] = useState<any[]>([]);
   const [pendingGroups, setPendingGroups] = useState<any[]>([]);
   const [pendingCouples, setPendingCouples] = useState<any[]>([]);
+  const [serviceChangeRequests, setServiceChangeRequests] = useState<any[]>([]);
   const [allTherapists, setAllTherapists] = useState<any[]>([]);
   const [allClients, setAllClients] = useState<any[]>([]);
   const [allSessions, setAllSessions] = useState<any[]>([]);
@@ -139,7 +140,7 @@ const AdminDashboard = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData] = await Promise.all([
+      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData, serviceChangeData] = await Promise.all([
         api.getAdminStats(),
         api.getPendingTherapists(),
         api.getAllTherapistsAdmin(),
@@ -150,6 +151,7 @@ const AdminDashboard = () => {
         api.getMyPriceNegotiations().catch(() => []),
         api.listPendingGroups().catch(() => []),
         api.getPendingCouplesProfiles().catch(() => []),
+        api.listServiceChangeRequests().catch(() => []),
       ]);
       setStats(statsData);
       setPending(pendingData);
@@ -161,6 +163,7 @@ const AdminDashboard = () => {
       setPendingNegotiations((allNegotiations || []).filter((n: any) => ['proposed', 'partially_approved'].includes(n.status)));
       setPendingGroups(pendingGroupsData);
       setPendingCouples(pendingCouplesData);
+      setServiceChangeRequests(serviceChangeData);
     } catch (error) {
       console.error('Admin dashboard load error:', error);
     } finally {
@@ -248,7 +251,7 @@ const AdminDashboard = () => {
           ) : (
             (() => {
               const sidebarItems: SidebarItem[] = [
-                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length + pendingCouples.length) || null, group: 'Approvals' },
+                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length + pendingCouples.length + serviceChangeRequests.length) || null, group: 'Approvals' },
                 { value: 'reviews', label: 'Reviews', icon: Star, group: 'Approvals' },
                 { value: 'therapists', label: 'Therapists', icon: UserCheck, group: 'People' },
                 { value: 'clients', label: 'Clients', icon: Users, group: 'People' },
@@ -637,8 +640,71 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
+                {/* ===== SERVICE CHANGE REQUESTS ===== */}
+                {serviceChangeRequests.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-primary" /> Service Change Requests ({serviceChangeRequests.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {serviceChangeRequests.map((t: any) => (
+                        <Card key={t._id} className="p-4">
+                          <div className="flex justify-between items-start gap-3 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium">{t.name} <span className="text-muted-foreground font-normal">({t.email})</span></p>
+                              <p className="text-xs text-muted-foreground mt-1">Submitted {new Date(t.servicesPendingReviewAt).toLocaleDateString('en-IN')}</p>
+                              <div className="mt-2 space-y-1">
+                                {(t.pendingServiceChanges || []).map((c: any, i: number) => (
+                                  <div key={i} className="flex items-center gap-2 text-sm">
+                                    <Badge variant={c.action === 'add' ? 'default' : 'outline'} className="capitalize text-xs">
+                                      {c.action === 'add' ? '➕ Add' : '➖ Remove'}
+                                    </Badge>
+                                    <span className="capitalize font-medium">{c.type}</span>
+                                    {c.action === 'add' && (c.minPrice || c.maxPrice) && (
+                                      <span className="text-muted-foreground">at ₹{c.minPrice} - ₹{c.maxPrice}</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                              {(t.pendingServiceChanges || []).some((c: any) => c.note) && (
+                                <p className="text-xs text-muted-foreground mt-2 italic">
+                                  {(t.pendingServiceChanges || []).map((c: any) => c.note).filter(Boolean).join(' · ')}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50" onClick={async () => {
+                                const ok = await confirm({
+                                  title: `Approve ${t.name}'s service changes?`,
+                                  description: 'New services will be added (therapist must accept the price). Removed services will be dropped from their public profile immediately.',
+                                  confirmLabel: 'Approve',
+                                });
+                                if (!ok) return;
+                                try { await api.decideServiceChange(t._id, true); toast({ title: "Approved" }); loadAll(); }
+                                catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}>
+                                <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                              </Button>
+                              <Button size="sm" variant="outline" className="border-red-500 text-red-600 hover:bg-red-50" onClick={async () => {
+                                const reason = window.prompt('Reason for rejection (optional):') || '';
+                                try { await api.decideServiceChange(t._id, false, reason); toast({ title: "Rejected" }); loadAll(); }
+                                catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}>
+                                <XCircle className="w-3 h-3 mr-1" /> Reject
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => openTherapistDetail(t._id)}>
+                                View Profile
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* "All caught up" — when literally nothing is pending */}
-                {pending.length === 0 && pendingReviews.length === 0 && pendingNegotiations.length === 0 && pendingGroups.length === 0 && pendingCouples.length === 0 && (
+                {pending.length === 0 && pendingReviews.length === 0 && pendingNegotiations.length === 0 && pendingGroups.length === 0 && pendingCouples.length === 0 && serviceChangeRequests.length === 0 && (
                   <Card className="p-12 text-center mt-4">
                     <CheckCircle className="w-12 h-12 text-success mx-auto mb-3" />
                     <p className="text-muted-foreground">No pending items. All caught up!</p>

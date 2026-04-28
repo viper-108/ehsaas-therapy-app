@@ -177,6 +177,101 @@ router.put('/therapists/:id/services', protect, adminOnly, async (req, res) => {
   }
 });
 
+// =============== SERVICE CHANGE REQUESTS (existing therapists adding/removing services) ===============
+// GET /api/admin/therapists/service-change-requests
+router.get('/therapists/service-change-requests', protect, adminOnly, async (req, res) => {
+  try {
+    const list = await Therapist.find({
+      isApproved: true,
+      servicesPendingReview: true,
+    }).select('-password').sort({ servicesPendingReviewAt: -1 });
+    const result = list.map(convertPricing);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/admin/therapists/:id/service-change-decision
+// Body: { approve: true|false, reason?: string }
+// On approve: applies all pending changes to approvedServices (add/remove).
+//             Sets servicesPendingReview=false. New 'add' entries start as therapist NOT-yet-accepted (so therapist must Accept).
+// On reject:  Just clears the pending change request and notifies therapist with reason.
+router.put('/therapists/:id/service-change-decision', protect, adminOnly, async (req, res) => {
+  try {
+    const { approve, reason } = req.body || {};
+    const therapist = await Therapist.findById(req.params.id);
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    if (!therapist.servicesPendingReview) return res.status(400).json({ message: 'No pending service change request.' });
+
+    const changes = (therapist.pendingServiceChanges || []).map(c => c.toObject ? c.toObject() : c);
+
+    if (approve) {
+      // Apply changes
+      const now = new Date();
+      let services = (therapist.approvedServices || []).map(s => s.toObject ? s.toObject() : s);
+      for (const c of changes) {
+        if (c.action === 'add') {
+          // Add (or replace if same type already exists)
+          services = services.filter(s => s.type !== c.type);
+          services.push({
+            type: c.type,
+            minPrice: c.minPrice,
+            maxPrice: c.maxPrice,
+            therapistAccepted: false, // therapist must accept the admin-approved price
+            therapistRejected: false,
+            acceptedAt: null,
+            rejectedAt: null,
+            approvedByAdminAt: now,
+          });
+        } else if (c.action === 'remove') {
+          services = services.filter(s => s.type !== c.type);
+        }
+      }
+      therapist.approvedServices = services;
+    }
+
+    therapist.pendingServiceChanges = [];
+    therapist.servicesPendingReview = false;
+    therapist.servicesPendingReviewAt = null;
+    await therapist.save();
+
+    // Notify therapist + email
+    try {
+      const Notification = (await import('../models/Notification.js')).default;
+      const { sendEmail } = await import('../utils/email.js');
+      if (approve) {
+        Notification.notify(therapist._id, 'therapist', 'service_change_approved',
+          'Your service change request was approved',
+          'New services added are awaiting your acceptance in the Approvals tab. Removed services are no longer offered.',
+          '/therapist-dashboard'
+        ).catch(() => {});
+        if (therapist.email) {
+          sendEmail(therapist.email, 'Service change approved — Ehsaas',
+            `<p>Hi ${therapist.name},</p><p>Admin approved your service change request. Newly added services need to be accepted in your Approvals tab to start offering them.</p>`
+          ).catch(() => {});
+        }
+      } else {
+        Notification.notify(therapist._id, 'therapist', 'service_change_rejected',
+          'Your service change request was not approved',
+          reason || 'Admin did not approve the requested service change.',
+          '/therapist-dashboard'
+        ).catch(() => {});
+        if (therapist.email) {
+          sendEmail(therapist.email, 'Service change request — update',
+            `<p>Hi ${therapist.name},</p><p>Your recent service change request was not approved.${reason ? `</p><p><strong>Reason:</strong> ${reason}` : ''}</p><p>You can revise and submit again, or message admin for clarification.</p>`
+          ).catch(() => {});
+        }
+      }
+    } catch {}
+
+    res.json(convertPricing(therapist));
+  } catch (e) {
+    console.error('Service change decision error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // GET /api/admin/clients/couples-pending — list all clients with submitted but unapproved couples profiles
 router.get('/clients/couples-pending', protect, adminOnly, async (req, res) => {
   try {

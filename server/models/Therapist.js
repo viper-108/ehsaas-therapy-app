@@ -76,6 +76,23 @@ const therapistSchema = new mongoose.Schema({
   },
   // True once admin has done the per-service review (i.e. approvedServices is locked in)
   servicesFinalized: { type: Boolean, default: false },
+  // Set when an existing approved therapist requests to add/remove services.
+  // Admin sees these in their Pending Approvals tab and can approve/reject.
+  servicesPendingReview: { type: Boolean, default: false },
+  servicesPendingReviewAt: { type: Date, default: null },
+  // Pending change requests — array of {type, action: 'add'|'remove', minPrice, maxPrice, note}
+  pendingServiceChanges: {
+    type: [{
+      type: { type: String, enum: ['individual', 'couple', 'group', 'family', 'supervision'], required: true },
+      action: { type: String, enum: ['add', 'remove'], required: true },
+      minPrice: { type: Number, default: 0 },
+      maxPrice: { type: Number, default: 0 },
+      note: { type: String, default: '' },
+      requestedAt: { type: Date, default: Date.now },
+      _id: false,
+    }],
+    default: [],
+  },
   availability: [availabilitySlotSchema],
   calendlyLink: { type: String, default: '' },
   isApproved: { type: Boolean, default: false },
