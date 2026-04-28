@@ -430,6 +430,77 @@ router.post('/:id/lock', protect, async (req, res) => {
   }
 });
 
+// =============== CLIENT CANCELS ENROLLMENT (auto-promote waitlist) ===============
+// POST /api/group-therapy/enrollments/:id/cancel
+router.post('/enrollments/:id/cancel', protect, async (req, res) => {
+  try {
+    const enroll = await GroupEnrollment.findById(req.params.id).populate('groupId');
+    if (!enroll) return res.status(404).json({ message: 'Enrollment not found' });
+    const isOwner = String(enroll.clientId) === String(req.userId);
+    if (!isOwner && req.userRole !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+
+    const group = enroll.groupId;
+    if (group.isLocked) return res.status(400).json({ message: 'Group is locked. No cancellations allowed.' });
+    if (['cancelled', 'rejected'].includes(enroll.status)) return res.status(400).json({ message: 'Already cancelled/rejected' });
+
+    const wasEnrolled = ['approved', 'enrolled'].includes(enroll.status);
+    enroll.status = 'cancelled';
+    await enroll.save();
+
+    if (wasEnrolled) {
+      await GroupTherapy.findByIdAndUpdate(group._id, { $inc: { enrolledCount: -1 } });
+
+      // Auto-promote: find first waitlisted (oldest joinedWaitlistAt)
+      const next = await GroupEnrollment.findOne({
+        groupId: group._id,
+        status: 'waitlist',
+        adminApproved: true,
+      }).sort({ joinedWaitlistAt: 1 });
+
+      // If next has all approvals already, promote to 'approved' and bump count
+      if (next) {
+        const allTherapistsApproved = next.therapistApprovals.every(a => a.approved);
+        if (allTherapistsApproved) {
+          next.status = 'approved';
+          next.promotedFromWaitlistAt = new Date();
+          await next.save();
+          await GroupTherapy.findByIdAndUpdate(group._id, { $inc: { enrolledCount: 1 } });
+
+          // Notify promoted client + email
+          Notification.notify(next.clientId, 'client', 'group_promoted',
+            `Spot opened — you're approved for ${group.title}!`,
+            `A spot just opened up in the group. Complete payment to confirm your enrollment.`,
+            `/group-therapy`
+          ).catch(() => {});
+          try {
+            const c = await Client.findById(next.clientId).select('email name');
+            if (c?.email) {
+              const baseUrl = process.env.CLIENT_URL || '';
+              sendEmail(c.email, `Spot opened in ${group.title} — confirm now`,
+                `<p>Hi ${c.name || 'there'},</p>
+                <p>Great news! A spot has opened up in <strong>${group.title}</strong>. You've been promoted from the waitlist.</p>
+                <p><a href="${baseUrl}/group-therapy" style="display:inline-block;background:#D97706;color:white;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold;">Confirm & Pay</a></p>
+                <p style="color:#666;font-size:13px;">Pay within 48 hours to keep your spot, otherwise the next person on the waitlist will be promoted.</p>`
+              ).catch(() => {});
+            }
+          } catch {}
+        }
+      }
+    }
+
+    Notification.notify(enroll.clientId, 'client', 'group_cancelled',
+      `Cancelled: ${group.title}`,
+      `Your enrollment has been cancelled.`,
+      '/group-therapy'
+    ).catch(() => {});
+
+    res.json(enroll);
+  } catch (e) {
+    console.error('Cancel enrollment error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // =============== ADMIN PENDING GROUPS ===============
 // GET /api/group-therapy/admin/pending
 router.get('/admin/pending', protect, adminOnly, async (req, res) => {

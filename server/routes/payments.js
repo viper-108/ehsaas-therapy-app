@@ -106,6 +106,73 @@ router.post('/create-checkout', protect, clientOnly, async (req, res) => {
   }
 });
 
+// POST /api/payments/group-checkout - create PhonePe payment for a group enrollment
+router.post('/group-checkout', protect, clientOnly, async (req, res) => {
+  try {
+    const { enrollmentId } = req.body;
+    if (!enrollmentId) return res.status(400).json({ message: 'enrollmentId required' });
+
+    const GroupEnrollment = (await import('../models/GroupEnrollment.js')).default;
+    const GroupTherapy = (await import('../models/GroupTherapy.js')).default;
+    const enrollment = await GroupEnrollment.findById(enrollmentId);
+    if (!enrollment) return res.status(404).json({ message: 'Enrollment not found' });
+    if (String(enrollment.clientId) !== String(req.userId)) return res.status(403).json({ message: 'Not your enrollment' });
+    if (enrollment.status !== 'approved') return res.status(400).json({ message: 'Enrollment must be approved before payment' });
+    if (enrollment.paymentStatus === 'paid') return res.status(400).json({ message: 'Already paid' });
+
+    const group = await GroupTherapy.findById(enrollment.groupId);
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+
+    const amount = group.pricePerMember * (group.totalSessions || 1);
+    const therapistId = group.leadTherapists?.[0];
+
+    const merchantTransactionId = 'EHSAAS_GRP_' + uuidv4().replace(/-/g, '').substring(0, 18);
+
+    const payment = await Payment.create({
+      clientId: req.userId,
+      therapistId,
+      groupEnrollmentId: enrollment._id,
+      amount,
+      status: 'pending',
+      paymentMethod: 'phonepe',
+      stripePaymentIntentId: merchantTransactionId,
+      sessionsCovered: group.totalSessions || 1,
+    });
+
+    const payload = {
+      merchantId: MERCHANT_ID,
+      merchantTransactionId,
+      merchantUserId: 'MUID_' + req.userId.toString().substring(0, 20),
+      amount: amount * 100,
+      redirectUrl: `${process.env.CLIENT_URL}/payment-success?transactionId=${merchantTransactionId}&paymentId=${payment._id}&type=group`,
+      redirectMode: 'REDIRECT',
+      callbackUrl: `${process.env.CLIENT_URL}/api/payments/callback`,
+      paymentInstrument: { type: 'PAY_PAGE' },
+    };
+
+    const endpoint = '/pg/v1/pay';
+    const { base64Payload, checksum } = generateChecksum(payload, endpoint);
+
+    const response = await axios.post(
+      `${PHONEPE_HOST}${endpoint}`,
+      { request: base64Payload },
+      { headers: { 'Content-Type': 'application/json', 'X-VERIFY': checksum } }
+    );
+
+    if (response.data.success && response.data.data?.instrumentResponse?.redirectInfo?.url) {
+      payment.stripeSessionId = merchantTransactionId;
+      await payment.save();
+      res.json({ url: response.data.data.instrumentResponse.redirectInfo.url, merchantTransactionId, paymentId: payment._id });
+    } else {
+      console.error('PhonePe group response:', JSON.stringify(response.data));
+      res.status(400).json({ message: 'Payment initiation failed', details: response.data.message || 'Unknown' });
+    }
+  } catch (error) {
+    console.error('Group checkout error:', error.response?.data || error.message);
+    res.status(500).json({ message: 'Payment error', error: error.response?.data?.message || error.message });
+  }
+});
+
 // POST /api/payments/confirm - verify payment status with PhonePe
 router.post('/confirm', protect, async (req, res) => {
   try {
@@ -158,6 +225,25 @@ router.post('/confirm', protect, async (req, res) => {
           const Session = (await import('../models/Session.js')).default;
           await Session.findByIdAndUpdate(payment.sessionId, { paymentStatus: 'paid' });
         } catch (e) { console.error('[SESSION-PAID]', e.message); }
+      } else if (payment.groupEnrollmentId) {
+        // Group enrollment payment: mark enrollment as paid + status='enrolled'
+        try {
+          const GroupEnrollment = (await import('../models/GroupEnrollment.js')).default;
+          const Notification = (await import('../models/Notification.js')).default;
+          const enroll = await GroupEnrollment.findByIdAndUpdate(payment.groupEnrollmentId, {
+            paymentStatus: 'paid',
+            paidAmount: payment.amount,
+            paymentId: payment._id,
+            status: 'enrolled',
+          }, { new: true });
+          if (enroll) {
+            Notification.notify(enroll.clientId, 'client', 'group_enrollment',
+              'Payment confirmed — you\'re enrolled!',
+              `Your spot in the group is now confirmed. Look out for chat group access closer to the start.`,
+              `/group-therapy/${enroll.groupId}`
+            ).catch(() => {});
+          }
+        } catch (e) { console.error('[GROUP-ENROLLMENT-PAID]', e.message); }
       }
 
       // Update therapist earnings

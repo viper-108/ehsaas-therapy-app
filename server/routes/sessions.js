@@ -68,6 +68,12 @@ router.post('/', protect, clientOnly, async (req, res) => {
       ensureActiveRelationship(therapistId, req.userId).catch(() => {});
     } catch {}
 
+    // Couples flow: if both partners are admin-approved AND this is a couple-type session,
+    // auto-create a 3-way ChatGroup (therapist + both partners) on first booking.
+    if (sessionType === 'couple') {
+      import('../utils/couplesChat.js').then(m => m.ensureCouplesChatGroup(therapistId, req.userId).catch(e => console.error('[COUPLES-CHAT]', e.message)));
+    }
+
     // Check if client has switched therapists 3+ times (fire-and-forget)
     import('../utils/clientFlags.js').then(m => m.checkTherapistChangeFlag(req.userId).catch(e => console.error('[FLAG]', e)));
 
@@ -190,6 +196,11 @@ router.post('/recurring', protect, clientOnly, async (req, res) => {
       const { ensureActiveRelationship } = await import('../utils/relationshipAccess.js');
       ensureActiveRelationship(therapistId, req.userId).catch(() => {});
     } catch {}
+
+    // Couples flow auto-chat-group
+    if (sessionType === 'couple') {
+      import('../utils/couplesChat.js').then(m => m.ensureCouplesChatGroup(therapistId, req.userId).catch(e => console.error('[COUPLES-CHAT]', e.message)));
+    }
 
     const populated = await Session.find({ recurringGroupId })
       .populate('therapistId', 'name title image')

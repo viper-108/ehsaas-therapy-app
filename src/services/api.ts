@@ -62,10 +62,14 @@ class ApiService {
   }
 
   // Therapists (public)
-  async getTherapists(params?: { specialization?: string; language?: string; search?: string }) {
+  async getTherapists(params?: { specialization?: string; language?: string; search?: string; service?: string }) {
     const query = new URLSearchParams(params as any).toString();
     const res = await fetch(`${API_BASE}/therapists?${query}`, { headers: this.getHeaders(false) });
     return this.handleResponse(res);
+  }
+  // Alias used by /team page (avoids confusion with admin getAllTherapistsAdmin)
+  async getAllTherapists(params?: { specialization?: string; language?: string; search?: string; service?: string }) {
+    return this.getTherapists(params);
   }
 
   async getTherapist(id: string) {
@@ -358,6 +362,10 @@ class ApiService {
     const res = await fetch(`${API_BASE}/admin/clients/${clientId}/couples-approve`, {
       method: 'PUT', headers: this.getHeaders()
     });
+    return this.handleResponse(res);
+  }
+  async getPendingCouplesProfiles() {
+    const res = await fetch(`${API_BASE}/admin/clients/couples-pending`, { headers: this.getHeaders() });
     return this.handleResponse(res);
   }
 

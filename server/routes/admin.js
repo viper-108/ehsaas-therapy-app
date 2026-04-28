@@ -177,6 +177,20 @@ router.put('/therapists/:id/services', protect, adminOnly, async (req, res) => {
   }
 });
 
+// GET /api/admin/clients/couples-pending — list all clients with submitted but unapproved couples profiles
+router.get('/clients/couples-pending', protect, adminOnly, async (req, res) => {
+  try {
+    const Client = (await import('../models/Client.js')).default;
+    const list = await Client.find({
+      'couplesProfile.profileCompletedAt': { $ne: null },
+      'couplesProfile.isApprovedByAdmin': false,
+    }).select('name email phone couplesProfile createdAt').sort({ 'couplesProfile.profileCompletedAt': -1 });
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // =============== COUPLES PROFILE APPROVAL ===============
 // PUT /api/admin/clients/:id/couples-approve
 router.put('/clients/:id/couples-approve', protect, adminOnly, async (req, res) => {

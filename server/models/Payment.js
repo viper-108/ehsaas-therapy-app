@@ -4,6 +4,8 @@ const paymentSchema = new mongoose.Schema({
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
   therapistId: { type: mongoose.Schema.Types.ObjectId, ref: 'Therapist', required: true },
   sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Session' },
+  // Group enrollment payment (alternative to sessionId)
+  groupEnrollmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'GroupEnrollment', default: null },
   amount: { type: Number, required: true },
   currency: { type: String, default: 'inr' },
   stripePaymentIntentId: { type: String, default: '' },

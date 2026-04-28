@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, UserCheck, UserX, Clock, Calendar, DollarSign, BarChart3,
   CheckCircle, XCircle, LogOut, ChevronRight, Shield, Loader2, Star, TrendingUp,
-  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight, FileText, Download
+  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight, FileText, Download, Heart
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator
@@ -61,6 +61,7 @@ const AdminDashboard = () => {
   const [pendingReviews, setPendingReviews] = useState<any[]>([]);
   const [pendingNegotiations, setPendingNegotiations] = useState<any[]>([]);
   const [pendingGroups, setPendingGroups] = useState<any[]>([]);
+  const [pendingCouples, setPendingCouples] = useState<any[]>([]);
   const [allTherapists, setAllTherapists] = useState<any[]>([]);
   const [allClients, setAllClients] = useState<any[]>([]);
   const [allSessions, setAllSessions] = useState<any[]>([]);
@@ -138,7 +139,7 @@ const AdminDashboard = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData] = await Promise.all([
+      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData] = await Promise.all([
         api.getAdminStats(),
         api.getPendingTherapists(),
         api.getAllTherapistsAdmin(),
@@ -148,6 +149,7 @@ const AdminDashboard = () => {
         api.getPendingReviews().catch(() => []),
         api.getMyPriceNegotiations().catch(() => []),
         api.listPendingGroups().catch(() => []),
+        api.getPendingCouplesProfiles().catch(() => []),
       ]);
       setStats(statsData);
       setPending(pendingData);
@@ -158,6 +160,7 @@ const AdminDashboard = () => {
       setPendingReviews(pendingReviewsData);
       setPendingNegotiations((allNegotiations || []).filter((n: any) => ['proposed', 'partially_approved'].includes(n.status)));
       setPendingGroups(pendingGroupsData);
+      setPendingCouples(pendingCouplesData);
     } catch (error) {
       console.error('Admin dashboard load error:', error);
     } finally {
@@ -245,7 +248,7 @@ const AdminDashboard = () => {
           ) : (
             (() => {
               const sidebarItems: SidebarItem[] = [
-                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length) || null, group: 'Approvals' },
+                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length + pendingCouples.length) || null, group: 'Approvals' },
                 { value: 'reviews', label: 'Reviews', icon: Star, group: 'Approvals' },
                 { value: 'therapists', label: 'Therapists', icon: UserCheck, group: 'People' },
                 { value: 'clients', label: 'Clients', icon: Users, group: 'People' },
@@ -535,8 +538,63 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
+                {/* ===== PENDING COUPLES PROFILES ===== */}
+                {pendingCouples.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <Heart className="w-4 h-4 text-pink-500" /> Pending Couples Profiles ({pendingCouples.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {pendingCouples.map((c: any) => {
+                        const cp = c.couplesProfile || {};
+                        return (
+                          <Card key={c._id} className="p-4">
+                            <div className="flex justify-between items-start gap-3 flex-wrap">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <Badge variant="outline" className="capitalize">{cp.relationshipType || 'partners'}</Badge>
+                                  {cp.partnerId ? (
+                                    <Badge className="bg-success/10 text-success text-xs">Partner registered</Badge>
+                                  ) : (
+                                    <Badge className="bg-amber-500/10 text-amber-700 text-xs">Partner not yet registered</Badge>
+                                  )}
+                                </div>
+                                <p className="font-medium">{c.name} <span className="text-muted-foreground font-normal">({c.email})</span></p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Partner: <strong>{cp.partnerName}</strong> ({cp.partnerEmail})
+                                  {cp.relationshipDuration && <> · {cp.relationshipDuration}</>}
+                                </p>
+                                {cp.challengesFacing && <p className="text-xs text-muted-foreground mt-1 italic">"{cp.challengesFacing}"</p>}
+                                {cp.goalsForTherapy && <p className="text-xs text-muted-foreground mt-1">Goals: {cp.goalsForTherapy}</p>}
+                                <p className="text-xs text-muted-foreground mt-1">Submitted {new Date(cp.profileCompletedAt).toLocaleDateString('en-IN')}</p>
+                              </div>
+                              <div className="flex gap-2 flex-wrap">
+                                <Button size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50" onClick={async () => {
+                                  const ok = await confirm({
+                                    title: `Approve ${c.name}'s couples profile?`,
+                                    description: cp.partnerId ? `Partner ${cp.partnerName} is also registered. If they're approved too, both will be notified that they can book.` : `Partner ${cp.partnerName} hasn't signed up yet. They need to register and complete their own profile before couples sessions can begin.`,
+                                    confirmLabel: 'Approve',
+                                  });
+                                  if (!ok) return;
+                                  try { await api.approveCouplesProfile(c._id); toast({ title: "Approved" }); loadAll(); }
+                                  catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                }}>
+                                  <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => openClientDetail(c._id)}>
+                                  View Details
+                                </Button>
+                              </div>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* "All caught up" — when literally nothing is pending */}
-                {pending.length === 0 && pendingReviews.length === 0 && pendingNegotiations.length === 0 && pendingGroups.length === 0 && (
+                {pending.length === 0 && pendingReviews.length === 0 && pendingNegotiations.length === 0 && pendingGroups.length === 0 && pendingCouples.length === 0 && (
                   <Card className="p-12 text-center mt-4">
                     <CheckCircle className="w-12 h-12 text-success mx-auto mb-3" />
                     <p className="text-muted-foreground">No pending items. All caught up!</p>

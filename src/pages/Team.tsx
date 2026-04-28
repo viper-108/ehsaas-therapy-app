@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { api } from "@/services/api";
 import { Star, Languages, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +15,19 @@ import Navigation from "@/components/Navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigate } from "react-router-dom";
 
+const SERVICE_LABELS: Record<string, string> = {
+  individual: 'Individual Therapy',
+  couple: 'Couples Therapy',
+  group: 'Group Therapy',
+  family: 'Family Therapy',
+  supervision: 'Supervision',
+};
+
 const Team = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const serviceFilter = searchParams.get('service'); // 'individual' | 'couple' | etc.
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>("");
   const [selectedPsychologist, setSelectedPsychologist] = useState<Psychologist | null>(null);
@@ -23,19 +35,56 @@ const Team = () => {
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const [bookingDetails, setBookingDetails] = useState<BookingSession | null>(null);
 
+  // Dynamic therapists when service filter is active
+  const [dynamicTherapists, setDynamicTherapists] = useState<any[] | null>(null);
+  const [loadingDynamic, setLoadingDynamic] = useState(false);
+
+  useEffect(() => {
+    if (!serviceFilter) { setDynamicTherapists(null); return; }
+    setLoadingDynamic(true);
+    api.getAllTherapists?.({ service: serviceFilter } as any)
+      .then((data: any) => setDynamicTherapists(Array.isArray(data) ? data : []))
+      .catch(() => setDynamicTherapists([]))
+      .finally(() => setLoadingDynamic(false));
+  }, [serviceFilter]);
+
+  // Adapt API therapists into the static Psychologist shape used by PsychologistCard
+  const adaptedDynamic: Psychologist[] = (dynamicTherapists || []).map((t: any) => {
+    const pricing = t.pricing instanceof Map ? Object.fromEntries(t.pricing) : (t.pricing || {});
+    // For service-filtered listings, prefer the service-specific price (max)
+    const matchedSvc = (t.approvedServices || []).find((s: any) => s.type === serviceFilter);
+    const displayPrice = matchedSvc?.maxPrice || pricing['50'] || pricing['30'] || 0;
+    return {
+      id: t._id,
+      name: t.name,
+      specializations: t.specializations || [],
+      image: t.image || '',
+      experience: t.experience || 0,
+      rating: t.rating || 5,
+      languages: t.languages || [],
+      bio: t.bio || '',
+      pricing: { '30': pricing['30'] || displayPrice, '50': pricing['50'] || displayPrice },
+      availability: [],
+      title: t.title || 'Psychologist',
+    } as any;
+  });
+
+  // Choose data source: dynamic when service filter active, else static
+  const effectivePsychologists: Psychologist[] = serviceFilter ? adaptedDynamic : psychologists;
+
   // Get unique specializations for filter
   const allSpecializations = Array.from(
-    new Set(psychologists.flatMap(p => p.specializations))
+    new Set(effectivePsychologists.flatMap(p => p.specializations || []))
   );
 
-  // Filter psychologists based on search and specialization
-  const filteredPsychologists = psychologists.filter(psychologist => {
+  // Filter based on search and specialization
+  const filteredPsychologists = effectivePsychologists.filter(psychologist => {
     const matchesSearch = psychologist.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         psychologist.specializations.some(spec => 
+                         (psychologist.specializations || []).some(spec =>
                            spec.toLowerCase().includes(searchTerm.toLowerCase())
                          );
-    const matchesSpecialization = !selectedSpecialization || 
-                                 psychologist.specializations.includes(selectedSpecialization);
+    const matchesSpecialization = !selectedSpecialization ||
+                                 (psychologist.specializations || []).includes(selectedSpecialization);
     return matchesSearch && matchesSpecialization;
   });
 
@@ -77,6 +126,15 @@ const Team = () => {
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
               {t('teamPage.subtitle')}
             </p>
+            {serviceFilter && (
+              <div className="mt-6 inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full">
+                <span className="text-sm font-medium">Filtered: {SERVICE_LABELS[serviceFilter] || serviceFilter}</span>
+                <button onClick={() => navigate('/team')} className="text-xs underline hover:text-primary/80">Clear</button>
+              </div>
+            )}
+            {serviceFilter && loadingDynamic && (
+              <p className="text-sm text-muted-foreground mt-3">Loading therapists offering this service...</p>
+            )}
           </div>
 
           {/* Search and Filters */}
