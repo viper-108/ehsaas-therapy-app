@@ -24,6 +24,7 @@ import { TherapistResources } from "@/components/TherapistResources";
 import { PsychiatristPrescriptions } from "@/components/PsychiatristPrescriptions";
 import { SessionFilterBar, applySessionFilters, buildEntityOptions, defaultFilters } from "@/components/SessionFilterBar";
 import { TherapistEarningsTab } from "@/components/TherapistEarningsTab";
+import { TherapistGroupsTab } from "@/components/TherapistGroupsTab";
 import { TherapistProfileTab } from "@/components/TherapistProfileTab";
 import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { CancelSessionDialog } from "@/components/CancelSessionDialog";
@@ -218,6 +219,7 @@ const TherapistDashboard = () => {
               { value: 'availability', label: t('dashboard.availability'), icon: Settings, group: 'Sessions' },
               { value: 'intro-calls', label: t('dashboard.introCalls'), icon: Phone, badge: pendingIntroCalls || null, group: 'Clients' },
               { value: 'messages', label: t('dashboard.messages'), icon: MessageCircle, group: 'Clients' },
+              { value: 'group-therapy', label: 'Group Therapy', icon: Users, group: 'Content' },
               { value: 'resources', label: 'Resources', icon: Library, group: 'Content' },
               { value: 'supervision', label: t('dashboard.supervision'), icon: BookOpen, group: 'Content' },
               ...(user?.therapistType === 'psychiatrist' ? [{ value: 'prescriptions', label: 'Prescriptions', icon: FileText, group: 'Content' } as SidebarItem] : []),
@@ -674,6 +676,11 @@ const TherapistDashboard = () => {
                   </div>
                 )}
               </Card>
+            </TabsContent>
+
+            {/* ========== GROUP THERAPY TAB ========== */}
+            <TabsContent value="group-therapy">
+              <TherapistGroupsTab />
             </TabsContent>
 
             {/* ========== RESOURCES TAB ========== */}
