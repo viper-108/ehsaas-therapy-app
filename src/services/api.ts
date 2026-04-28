@@ -329,6 +329,115 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  // ============ SERVICES (therapist + admin) ============
+  async setMyServicesOffered(services: { type: string; minPrice: number; maxPrice: number }[]) {
+    const res = await fetch(`${API_BASE}/therapists/dashboard/services-offered`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ services })
+    });
+    return this.handleResponse(res);
+  }
+  async acceptApprovedService(type: string) {
+    const res = await fetch(`${API_BASE}/therapists/dashboard/services/${type}/accept`, {
+      method: 'POST', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+  async rejectApprovedService(type: string) {
+    const res = await fetch(`${API_BASE}/therapists/dashboard/services/${type}/reject`, {
+      method: 'POST', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+  async setApprovedServicesForTherapist(therapistId: string, services: { type: string; minPrice: number; maxPrice: number }[]) {
+    const res = await fetch(`${API_BASE}/admin/therapists/${therapistId}/services`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ services })
+    });
+    return this.handleResponse(res);
+  }
+  async approveCouplesProfile(clientId: string) {
+    const res = await fetch(`${API_BASE}/admin/clients/${clientId}/couples-approve`, {
+      method: 'PUT', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+
+  // ============ COUPLES ============
+  async updateCouplesProfile(body: any) {
+    const res = await fetch(`${API_BASE}/auth/client/couples-profile`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+
+  // ============ GROUP THERAPY ============
+  async listGroupTherapy(status: 'all' | 'upcoming' | 'ongoing' | 'past' = 'all') {
+    const res = await fetch(`${API_BASE}/group-therapy?status=${status}`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async getGroupTherapy(id: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/${id}`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async requestGroupTherapy(body: any) {
+    const res = await fetch(`${API_BASE}/group-therapy/request`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async listPendingGroups() {
+    const res = await fetch(`${API_BASE}/group-therapy/admin/pending`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async approveGroupTherapy(id: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/${id}/admin-approve`, {
+      method: 'PUT', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+  async rejectGroupTherapy(id: string, reason?: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/${id}/admin-reject`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason: reason || '' })
+    });
+    return this.handleResponse(res);
+  }
+  async enrollInGroupTherapy(groupId: string, application: any) {
+    const res = await fetch(`${API_BASE}/group-therapy/${groupId}/enroll`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ application })
+    });
+    return this.handleResponse(res);
+  }
+  async approveGroupEnrollment(enrollmentId: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/enrollments/${enrollmentId}/approve`, {
+      method: 'PUT', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+  async rejectGroupEnrollment(enrollmentId: string, reason?: string, referredToGroupId?: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/enrollments/${enrollmentId}/reject`, {
+      method: 'PUT', headers: this.getHeaders(),
+      body: JSON.stringify({ reason: reason || '', referredToGroupId: referredToGroupId || null })
+    });
+    return this.handleResponse(res);
+  }
+  async getGroupEnrollments(groupId: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/${groupId}/enrollments`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async getMyGroupEnrollments() {
+    const res = await fetch(`${API_BASE}/group-therapy/my/enrollments`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async getMyLeadingGroups() {
+    const res = await fetch(`${API_BASE}/group-therapy/my/leading`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async lockGroupTherapy(id: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/${id}/lock`, {
+      method: 'POST', headers: this.getHeaders()
+    });
+    return this.handleResponse(res);
+  }
+
   async revokeTherapistApproval(id: string, reason?: string) {
     const res = await fetch(`${API_BASE}/admin/therapists/${id}/revoke-approval`, {
       method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason: reason || '' })

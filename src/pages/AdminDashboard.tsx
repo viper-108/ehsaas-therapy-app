@@ -25,6 +25,7 @@ import { AdminReviewModeration } from "@/components/AdminReviewModeration";
 import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { PriceNegotiationsPanel } from "@/components/PriceNegotiationsPanel";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { ServicesFinalizeForm } from "@/components/ServicesFinalizeForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +60,7 @@ const AdminDashboard = () => {
   const [pending, setPending] = useState<any[]>([]);
   const [pendingReviews, setPendingReviews] = useState<any[]>([]);
   const [pendingNegotiations, setPendingNegotiations] = useState<any[]>([]);
+  const [pendingGroups, setPendingGroups] = useState<any[]>([]);
   const [allTherapists, setAllTherapists] = useState<any[]>([]);
   const [allClients, setAllClients] = useState<any[]>([]);
   const [allSessions, setAllSessions] = useState<any[]>([]);
@@ -136,7 +138,7 @@ const AdminDashboard = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations] = await Promise.all([
+      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData] = await Promise.all([
         api.getAdminStats(),
         api.getPendingTherapists(),
         api.getAllTherapistsAdmin(),
@@ -145,6 +147,7 @@ const AdminDashboard = () => {
         api.getAllReviews().catch(() => []),
         api.getPendingReviews().catch(() => []),
         api.getMyPriceNegotiations().catch(() => []),
+        api.listPendingGroups().catch(() => []),
       ]);
       setStats(statsData);
       setPending(pendingData);
@@ -154,6 +157,7 @@ const AdminDashboard = () => {
       setAllReviews(reviewsData);
       setPendingReviews(pendingReviewsData);
       setPendingNegotiations((allNegotiations || []).filter((n: any) => ['proposed', 'partially_approved'].includes(n.status)));
+      setPendingGroups(pendingGroupsData);
     } catch (error) {
       console.error('Admin dashboard load error:', error);
     } finally {
@@ -241,7 +245,7 @@ const AdminDashboard = () => {
           ) : (
             (() => {
               const sidebarItems: SidebarItem[] = [
-                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length) || null, group: 'Approvals' },
+                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length) || null, group: 'Approvals' },
                 { value: 'reviews', label: 'Reviews', icon: Star, group: 'Approvals' },
                 { value: 'therapists', label: 'Therapists', icon: UserCheck, group: 'People' },
                 { value: 'clients', label: 'Clients', icon: Users, group: 'People' },
@@ -485,8 +489,54 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
+                {/* ===== PENDING GROUP THERAPY REQUESTS ===== */}
+                {pendingGroups.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-primary" /> Pending Group Therapy Requests ({pendingGroups.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {pendingGroups.map((g: any) => (
+                        <Card key={g._id} className="p-4">
+                          <div className="flex justify-between items-start gap-3 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <Badge variant="outline" className="capitalize">{g.groupType}</Badge>
+                                <p className="font-medium">{g.title}</p>
+                              </div>
+                              <p className="text-xs text-muted-foreground">Focus: {g.focus} · Ages {g.ageMin}-{g.ageMax} · ₹{g.pricePerMember}/member · Max {g.maxMembers} members</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Lead: {(g.leadTherapists || []).map((t: any) => t.name).join(' & ')}
+                              </p>
+                              <p className="text-xs text-muted-foreground">First session: {new Date(g.sessionStartAt).toLocaleString('en-IN')}</p>
+                              {g.description && <p className="text-xs text-muted-foreground mt-1 italic">"{g.description}"</p>}
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50" onClick={async () => {
+                                const ok = await confirm({ title: `Approve "${g.title}"?`, description: 'Group will become visible to clients and accept applications.', confirmLabel: 'Approve' });
+                                if (!ok) return;
+                                try { await api.approveGroupTherapy(g._id); toast({ title: "Approved" }); loadAll(); }
+                                catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}>
+                                <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                              </Button>
+                              <Button size="sm" variant="outline" className="border-red-500 text-red-600 hover:bg-red-50" onClick={async () => {
+                                const reason = window.prompt('Reason for rejection (optional):') || '';
+                                try { await api.rejectGroupTherapy(g._id, reason); toast({ title: "Rejected" }); loadAll(); }
+                                catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}>
+                                <XCircle className="w-3 h-3 mr-1" /> Reject
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* "All caught up" — when literally nothing is pending */}
-                {pending.length === 0 && pendingReviews.length === 0 && pendingNegotiations.length === 0 && (
+                {pending.length === 0 && pendingReviews.length === 0 && pendingNegotiations.length === 0 && pendingGroups.length === 0 && (
                   <Card className="p-12 text-center mt-4">
                     <CheckCircle className="w-12 h-12 text-success mx-auto mb-3" />
                     <p className="text-muted-foreground">No pending items. All caught up!</p>
@@ -1176,6 +1226,28 @@ const AdminDashboard = () => {
                     {detailModal.data.highestEducation && (
                       <div><p className="text-sm font-medium text-foreground mb-1">Highest Education</p><p className="text-sm text-muted-foreground">{detailModal.data.highestEducation}</p></div>
                     )}
+
+                    {/* Therapist's original service ASKS (admin-only) */}
+                    {Array.isArray(detailModal.data.servicesOffered) && detailModal.data.servicesOffered.length > 0 && (
+                      <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                        <p className="text-sm font-medium text-foreground mb-2">Therapist's Original Asks (admin-only, never shown publicly)</p>
+                        <div className="space-y-1">
+                          {detailModal.data.servicesOffered.map((s: any) => (
+                            <p key={s.type} className="text-xs text-muted-foreground">
+                              <strong className="capitalize">{s.type}</strong> — ₹{s.minPrice} to ₹{s.maxPrice}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ADMIN: Finalize services + per-service pricing */}
+                    <ServicesFinalizeForm
+                      therapistId={detailModal.data._id}
+                      servicesOffered={detailModal.data.servicesOffered || []}
+                      approvedServices={detailModal.data.approvedServices || []}
+                      onSaved={() => openTherapistDetail(detailModal.data._id)}
+                    />
                   </>
                 )}
 

@@ -46,6 +46,36 @@ const therapistSchema = new mongoose.Schema({
   },
   // Therapist opts in/out of "sliding scale" — i.e. willing to negotiate down to pricingMin
   slidingScaleAvailable: { type: Boolean, default: false },
+
+  // ========== SERVICE TYPES & PRICING (NEW) ==========
+  // What the therapist OFFERS — set during onboarding. Original ask, never displayed publicly after admin approval.
+  servicesOffered: {
+    type: [{
+      type: { type: String, enum: ['individual', 'couple', 'group', 'family', 'supervision'], required: true },
+      minPrice: { type: Number, required: true, min: 0 },
+      maxPrice: { type: Number, required: true, min: 0 },
+      _id: false,
+    }],
+    default: [],
+  },
+  // What ADMIN approved post-interview. THIS is the source of truth shown publicly.
+  approvedServices: {
+    type: [{
+      type: { type: String, enum: ['individual', 'couple', 'group', 'family', 'supervision'], required: true },
+      minPrice: { type: Number, required: true, min: 0 },
+      maxPrice: { type: Number, required: true, min: 0 },
+      // Therapist response after admin approves the service+price
+      therapistAccepted: { type: Boolean, default: false },
+      therapistRejected: { type: Boolean, default: false },
+      acceptedAt: { type: Date, default: null },
+      rejectedAt: { type: Date, default: null },
+      approvedByAdminAt: { type: Date, default: Date.now },
+      _id: false,
+    }],
+    default: [],
+  },
+  // True once admin has done the per-service review (i.e. approvedServices is locked in)
+  servicesFinalized: { type: Boolean, default: false },
   availability: [availabilitySlotSchema],
   calendlyLink: { type: String, default: '' },
   isApproved: { type: Boolean, default: false },
@@ -112,6 +142,8 @@ therapistSchema.methods.toPublicJSON = function() {
   if (obj.pricingMin instanceof Map) {
     obj.pricingMin = Object.fromEntries(obj.pricingMin);
   }
+  // Strip therapist's original service ASKS — these should never be exposed publicly
+  delete obj.servicesOffered;
   return obj;
 };
 

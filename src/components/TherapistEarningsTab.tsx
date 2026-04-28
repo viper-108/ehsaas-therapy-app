@@ -6,6 +6,7 @@ import { TrendingUp, DollarSign, Building2, User, CalendarDays } from "lucide-re
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { PriceNegotiationsPanel } from "@/components/PriceNegotiationsPanel";
+import { MyServicesPanel } from "@/components/MyServicesPanel";
 
 interface MonthlyRow {
   month: string;
@@ -209,6 +210,9 @@ export function TherapistEarningsTab() {
           Note: Earnings figures are synced with the admin dashboard. Your commission rate is set by Ehsaas administration.
         </p>
       </Card>
+
+      {/* My Services (admin-approved + therapist accept/reject) */}
+      <MyServicesPanel />
 
       {/* Price Negotiations */}
       <Card className="p-5">

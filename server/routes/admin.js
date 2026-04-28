@@ -115,6 +115,114 @@ router.put('/therapists/:id/reject', protect, adminOnly, async (req, res) => {
   }
 });
 
+// =============== SERVICE APPROVALS (per-service min/max post-interview) ===============
+// PUT /api/admin/therapists/:id/services
+// Body: { services: [{ type, minPrice, maxPrice }] }
+// Replaces approvedServices with the admin-final list. Notifies therapist by email + in-app.
+router.put('/therapists/:id/services', protect, adminOnly, async (req, res) => {
+  try {
+    const { services } = req.body || {};
+    if (!Array.isArray(services)) return res.status(400).json({ message: 'services array required' });
+
+    const validTypes = ['individual', 'couple', 'group', 'family', 'supervision'];
+    const cleaned = services
+      .filter(s => s && validTypes.includes(s.type))
+      .map(s => ({
+        type: s.type,
+        minPrice: Math.max(0, Number(s.minPrice) || 0),
+        maxPrice: Math.max(0, Number(s.maxPrice) || 0),
+        // Carry over therapist-accepted state if same type already approved
+        therapistAccepted: false,
+        therapistRejected: false,
+        approvedByAdminAt: new Date(),
+      }))
+      .filter(s => s.maxPrice > 0 && s.minPrice <= s.maxPrice);
+
+    const therapist = await Therapist.findById(req.params.id);
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+
+    therapist.approvedServices = cleaned;
+    therapist.servicesFinalized = true;
+    await therapist.save();
+
+    // Email therapist with the final list + a link to accept/reject in dashboard
+    try {
+      const { sendEmail } = await import('../utils/email.js');
+      const Notification = (await import('../models/Notification.js')).default;
+      const baseUrl = process.env.CLIENT_URL || '';
+      const rows = cleaned.map(s => `<tr><td style="padding:6px 12px;">${s.type}</td><td style="padding:6px 12px;">₹${s.minPrice} - ₹${s.maxPrice}</td></tr>`).join('');
+      const html = `
+        <p>Hi ${therapist.name},</p>
+        <p>The Ehsaas team has finalized your services list and pricing. Please review and accept or reject each service in your dashboard.</p>
+        <table style="border-collapse:collapse;">
+          <thead><tr style="background:#f3f4f6;"><th style="padding:6px 12px;text-align:left;">Service</th><th style="padding:6px 12px;text-align:left;">Final Price Range</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <p style="margin-top:16px;"><a href="${baseUrl}/therapist-dashboard" style="display:inline-block;background:#D97706;color:white;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold;">Accept or Reject Services</a></p>
+        <p style="color:#666;font-size:13px;">If you'd like to negotiate any of the prices, please message admin from your dashboard.</p>`;
+      sendEmail(therapist.email, 'Services & pricing finalized — please accept', html).catch(() => {});
+      Notification.notify(therapist._id, 'therapist', 'services_finalized',
+        'Admin finalized your services',
+        'Please review the approved services and pricing in your dashboard, and accept or reject each.',
+        '/therapist-dashboard'
+      ).catch(() => {});
+    } catch {}
+
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'services_finalized', 'Therapist', therapist._id, { services: cleaned }); } catch {}
+
+    res.json(convertPricing(therapist));
+  } catch (error) {
+    console.error('Set services error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// =============== COUPLES PROFILE APPROVAL ===============
+// PUT /api/admin/clients/:id/couples-approve
+router.put('/clients/:id/couples-approve', protect, adminOnly, async (req, res) => {
+  try {
+    const Client = (await import('../models/Client.js')).default;
+    const { sendEmail } = await import('../utils/email.js');
+    const Notification = (await import('../models/Notification.js')).default;
+
+    const client = await Client.findById(req.params.id);
+    if (!client) return res.status(404).json({ message: 'Client not found' });
+    if (!client.couplesProfile?.profileCompletedAt) return res.status(400).json({ message: 'Couples profile not completed yet' });
+
+    client.couplesProfile.isApprovedByAdmin = true;
+    client.couplesProfile.approvedAt = new Date();
+    await client.save();
+
+    // Check if partner is also approved → if yes, both can now book couples sessions
+    if (client.couplesProfile.partnerId) {
+      const partner = await Client.findById(client.couplesProfile.partnerId);
+      if (partner?.couplesProfile?.isApprovedByAdmin) {
+        for (const c of [client, partner]) {
+          Notification.notify(c._id, 'client', 'couples_both_approved',
+            'You and your partner are both approved for couples therapy',
+            'You can now book couples sessions with our couple-expert therapists.',
+            '/team?service=couple'
+          ).catch(() => {});
+          if (c.email) sendEmail(c.email, 'Couples therapy onboarded — Ehsaas',
+            `<p>Hi ${c.name},</p><p>Both you and your partner have been onboarded for couples therapy. You can now book sessions with our couple-expert therapists.</p>`
+          ).catch(() => {});
+        }
+      }
+    }
+
+    Notification.notify(client._id, 'client', 'couples_approved',
+      'Your couples profile was approved',
+      'You can now begin booking couples sessions once your partner is also onboarded.',
+      '/client-dashboard'
+    ).catch(() => {});
+
+    res.json(client);
+  } catch (e) {
+    console.error('Couples approve error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // PUT /api/admin/therapists/:id/revoke-approval — revoke a previously approved therapist
 // Sets onboardingStatus back to pending_approval, isApproved=false. Doesn't delete the account or sessions.
 router.put('/therapists/:id/revoke-approval', protect, adminOnly, async (req, res) => {

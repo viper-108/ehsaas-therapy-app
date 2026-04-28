@@ -423,11 +423,97 @@ router.put('/client/profile', protect, async (req, res) => {
         relationship: (emergencyContact.relationship || '').trim(),
       };
     }
+    if (typeof req.body.preferredServiceType === 'string') {
+      const valid = ['individual', 'couple', 'group', 'family', 'supervision'];
+      if (valid.includes(req.body.preferredServiceType)) update.preferredServiceType = req.body.preferredServiceType;
+    }
     const client = await Client.findByIdAndUpdate(req.userId, update, { new: true }).select('-password');
     if (!client) return res.status(404).json({ message: 'Client not found' });
     res.json({ user: client });
   } catch (error) {
     console.error('Client profile update error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/auth/client/couples-profile — fill or update couples profile
+// Body: { partnerEmail, partnerName, relationshipDuration, relationshipType, challengesFacing, goalsForTherapy }
+router.put('/client/couples-profile', protect, async (req, res) => {
+  try {
+    if (req.userRole !== 'client') return res.status(403).json({ message: 'Client only' });
+    const {
+      partnerEmail, partnerName, relationshipDuration, relationshipType,
+      challengesFacing, goalsForTherapy
+    } = req.body || {};
+
+    if (!partnerEmail || !partnerName || !relationshipType) {
+      return res.status(400).json({ message: 'partnerEmail, partnerName, and relationshipType are required' });
+    }
+
+    // If a partner client already exists with that email, link them
+    const partner = await Client.findOne({ email: partnerEmail.trim().toLowerCase() });
+    const me = await Client.findById(req.userId);
+    if (!me) return res.status(404).json({ message: 'Client not found' });
+
+    me.couplesProfile = {
+      ...(me.couplesProfile || {}),
+      partnerEmail: partnerEmail.trim().toLowerCase(),
+      partnerName: partnerName.trim(),
+      partnerId: partner?._id || null,
+      relationshipDuration: relationshipDuration || '',
+      relationshipType,
+      challengesFacing: challengesFacing || '',
+      goalsForTherapy: goalsForTherapy || '',
+      profileCompletedAt: new Date(),
+      partnerInvitedAt: partner ? me.couplesProfile?.partnerInvitedAt : new Date(),
+    };
+    me.preferredServiceType = 'couple';
+    await me.save();
+
+    // If partner is registered, link reciprocally
+    if (partner && (!partner.couplesProfile?.partnerId || String(partner.couplesProfile.partnerId) !== String(me._id))) {
+      partner.couplesProfile = {
+        ...(partner.couplesProfile || {}),
+        partnerId: me._id,
+        partnerEmail: me.email,
+        partnerName: me.name,
+      };
+      await partner.save();
+    }
+
+    // If partner not registered, send invite email
+    try {
+      if (!partner && me.couplesProfile.partnerEmail) {
+        const { sendEmail } = await import('../utils/email.js');
+        const baseUrl = process.env.CLIENT_URL || '';
+        sendEmail(me.couplesProfile.partnerEmail, `${me.name} invited you to couples therapy on Ehsaas`,
+          `<p>Hi ${partnerName},</p>
+           <p><strong>${me.name}</strong> wants to begin couples therapy with you on Ehsaas Therapy Centre.</p>
+           <p>Sign up to confirm your participation, complete your couples profile, and let our admin team match you with the right therapist.</p>
+           <p style="text-align:center;margin:24px 0;">
+             <a href="${baseUrl}/?invite=couples" style="display:inline-block;background:#D97706;color:white;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold;">Sign Up & Join</a>
+           </p>`
+        ).catch(() => {});
+      }
+    } catch {}
+
+    // Notify admins
+    try {
+      const Admin = (await import('../models/Admin.js')).default;
+      const Notification = (await import('../models/Notification.js')).default;
+      const admins = await Admin.find({}).select('_id');
+      for (const a of admins) {
+        Notification.notify(a._id, 'admin', 'couples_profile_submitted',
+          `Couples profile submitted: ${me.name}`,
+          `Partner: ${partnerName} (${partnerEmail}). Review and approve in dashboard.`,
+          '/admin-dashboard'
+        ).catch(() => {});
+      }
+    } catch {}
+
+    res.json({ user: me });
+  } catch (error) {
+    console.error('Couples profile error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

@@ -70,6 +70,17 @@ export const TherapistOnboarding = () => {
     pricingMin30: '',
     pricingMin50: '',
   });
+
+  // Services offered (per-service min/max ASKS) — used for admin to finalize after interview
+  const SERVICE_TYPES = ['individual', 'couple', 'group', 'family', 'supervision'] as const;
+  type ServiceType = typeof SERVICE_TYPES[number];
+  const [services, setServices] = useState<Record<ServiceType, { offered: boolean; min: string; max: string }>>({
+    individual: { offered: false, min: '', max: '' },
+    couple: { offered: false, min: '', max: '' },
+    group: { offered: false, min: '', max: '' },
+    family: { offered: false, min: '', max: '' },
+    supervision: { offered: false, min: '', max: '' },
+  });
   const [resumeUrl, setResumeUrl] = useState('');
   const [resumeUploading, setResumeUploading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -81,6 +92,23 @@ export const TherapistOnboarding = () => {
     if (user) {
       const pricing = user.pricing instanceof Map ? Object.fromEntries(user.pricing) : (user.pricing || {});
       const pricingMin = user.pricingMin instanceof Map ? Object.fromEntries(user.pricingMin) : (user.pricingMin || {});
+      // Hydrate services
+      const svcMap = { individual: false, couple: false, group: false, family: false, supervision: false } as any;
+      const svcMin: any = {}; const svcMax: any = {};
+      (user.servicesOffered || []).forEach((s: any) => {
+        if (s?.type && SERVICE_TYPES.includes(s.type)) {
+          svcMap[s.type] = true;
+          svcMin[s.type] = String(s.minPrice || '');
+          svcMax[s.type] = String(s.maxPrice || '');
+        }
+      });
+      setServices({
+        individual: { offered: svcMap.individual, min: svcMin.individual || '', max: svcMax.individual || '' },
+        couple: { offered: svcMap.couple, min: svcMin.couple || '', max: svcMax.couple || '' },
+        group: { offered: svcMap.group, min: svcMin.group || '', max: svcMax.group || '' },
+        family: { offered: svcMap.family, min: svcMin.family || '', max: svcMax.family || '' },
+        supervision: { offered: svcMap.supervision, min: svcMin.supervision || '', max: svcMax.supervision || '' },
+      });
       setForm({
         title: user.title || '',
         phone: user.phone || '',
@@ -202,6 +230,20 @@ export const TherapistOnboarding = () => {
     if (form.pricing30 && !isNaN(Number(form.pricing30))) pricing['30'] = Number(form.pricing30);
     if (form.pricing50 && !isNaN(Number(form.pricing50))) pricing['50'] = Number(form.pricing50);
 
+    // Build services array — only include checked services with valid pricing
+    const servicesArr: { type: string; minPrice: number; maxPrice: number }[] = [];
+    let svcInvalid = '';
+    SERVICE_TYPES.forEach(t => {
+      const s = services[t];
+      if (!s.offered) return;
+      const min = Number(s.min); const max = Number(s.max);
+      if (!s.max || isNaN(max) || max <= 0) { svcInvalid = `Set a max price for ${t} therapy.`; return; }
+      if (s.min && !isNaN(min) && min > max) { svcInvalid = `Min price for ${t} must be ≤ max.`; return; }
+      servicesArr.push({ type: t, minPrice: !isNaN(min) ? min : 0, maxPrice: max });
+    });
+    if (svcInvalid) return toast({ title: "Invalid pricing", description: svcInvalid, variant: "destructive" });
+    if (servicesArr.length === 0) return toast({ title: "Select at least one service type you offer", variant: "destructive" });
+
     setProfileSaving(true);
     try {
       const data = await api.updateTherapistProfile({
@@ -215,7 +257,9 @@ export const TherapistOnboarding = () => {
         highestEducation: form.highestEducation.trim(),
         pricing,
       });
-      if (data) updateUser(data);
+      // Save services-offered
+      await api.setMyServicesOffered(servicesArr);
+      if (data) updateUser({ ...data, servicesOffered: servicesArr });
       toast({ title: "Profile saved", description: "Now upload your resume and accept the terms to submit." });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -383,9 +427,64 @@ export const TherapistOnboarding = () => {
               </div>
               <div className="md:col-span-2">
                 <div className="bg-muted/30 rounded-lg p-4 border border-border">
-                  <p className="text-sm font-semibold text-foreground mb-1">💰 Pricing Preference (optional)</p>
+                  <p className="text-sm font-semibold text-foreground mb-2">🩺 Services You Offer <span className="text-destructive">*</span></p>
                   <p className="text-xs text-muted-foreground mb-3">
-                    Suggest your preferred prices below. <strong>The Ehsaas admin team will finalize the actual Min/Max prices after your interview</strong>, based on your experience and platform standards.
+                    Select every kind of therapy you'd like to offer and your preferred Min/Max charges. <strong>Admin will finalize each service + price after your interview.</strong>
+                  </p>
+                  <div className="space-y-2">
+                    {SERVICE_TYPES.map(t => {
+                      const s = services[t];
+                      const labels: Record<string, { name: string; desc: string }> = {
+                        individual: { name: 'Individual Therapy', desc: '1-on-1 sessions' },
+                        couple: { name: 'Couples Therapy', desc: 'Two partners, one therapist' },
+                        group: { name: 'Group Therapy', desc: '5–10 clients, focused topic' },
+                        family: { name: 'Family Therapy', desc: 'Multiple family members' },
+                        supervision: { name: 'Supervision', desc: 'For other therapists' },
+                      };
+                      const lbl = labels[t];
+                      return (
+                        <div key={t} className={`p-3 rounded-md border ${s.offered ? 'bg-primary/5 border-primary/30' : 'bg-background border-border'}`}>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <Checkbox
+                              checked={s.offered}
+                              onCheckedChange={(v) => setServices(p => ({ ...p, [t]: { ...p[t], offered: v === true } }))}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-foreground">{lbl.name}</p>
+                              <p className="text-[11px] text-muted-foreground">{lbl.desc}</p>
+                            </div>
+                            {s.offered && (
+                              <div className="flex gap-2 items-center">
+                                <Input
+                                  type="number"
+                                  placeholder="Min ₹"
+                                  className="w-24 h-9"
+                                  value={s.min}
+                                  onChange={e => setServices(p => ({ ...p, [t]: { ...p[t], min: e.target.value } }))}
+                                />
+                                <span className="text-xs text-muted-foreground">to</span>
+                                <Input
+                                  type="number"
+                                  placeholder="Max ₹"
+                                  className="w-24 h-9"
+                                  value={s.max}
+                                  onChange={e => setServices(p => ({ ...p, [t]: { ...p[t], max: e.target.value } }))}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <div className="bg-muted/30 rounded-lg p-4 border border-border">
+                  <p className="text-sm font-semibold text-foreground mb-1">💰 Default Hourly Pricing (optional)</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Used for individual sessions only. Final pricing per service is set above + finalized by admin after interview.
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -400,7 +499,7 @@ export const TherapistOnboarding = () => {
                 </div>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-3">Pricing is finalized by Ehsaas admin after your interview.</p>
+            <p className="text-xs text-muted-foreground mt-3">Services and pricing are finalized by Ehsaas admin after your interview.</p>
 
             <Button onClick={handleProfileSave} disabled={profileSaving} className="mt-4 w-full md:w-auto">
               {profileSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : 'Save Profile'}

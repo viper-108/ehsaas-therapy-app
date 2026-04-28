@@ -119,6 +119,7 @@ app.use('/api/discounts', discountRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 import('./routes/priceNegotiations.js').then(m => app.use('/api/price-negotiations', m.default)).catch(e => console.error('priceNegotiations route load failed:', e));
+import('./routes/groupTherapy.js').then(m => app.use('/api/group-therapy', m.default)).catch(e => console.error('groupTherapy route load failed:', e));
 
 // Static files (uploads)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

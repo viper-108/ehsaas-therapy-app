@@ -18,6 +18,22 @@ const clientSchema = new mongoose.Schema({
     phone: { type: String, default: '' },
     relationship: { type: String, default: '' },
   },
+  // Service the client is currently looking for — picked at login/landing
+  preferredServiceType: { type: String, enum: ['individual', 'couple', 'group', 'family', 'supervision', null], default: null },
+  // Couples therapy profile (only used if preferredServiceType === 'couple')
+  couplesProfile: {
+    partnerEmail: { type: String, default: '' },
+    partnerName: { type: String, default: '' },
+    partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', default: null },
+    relationshipDuration: { type: String, default: '' },     // e.g. "5 years"
+    relationshipType: { type: String, default: '' },          // e.g. "married", "dating"
+    challengesFacing: { type: String, default: '' },
+    goalsForTherapy: { type: String, default: '' },
+    profileCompletedAt: { type: Date, default: null },
+    isApprovedByAdmin: { type: Boolean, default: false },
+    approvedAt: { type: Date, default: null },
+    partnerInvitedAt: { type: Date, default: null },
+  },
   stripeCustomerId: { type: String, default: '' },
   referralCode: { type: String, unique: true, sparse: true },
   // Behaviour tracking - auto-flagged by system

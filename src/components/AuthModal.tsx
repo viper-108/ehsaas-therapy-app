@@ -146,6 +146,10 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
       toast({ title: "Welcome back!", description: `Logged in as ${data.user.name}` });
       onClose();
       setUseOtp(false); setOtpSent(false); setOtpCode('');
+      // First-time client login: redirect to service picker
+      if (data.role === 'client' && !data.user.preferredServiceType) {
+        setTimeout(() => { window.location.href = '/choose-service'; }, 100);
+      }
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
@@ -184,6 +188,8 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
       login(data.token, data.user, 'client');
       toast({ title: "Welcome!", description: "Your account has been created successfully" });
       onClose();
+      // New clients: send to service picker
+      setTimeout(() => { window.location.href = '/choose-service'; }, 100);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -242,6 +248,10 @@ export const AuthModal = ({ isOpen, onClose, defaultTab = 'client' }: AuthModalP
       login(data.token, data.user, data.role);
       toast({ title: "Welcome back!", description: `Logged in as ${data.user.name}` });
       onClose();
+      // First-time client login: redirect to service picker
+      if (data.role === 'client' && !data.user.preferredServiceType) {
+        setTimeout(() => { window.location.href = '/choose-service'; }, 100);
+      }
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {

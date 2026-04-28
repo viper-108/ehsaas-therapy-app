@@ -18,6 +18,7 @@ import { ChatWindow } from "@/components/ChatWindow";
 import { ClientResources } from "@/components/ClientResources";
 import { ClientPrescriptions } from "@/components/ClientPrescriptions";
 import { ClientProfileTab } from "@/components/ClientProfileTab";
+import { CouplesProfileTab } from "@/components/CouplesProfileTab";
 import { SessionFilterBar, applySessionFilters, buildEntityOptions, defaultFilters } from "@/components/SessionFilterBar";
 import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { Pill, User as UserIcon } from "lucide-react";
@@ -128,6 +129,7 @@ const ClientDashboard = () => {
           </div>
 
           {(() => {
+            const isCouples = (user as any)?.preferredServiceType === 'couple';
             const sidebarItems: SidebarItem[] = [
               { value: 'find-therapist', label: t('common.search'), icon: Search, group: 'Discover' },
               { value: 'resources', label: 'Resources', icon: Library, group: 'Discover' },
@@ -135,6 +137,7 @@ const ClientDashboard = () => {
               { value: 'past', label: t('dashboard.past'), icon: Clock, group: 'Sessions' },
               { value: 'prescriptions', label: 'Prescriptions', icon: Pill, group: 'Health' },
               { value: 'messages', label: t('dashboard.messages'), icon: MessageCircle, group: 'Health' },
+              ...(isCouples ? [{ value: 'couples', label: 'Couples Profile', icon: UserIcon, group: 'Account' } as SidebarItem] : []),
               { value: 'profile', label: 'Profile', icon: UserIcon, group: 'Account' },
             ];
             return (
@@ -507,6 +510,10 @@ const ClientDashboard = () => {
             </TabsContent>
 
             {/* ========== PROFILE TAB ========== */}
+            <TabsContent value="couples">
+              <CouplesProfileTab />
+            </TabsContent>
+
             <TabsContent value="profile">
               <ClientProfileTab />
             </TabsContent>

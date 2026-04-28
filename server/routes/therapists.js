@@ -12,7 +12,7 @@ const router = express.Router();
 // GET /api/therapists - list all approved therapists (public)
 router.get('/', async (req, res) => {
   try {
-    const { specialization, language, search } = req.query;
+    const { specialization, language, search, service } = req.query;
     // Only show active (not soft-deleted) therapists to public
     let query = { isApproved: true, accountStatus: { $ne: 'past' } };
 
@@ -28,6 +28,10 @@ router.get('/', async (req, res) => {
         { specializations: { $in: [new RegExp(search, 'i')] } },
         { bio: new RegExp(search, 'i') },
       ];
+    }
+    // Filter by service type — therapist must have admin-approved AND therapist-accepted that service
+    if (service && ['individual', 'couple', 'group', 'family', 'supervision'].includes(service)) {
+      query.approvedServices = { $elemMatch: { type: service, therapistAccepted: true } };
     }
 
     const therapists = await Therapist.find(query).select('-password');
@@ -52,13 +56,20 @@ router.get('/', async (req, res) => {
     const bookedMap = new Map(bookedAgg.map(b => [String(b._id), b.count]));
 
     // Convert pricing Map to plain objects + add isFullToday flag
-    // Strip pricingMin (admin-only) from public listing
+    // Strip pricingMin + servicesOffered (admin-only/therapist-only) from public listing
     const result = therapists.map(t => {
       const obj = t.toObject();
       if (obj.pricing instanceof Map) {
         obj.pricing = Object.fromEntries(obj.pricing);
       }
       delete obj.pricingMin; // never expose minimum to public/clients
+      delete obj.servicesOffered; // never expose original therapist asks
+      // Public listing: only include services therapist has accepted (the source of truth)
+      if (Array.isArray(obj.approvedServices)) {
+        obj.approvedServices = obj.approvedServices
+          .filter(s => s.therapistAccepted)
+          .map(s => ({ type: s.type, minPrice: s.minPrice, maxPrice: s.maxPrice }));
+      }
       // slidingScaleAvailable IS exposed (clients should know they can request lower price)
       const todayBooked = bookedMap.get(String(t._id)) || 0;
       const maxPerDay = obj.maxSessionsPerDay || 8;
@@ -90,6 +101,12 @@ router.get('/:id', async (req, res) => {
       obj.pricing = Object.fromEntries(obj.pricing);
     }
     delete obj.pricingMin; // admin-only, never expose to public
+    delete obj.servicesOffered; // never expose original asks
+    if (Array.isArray(obj.approvedServices)) {
+      obj.approvedServices = obj.approvedServices
+        .filter(s => s.therapistAccepted)
+        .map(s => ({ type: s.type, minPrice: s.minPrice, maxPrice: s.maxPrice }));
+    }
     res.json(obj);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -167,6 +184,91 @@ router.get('/:id/available-slots', async (req, res) => {
     res.json({ slots, maxPerDay: dayLimit, bookedCount: bookedSessions.length });
   } catch (error) {
     console.error('Available slots error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ==================== SERVICES OFFERED & ACCEPT/REJECT ====================
+
+// PUT /api/therapists/dashboard/services-offered
+// Body: { services: [{ type, minPrice, maxPrice }] } — therapist sets their original asks
+router.put('/dashboard/services-offered', protect, therapistOnly, async (req, res) => {
+  try {
+    const { services } = req.body || {};
+    if (!Array.isArray(services)) return res.status(400).json({ message: 'services array required' });
+    const validTypes = ['individual', 'couple', 'group', 'family', 'supervision'];
+    const cleaned = services
+      .filter(s => s && validTypes.includes(s.type))
+      .map(s => ({
+        type: s.type,
+        minPrice: Math.max(0, Number(s.minPrice) || 0),
+        maxPrice: Math.max(0, Number(s.maxPrice) || 0),
+      }))
+      .filter(s => s.maxPrice > 0 && s.minPrice <= s.maxPrice);
+
+    const therapist = await Therapist.findByIdAndUpdate(
+      req.userId,
+      { servicesOffered: cleaned },
+      { new: true }
+    ).select('-password');
+    res.json(therapist);
+  } catch (error) {
+    console.error('Set services-offered error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/therapists/dashboard/services/:type/accept — accept admin's price for a service
+router.post('/dashboard/services/:type/accept', protect, therapistOnly, async (req, res) => {
+  try {
+    const { type } = req.params;
+    const therapist = await Therapist.findById(req.userId);
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    const svc = (therapist.approvedServices || []).find(s => s.type === type);
+    if (!svc) return res.status(404).json({ message: 'Service not approved by admin' });
+    svc.therapistAccepted = true;
+    svc.therapistRejected = false;
+    svc.acceptedAt = new Date();
+    svc.rejectedAt = null;
+    await therapist.save();
+    res.json(therapist);
+  } catch (error) {
+    console.error('Accept service error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/therapists/dashboard/services/:type/reject
+router.post('/dashboard/services/:type/reject', protect, therapistOnly, async (req, res) => {
+  try {
+    const { type } = req.params;
+    const therapist = await Therapist.findById(req.userId);
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    const svc = (therapist.approvedServices || []).find(s => s.type === type);
+    if (!svc) return res.status(404).json({ message: 'Service not approved by admin' });
+    svc.therapistRejected = true;
+    svc.therapistAccepted = false;
+    svc.rejectedAt = new Date();
+    svc.acceptedAt = null;
+    await therapist.save();
+
+    // Notify admins so they can negotiate
+    try {
+      const Admin = (await import('../models/Admin.js')).default;
+      const Notification = (await import('../models/Notification.js')).default;
+      const admins = await Admin.find({}).select('_id');
+      for (const a of admins) {
+        Notification.notify(a._id, 'admin', 'service_rejected',
+          `${therapist.name} rejected service: ${type}`,
+          `Therapist rejected the admin-approved pricing for "${type}". Negotiate via chat or update the service.`,
+          '/admin-dashboard'
+        ).catch(() => {});
+      }
+    } catch {}
+
+    res.json(therapist);
+  } catch (error) {
+    console.error('Reject service error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

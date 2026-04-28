@@ -25,6 +25,7 @@ import GroupTherapy from "./pages/GroupTherapy";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotificationsPage from "./pages/NotificationsPage";
+import ChooseService from "./pages/ChooseService";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -67,6 +68,7 @@ const App = () => (
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/choose-service" element={<ChooseService />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
