@@ -75,6 +75,7 @@ const PsychologistProfile = () => {
   // State for API-fetched therapist (for MongoDB IDs from Client Dashboard)
   const [apiPsychologist, setApiPsychologist] = useState<Psychologist | null>(null);
   const [loading, setLoading] = useState(!staticPsychologist);
+  const [therapistGroups, setTherapistGroups] = useState<any[]>([]);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
@@ -97,6 +98,8 @@ const PsychologistProfile = () => {
     };
 
     fetchFromApi();
+    // Also fetch groups led by this therapist
+    api.getGroupsByTherapist?.(id!).then((d: any) => setTherapistGroups(d || [])).catch(() => setTherapistGroups([]));
   }, [id, staticPsychologist]);
 
   // Use whichever source found the therapist
@@ -255,6 +258,44 @@ const PsychologistProfile = () => {
                     <span className="text-sm text-primary font-semibold">
                       {s.minPrice && s.minPrice !== s.maxPrice ? `₹${s.minPrice} – ₹${s.maxPrice}` : `₹${s.maxPrice}`}
                     </span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        {/* Groups Led by this Therapist */}
+        {therapistGroups.length > 0 && (
+          <Card className="p-6">
+            <h2 className="font-semibold text-foreground mb-4">Group Therapy</h2>
+            <div className="space-y-3">
+              {(['upcoming', 'ongoing', 'completed'] as const).map((bucket) => {
+                const items = therapistGroups.filter((g: any) => g.liveStatus === bucket);
+                if (items.length === 0) return null;
+                const labels: any = { upcoming: 'Upcoming', ongoing: 'Ongoing', completed: 'Past' };
+                return (
+                  <div key={bucket}>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">{labels[bucket]}</p>
+                    <div className="space-y-2">
+                      {items.map((g: any) => (
+                        <div
+                          key={g._id}
+                          className="p-3 border rounded-lg cursor-pointer hover:bg-muted/40 transition-colors"
+                          onClick={() => navigate(`/group-therapy/${g._id}`)}
+                        >
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div>
+                              <p className="font-medium text-sm text-foreground">{g.title}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {g.focus} · {g.groupType} · {new Date(g.sessionStartAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </p>
+                            </div>
+                            <Badge variant="secondary" className="text-xs">{g.enrolledCount || 0}/{g.maxMembers}</Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 );
               })}

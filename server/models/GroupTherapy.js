@@ -13,8 +13,24 @@ const groupTherapySchema = new mongoose.Schema({
   focus: { type: String, required: true }, // e.g. "Anxiety", "Trauma", "Grief"
   groupType: { type: String, enum: ['open', 'closed'], required: true },
 
+  // Expanded therapist-supplied details
+  themes: [{ type: String }],            // multiple themes/topics
+  rationale: { type: String, default: '' },
+  audienceDescription: { type: String, default: '' },  // "issues, age, gender, prerequisites"
+  contraindications: { type: String, default: '' },    // "who is it NOT for"
+  outcomes: { type: String, default: '' },             // goals/outcomes
+  planProcedure: { type: String, default: '' },        // session-by-session detailed plan
+  language: { type: String, default: 'English' },
+  frequency: { type: String, default: '' },            // e.g. "Weekly", "Bi-weekly"
+  mode: { type: String, enum: ['online', 'in-person', 'hybrid'], default: 'online' },
+  durationMinutes: { type: Number, default: 60 },      // each session length
+  brochureUrl: { type: String, default: '' },          // optional uploaded marketing image
+  // Policies — defaults can be customised per group
+  policyText: { type: String, default: '' },           // confidentiality / ground rules / crisis / refund
+
   ageMin: { type: Number, default: 18 },
   ageMax: { type: Number, default: 65 },
+  genderPreference: { type: String, default: '' },     // 'all', 'women', 'men', 'queer-affirmative'
 
   // Capacity limits derived from leadTherapists.length
   maxMembers: { type: Number, required: true, min: 1, max: 10 },

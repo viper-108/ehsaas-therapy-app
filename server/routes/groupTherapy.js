@@ -30,13 +30,13 @@ const therapistOffersGroup = async (therapistId) => {
 
 // =============== THERAPIST CREATES GROUP REQUEST ===============
 // POST /api/group-therapy/request
-// Body: { title, description, focus, groupType, ageMin, ageMax, pricePerMember,
-//         coLeadTherapistId?, sessionStartAt, sessionEndAt, totalSessions }
 router.post('/request', protect, therapistOnly, async (req, res) => {
   try {
     const {
       title, description, focus, groupType, ageMin, ageMax, pricePerMember,
-      coLeadTherapistId, sessionStartAt, sessionEndAt, totalSessions, registrationOpensAt
+      coLeadTherapistId, sessionStartAt, sessionEndAt, totalSessions, registrationOpensAt,
+      themes, rationale, audienceDescription, contraindications, outcomes, planProcedure,
+      language, frequency, mode, durationMinutes, brochureUrl, policyText, genderPreference,
     } = req.body || {};
 
     if (!title || !focus || !groupType || !pricePerMember || !sessionStartAt) {
@@ -67,6 +67,7 @@ router.post('/request', protect, therapistOnly, async (req, res) => {
       groupType,
       ageMin: ageMin || 18,
       ageMax: ageMax || 65,
+      genderPreference: genderPreference || 'all',
       maxMembers,
       pricePerMember,
       leadTherapists,
@@ -75,6 +76,19 @@ router.post('/request', protect, therapistOnly, async (req, res) => {
       totalSessions: totalSessions || 1,
       registrationOpensAt: registrationOpensAt || new Date(),
       status: 'pending_admin',
+      // Expanded fields
+      themes: Array.isArray(themes) ? themes.filter(Boolean) : (themes ? [themes] : []),
+      rationale: rationale || '',
+      audienceDescription: audienceDescription || '',
+      contraindications: contraindications || '',
+      outcomes: outcomes || '',
+      planProcedure: planProcedure || '',
+      language: language || 'English',
+      frequency: frequency || '',
+      mode: mode || 'online',
+      durationMinutes: Number(durationMinutes) || 60,
+      brochureUrl: brochureUrl || '',
+      policyText: policyText || '',
     });
 
     // Notify admins
@@ -210,17 +224,45 @@ router.post('/:id/enroll', protect, async (req, res) => {
     const existing = await GroupEnrollment.findOne({ groupId: group._id, clientId: req.userId });
     if (existing) return res.status(400).json({ message: 'You already applied to this group.' });
 
+    // Compute flags from application + cross-checks
+    const Session = (await import('../models/Session.js')).default;
+    const dualRelationship = await Session.findOne({
+      clientId: req.userId,
+      therapistId: { $in: group.leadTherapists },
+      sessionType: 'individual',
+      status: { $in: ['scheduled', 'completed'] },
+    });
+
+    const flags = {
+      crisisRisk: !!application?.crisisRiskNow,
+      languageMismatch: application?.languageComfortable === false,
+      cantCommitSchedule: application?.canCommitSchedule === false,
+      notComfortableSharing: application?.comfortableSharingFocus === false,
+      dualRelationship: !!dualRelationship,
+      underAgeRange: application?.age && (application.age < group.ageMin || application.age > group.ageMax),
+    };
+
     // Decide initial status: waitlist if currently full
     const enrolledNow = await GroupEnrollment.countDocuments({ groupId: group._id, status: { $in: ['approved', 'enrolled'] } });
     const isFull = enrolledNow >= group.maxMembers;
+
+    // Auto-reject for dual relationship + crisis risk (these need admin override; rejected by default)
+    let initialStatus = isFull ? 'waitlist' : 'pending_review';
+    let initialReason = '';
+    if (flags.dualRelationship) {
+      initialStatus = 'rejected';
+      initialReason = 'You are currently in individual therapy with one of the lead therapists. Due to dual-relationship guidelines, you cannot join this group. Please reach out to admin if you have questions.';
+    }
 
     const enroll = await GroupEnrollment.create({
       groupId: group._id,
       clientId: req.userId,
       application: application || {},
+      flags,
       therapistApprovals: group.leadTherapists.map(tid => ({ therapistId: tid, approved: false })),
-      status: isFull ? 'waitlist' : 'pending_review',
-      joinedWaitlistAt: isFull ? new Date() : null,
+      status: initialStatus,
+      rejectionReason: initialReason,
+      joinedWaitlistAt: initialStatus === 'waitlist' ? new Date() : null,
     });
 
     // Notify admins + lead therapists
@@ -497,6 +539,176 @@ router.post('/enrollments/:id/cancel', protect, async (req, res) => {
     res.json(enroll);
   } catch (e) {
     console.error('Cancel enrollment error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// =============== DROP OFF (member leaves group, partial refund) ===============
+// POST /api/group-therapy/enrollments/:id/drop-off
+router.post('/enrollments/:id/drop-off', protect, async (req, res) => {
+  try {
+    if (req.userRole !== 'client') return res.status(403).json({ message: 'Only the client can drop off' });
+    const { reason } = req.body || {};
+    const enroll = await GroupEnrollment.findById(req.params.id).populate('groupId');
+    if (!enroll) return res.status(404).json({ message: 'Enrollment not found' });
+    if (String(enroll.clientId) !== String(req.userId)) return res.status(403).json({ message: 'Not your enrollment' });
+    if (!['enrolled', 'approved'].includes(enroll.status)) return res.status(400).json({ message: 'Can only drop off if currently enrolled' });
+    const group = enroll.groupId;
+    // After lock, no drop-off allowed (per refund policy)
+    if (group.isLocked) return res.status(400).json({ message: 'Group is locked. Drop-off not allowed once locked — no refund will be issued.' });
+
+    // Compute partial refund for closed groups (50% of remaining sessions)
+    let refundAmount = 0;
+    if (group.groupType === 'closed' && enroll.paymentStatus === 'paid' && enroll.paidAmount > 0) {
+      const totalSessions = group.totalSessions || 1;
+      const sessionsAttended = (enroll.attendance || []).filter(a => a.attended).length;
+      const remaining = Math.max(0, totalSessions - sessionsAttended);
+      const perSession = enroll.paidAmount / totalSessions;
+      refundAmount = Math.round(perSession * remaining * 0.5);  // 50% of remaining
+      enroll.refundedAmount = refundAmount;
+      enroll.paymentStatus = 'partial_refund';
+    }
+
+    enroll.status = 'dropped';
+    enroll.droppedAt = new Date();
+    enroll.dropReason = reason || '';
+    await enroll.save();
+    await GroupTherapy.findByIdAndUpdate(group._id, { $inc: { enrolledCount: -1 } });
+
+    // Auto-promote first waitlisted with all approvals
+    const next = await GroupEnrollment.findOne({
+      groupId: group._id, status: 'waitlist', adminApproved: true,
+    }).sort({ joinedWaitlistAt: 1 });
+    if (next && next.therapistApprovals.every(a => a.approved)) {
+      next.status = 'approved';
+      next.promotedFromWaitlistAt = new Date();
+      await next.save();
+      await GroupTherapy.findByIdAndUpdate(group._id, { $inc: { enrolledCount: 1 } });
+      Notification.notify(next.clientId, 'client', 'group_promoted',
+        `Spot opened — you're approved for ${group.title}!`,
+        `Complete payment to confirm your enrollment.`,
+        '/group-therapy'
+      ).catch(() => {});
+    }
+
+    // Notify client + therapists
+    Notification.notify(enroll.clientId, 'client', 'group_dropped',
+      `Dropped off — ${group.title}`,
+      refundAmount > 0 ? `Partial refund of ₹${refundAmount} (50% of remaining sessions) will be processed.` : 'No refund issued (per policy).',
+      `/group-therapy/${group._id}`
+    ).catch(() => {});
+    for (const tid of group.leadTherapists) {
+      Notification.notify(tid, 'therapist', 'group_drop_off',
+        `Member left ${group.title}`,
+        `${(await Client.findById(req.userId).select('name'))?.name || 'A client'} dropped off. Drop reason: ${reason || '—'}`,
+        '/therapist-dashboard?tab=group-therapy'
+      ).catch(() => {});
+    }
+
+    res.json({ enrollment: enroll, refundAmount });
+  } catch (e) {
+    console.error('Drop-off error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// =============== ATTENDANCE ===============
+// PUT /api/group-therapy/:groupId/attendance
+// Body: { sessionNumber, attendance: [{ enrollmentId, attended }] }
+router.put('/:groupId/attendance', protect, async (req, res) => {
+  try {
+    const { sessionNumber, attendance } = req.body || {};
+    if (!sessionNumber || !Array.isArray(attendance)) return res.status(400).json({ message: 'sessionNumber and attendance array required' });
+    const group = await GroupTherapy.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+    const isLead = group.leadTherapists.some(tid => String(tid) === String(req.userId));
+    if (req.userRole !== 'admin' && !isLead) return res.status(403).json({ message: 'Forbidden' });
+
+    for (const a of attendance) {
+      const enr = await GroupEnrollment.findById(a.enrollmentId);
+      if (!enr || String(enr.groupId) !== String(group._id)) continue;
+      const existing = (enr.attendance || []).find(x => x.sessionNumber === Number(sessionNumber));
+      if (existing) {
+        existing.attended = !!a.attended;
+        existing.markedAt = new Date();
+      } else {
+        enr.attendance.push({ sessionNumber: Number(sessionNumber), attended: !!a.attended });
+      }
+      await enr.save();
+    }
+    res.json({ message: 'Attendance saved' });
+  } catch (e) {
+    console.error('Attendance error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// =============== GROUP SESSION REPORTS (effectiveness indicators) ===============
+// POST /api/group-therapy/:groupId/reports
+router.post('/:groupId/reports', protect, therapistOnly, async (req, res) => {
+  try {
+    const group = await GroupTherapy.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+    const isLead = group.leadTherapists.some(tid => String(tid) === String(req.userId));
+    if (!isLead) return res.status(403).json({ message: 'Only lead therapists can post reports' });
+
+    const GroupSessionReport = (await import('../models/GroupSessionReport.js')).default;
+    const body = req.body || {};
+    const report = await GroupSessionReport.create({
+      groupId: group._id,
+      authorTherapistId: req.userId,
+      sessionNumber: body.sessionNumber,
+      sessionDate: body.sessionDate || new Date(),
+      topic: body.topic || '',
+      goalForSession: body.goalForSession || '',
+      goalMet: body.goalMet || '',
+      interventions: body.interventions || '',
+      processingNotes: body.processingNotes || '',
+      groupDynamics: body.groupDynamics || '',
+      notableMoments: body.notableMoments || '',
+      overallMood: body.overallMood || '',
+      overallParticipation: body.overallParticipation || '',
+      conflictsBiasesCountertransference: body.conflictsBiasesCountertransference || '',
+      crisisEvents: body.crisisEvents || '',
+      memberFeedback: body.memberFeedback || '',
+      selfReflection: body.selfReflection || '',
+      questionsForSupervision: body.questionsForSupervision || '',
+    });
+    res.status(201).json(report);
+  } catch (e) {
+    console.error('Report create error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/group-therapy/:groupId/reports
+router.get('/:groupId/reports', protect, async (req, res) => {
+  try {
+    const group = await GroupTherapy.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+    const isLead = group.leadTherapists.some(tid => String(tid) === String(req.userId));
+    if (req.userRole !== 'admin' && !isLead) return res.status(403).json({ message: 'Forbidden' });
+    const GroupSessionReport = (await import('../models/GroupSessionReport.js')).default;
+    const reports = await GroupSessionReport.find({ groupId: group._id }).sort({ sessionNumber: 1 });
+    res.json(reports);
+  } catch (e) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// =============== GROUPS LED BY A SPECIFIC THERAPIST (public — for their profile page) ===============
+// GET /api/group-therapy/by-therapist/:therapistId
+router.get('/by-therapist/:therapistId', async (req, res) => {
+  try {
+    const groups = await GroupTherapy.find({
+      leadTherapists: req.params.therapistId,
+      status: { $in: ['upcoming', 'ongoing', 'completed'] },
+    })
+      .populate('leadTherapists', 'name title image')
+      .sort({ sessionStartAt: -1 });
+    const result = groups.map(g => ({ ...g.toObject(), liveStatus: liveStatus(g) }));
+    res.json(result);
+  } catch (e) {
     res.status(500).json({ message: 'Server error' });
   }
 });

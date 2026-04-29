@@ -128,13 +128,81 @@ export default function GroupTherapyDetail() {
             <p className="text-sm"><strong>Capacity:</strong> {group.enrolledCount || 0} / {group.maxMembers} members</p>
             <p className="text-sm mt-1"><strong>Age range:</strong> {group.ageMin} - {group.ageMax}</p>
             <p className="text-sm mt-1"><strong>Type:</strong> {group.groupType === 'open' ? 'Open (drop-in)' : 'Closed (start & finish together)'}</p>
+            {group.mode && <p className="text-sm mt-1"><strong>Mode:</strong> <span className="capitalize">{group.mode}</span></p>}
+            {group.language && <p className="text-sm mt-1"><strong>Language:</strong> {group.language}</p>}
+            {group.frequency && <p className="text-sm mt-1"><strong>Frequency:</strong> {group.frequency}</p>}
+            {group.durationMinutes && <p className="text-sm mt-1"><strong>Per session:</strong> {group.durationMinutes} min</p>}
+            {group.genderPreference && group.genderPreference !== 'all' && <p className="text-sm mt-1"><strong>Open to:</strong> {group.genderPreference}</p>}
           </Card>
         </div>
+
+        {group.brochureUrl && (
+          <Card className="p-3 mb-6 overflow-hidden">
+            <img src={group.brochureUrl} alt="Group brochure" className="w-full h-auto rounded" />
+          </Card>
+        )}
 
         {group.description && (
           <Card className="p-5 mb-6">
             <h3 className="font-semibold mb-2">About this group</h3>
             <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{group.description}</p>
+          </Card>
+        )}
+
+        {Array.isArray(group.themes) && group.themes.length > 0 && (
+          <Card className="p-5 mb-6">
+            <h3 className="font-semibold mb-2">Themes & Topics</h3>
+            <div className="flex flex-wrap gap-2">
+              {group.themes.map((th: string) => (
+                <Badge key={th} variant="secondary" className="text-xs">{th}</Badge>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {group.audienceDescription && (
+          <Card className="p-5 mb-6">
+            <h3 className="font-semibold mb-2">Who is this for?</h3>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{group.audienceDescription}</p>
+          </Card>
+        )}
+
+        {group.contraindications && (
+          <Card className="p-5 mb-6 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
+            <h3 className="font-semibold mb-2 text-amber-900 dark:text-amber-200">Who is this NOT for?</h3>
+            <p className="text-sm text-amber-800 dark:text-amber-100 whitespace-pre-wrap leading-relaxed">{group.contraindications}</p>
+          </Card>
+        )}
+
+        {group.outcomes && (
+          <Card className="p-5 mb-6">
+            <h3 className="font-semibold mb-2">Outcomes & Goals</h3>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{group.outcomes}</p>
+          </Card>
+        )}
+
+        {group.rationale && (
+          <details className="mb-6">
+            <summary className="cursor-pointer p-4 bg-card rounded-lg border font-semibold">Rationale</summary>
+            <Card className="p-5 mt-2">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{group.rationale}</p>
+            </Card>
+          </details>
+        )}
+
+        {group.planProcedure && (
+          <details className="mb-6">
+            <summary className="cursor-pointer p-4 bg-card rounded-lg border font-semibold">Session-by-session plan</summary>
+            <Card className="p-5 mt-2">
+              <pre className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans">{group.planProcedure}</pre>
+            </Card>
+          </details>
+        )}
+
+        {group.policyText && (
+          <Card className="p-5 mb-6 bg-muted/30">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">📋 Confidentiality, Ground Rules, Crisis & Refund Policy</h3>
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans">{group.policyText}</pre>
           </Card>
         )}
 
@@ -176,10 +244,31 @@ export default function GroupTherapyDetail() {
                   {myEnroll.paymentStatus !== 'paid' && myEnroll.status === 'approved' && (
                     <p className="text-xs text-muted-foreground mt-1">Complete payment to lock your spot.</p>
                   )}
+                  {myEnroll.attendance && myEnroll.attendance.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Attendance: {(myEnroll.attendance.filter((a: any) => a.attended)).length} / {group.totalSessions || 1} attended
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2">
-                  {!group.isLocked && !['cancelled', 'rejected', 'enrolled'].includes(myEnroll.status) && (
+                  {!group.isLocked && !['cancelled', 'rejected', 'enrolled', 'dropped'].includes(myEnroll.status) && (
                     <Button size="sm" variant="outline" disabled={busy} onClick={handleCancel}>Cancel application</Button>
+                  )}
+                  {/* Drop off — only for paid + enrolled members BEFORE lock */}
+                  {!group.isLocked && ['enrolled', 'approved'].includes(myEnroll.status) && (
+                    <Button size="sm" variant="outline" className="border-amber-500 text-amber-700" disabled={busy} onClick={async () => {
+                      const reason = window.prompt('Reason for leaving (optional):') || '';
+                      if (!window.confirm(group.groupType === 'closed'
+                        ? 'Drop off this closed group? You will be refunded 50% of remaining sessions. No refund after the group is locked.'
+                        : 'Leave this open group? Per policy, no refund for sessions already paid.')) return;
+                      setBusy(true);
+                      try {
+                        const r = await api.dropOffGroup(myEnroll._id, reason);
+                        toast({ title: "You've dropped off", description: r.refundAmount ? `Partial refund: ₹${r.refundAmount}` : 'No refund issued.' });
+                        load();
+                      } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                      finally { setBusy(false); }
+                    }}>Drop Off / Leave Group</Button>
                   )}
                 </div>
               </div>

@@ -457,6 +457,32 @@ class ApiService {
     const res = await fetch(`${API_BASE}/group-therapy/my/leading`, { headers: this.getHeaders() });
     return this.handleResponse(res);
   }
+  async dropOffGroup(enrollmentId: string, reason?: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/enrollments/${enrollmentId}/drop-off`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ reason: reason || '' })
+    });
+    return this.handleResponse(res);
+  }
+  async setGroupAttendance(groupId: string, sessionNumber: number, attendance: { enrollmentId: string; attended: boolean }[]) {
+    const res = await fetch(`${API_BASE}/group-therapy/${groupId}/attendance`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ sessionNumber, attendance })
+    });
+    return this.handleResponse(res);
+  }
+  async createGroupReport(groupId: string, body: any) {
+    const res = await fetch(`${API_BASE}/group-therapy/${groupId}/reports`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async listGroupReports(groupId: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/${groupId}/reports`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async getGroupsByTherapist(therapistId: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/by-therapist/${therapistId}`, { headers: this.getHeaders(false) });
+    return this.handleResponse(res);
+  }
   async lockGroupTherapy(id: string) {
     const res = await fetch(`${API_BASE}/group-therapy/${id}/lock`, {
       method: 'POST', headers: this.getHeaders()
