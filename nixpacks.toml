@@ -1,4 +1,4 @@
-# Cache-bust: 2026-04-23 — force Railway to fully rebuild dist/
+# Cache-bust: 2026-04-28 — force Railway to fully rebuild dist/
 providers = ["node"]
 
 [phases.setup]
