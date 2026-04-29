@@ -26,6 +26,7 @@ import { SessionFilterBar, applySessionFilters, buildEntityOptions, defaultFilte
 import { TherapistEarningsTab } from "@/components/TherapistEarningsTab";
 import { TherapistGroupsTab } from "@/components/TherapistGroupsTab";
 import { TherapistApprovalsTab } from "@/components/TherapistApprovalsTab";
+import { TherapistWorkshopsTab } from "@/components/TherapistWorkshopsTab";
 import { TherapistProfileTab } from "@/components/TherapistProfileTab";
 import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { CancelSessionDialog } from "@/components/CancelSessionDialog";
@@ -222,6 +223,7 @@ const TherapistDashboard = () => {
               { value: 'intro-calls', label: t('dashboard.introCalls'), icon: Phone, badge: pendingIntroCalls || null, group: 'Clients' },
               { value: 'messages', label: t('dashboard.messages'), icon: MessageCircle, group: 'Clients' },
               { value: 'group-therapy', label: 'Group Therapy', icon: Users, group: 'Content' },
+              { value: 'workshops', label: 'Workshops', icon: BookOpen, group: 'Content' },
               { value: 'resources', label: 'Resources', icon: Library, group: 'Content' },
               { value: 'supervision', label: t('dashboard.supervision'), icon: BookOpen, group: 'Content' },
               ...(user?.therapistType === 'psychiatrist' ? [{ value: 'prescriptions', label: 'Prescriptions', icon: FileText, group: 'Content' } as SidebarItem] : []),
@@ -688,6 +690,11 @@ const TherapistDashboard = () => {
             {/* ========== GROUP THERAPY TAB ========== */}
             <TabsContent value="group-therapy">
               <TherapistGroupsTab />
+            </TabsContent>
+
+            {/* ========== WORKSHOPS TAB ========== */}
+            <TabsContent value="workshops">
+              <TherapistWorkshopsTab />
             </TabsContent>
 
             {/* ========== RESOURCES TAB ========== */}

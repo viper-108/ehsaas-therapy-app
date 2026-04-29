@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, UserCheck, UserX, Clock, Calendar, DollarSign, BarChart3,
   CheckCircle, XCircle, LogOut, ChevronRight, Shield, Loader2, Star, TrendingUp,
-  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight, FileText, Download, Heart, Briefcase
+  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight, FileText, Download, Heart, Briefcase, BookOpen
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator
@@ -63,6 +63,7 @@ const AdminDashboard = () => {
   const [pendingGroups, setPendingGroups] = useState<any[]>([]);
   const [pendingCouples, setPendingCouples] = useState<any[]>([]);
   const [serviceChangeRequests, setServiceChangeRequests] = useState<any[]>([]);
+  const [pendingWorkshops, setPendingWorkshops] = useState<any[]>([]);
   const [allTherapists, setAllTherapists] = useState<any[]>([]);
   const [allClients, setAllClients] = useState<any[]>([]);
   const [allSessions, setAllSessions] = useState<any[]>([]);
@@ -140,7 +141,7 @@ const AdminDashboard = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData, serviceChangeData] = await Promise.all([
+      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData, serviceChangeData, pendingWorkshopsData] = await Promise.all([
         api.getAdminStats(),
         api.getPendingTherapists(),
         api.getAllTherapistsAdmin(),
@@ -152,6 +153,7 @@ const AdminDashboard = () => {
         api.listPendingGroups().catch(() => []),
         api.getPendingCouplesProfiles().catch(() => []),
         api.listServiceChangeRequests().catch(() => []),
+        api.listPendingWorkshops().catch(() => []),
       ]);
       setStats(statsData);
       setPending(pendingData);
@@ -164,6 +166,7 @@ const AdminDashboard = () => {
       setPendingGroups(pendingGroupsData);
       setPendingCouples(pendingCouplesData);
       setServiceChangeRequests(serviceChangeData);
+      setPendingWorkshops(pendingWorkshopsData);
     } catch (error) {
       console.error('Admin dashboard load error:', error);
     } finally {
@@ -251,7 +254,7 @@ const AdminDashboard = () => {
           ) : (
             (() => {
               const sidebarItems: SidebarItem[] = [
-                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length + pendingCouples.length + serviceChangeRequests.length) || null, group: 'Approvals' },
+                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length + pendingCouples.length + serviceChangeRequests.length + pendingWorkshops.length) || null, group: 'Approvals' },
                 { value: 'reviews', label: 'Reviews', icon: Star, group: 'Approvals' },
                 { value: 'therapists', label: 'Therapists', icon: UserCheck, group: 'People' },
                 { value: 'clients', label: 'Clients', icon: Users, group: 'People' },
@@ -703,8 +706,54 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
+                {/* ===== PENDING WORKSHOPS ===== */}
+                {pendingWorkshops.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-primary" /> Pending Workshop Requests ({pendingWorkshops.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {pendingWorkshops.map((w: any) => (
+                        <Card key={w._id} className="p-4">
+                          <div className="flex justify-between items-start gap-3 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium">{w.title}</p>
+                              <p className="text-xs text-muted-foreground">Topic: {w.topic} · ₹{w.pricePerParticipant}/participant · {w.sessionDates?.length || 0} session(s)</p>
+                              <p className="text-xs text-muted-foreground mt-1">By: {(w.facilitatorTherapistIds || []).map((t: any) => t.name).join(' & ')}</p>
+                              {w.sessionDates?.[0] && <p className="text-xs text-muted-foreground">First session: {new Date(w.sessionDates[0]).toLocaleString('en-IN')}</p>}
+                              {Array.isArray(w.learningOutcomes) && w.learningOutcomes.length > 0 && (
+                                <p className="text-xs text-muted-foreground mt-1">{w.learningOutcomes.length} learning outcome{w.learningOutcomes.length > 1 ? 's' : ''}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button size="sm" variant="outline" onClick={() => window.open(`/workshops/${w._id}`, '_blank')}>
+                                Preview
+                              </Button>
+                              <Button size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50" onClick={async () => {
+                                const ok = await confirm({ title: `Approve "${w.title}"?`, description: 'Workshop will become visible to clients for registration.', confirmLabel: 'Approve' });
+                                if (!ok) return;
+                                try { await api.approveWorkshop(w._id); toast({ title: "Approved" }); loadAll(); }
+                                catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}>
+                                <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                              </Button>
+                              <Button size="sm" variant="outline" className="border-red-500 text-red-600 hover:bg-red-50" onClick={async () => {
+                                const reason = window.prompt('Reason for rejection (optional):') || '';
+                                try { await api.rejectWorkshop(w._id, reason); toast({ title: "Rejected" }); loadAll(); }
+                                catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}>
+                                <XCircle className="w-3 h-3 mr-1" /> Reject
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* "All caught up" — when literally nothing is pending */}
-                {pending.length === 0 && pendingReviews.length === 0 && pendingNegotiations.length === 0 && pendingGroups.length === 0 && pendingCouples.length === 0 && serviceChangeRequests.length === 0 && (
+                {pending.length === 0 && pendingReviews.length === 0 && pendingNegotiations.length === 0 && pendingGroups.length === 0 && pendingCouples.length === 0 && serviceChangeRequests.length === 0 && pendingWorkshops.length === 0 && (
                   <Card className="p-12 text-center mt-4">
                     <CheckCircle className="w-12 h-12 text-success mx-auto mb-3" />
                     <p className="text-muted-foreground">No pending items. All caught up!</p>

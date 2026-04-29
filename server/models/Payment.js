@@ -6,6 +6,8 @@ const paymentSchema = new mongoose.Schema({
   sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Session' },
   // Group enrollment payment (alternative to sessionId)
   groupEnrollmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'GroupEnrollment', default: null },
+  // Workshop registration payment
+  workshopRegistrationId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkshopRegistration', default: null },
   amount: { type: Number, required: true },
   currency: { type: String, default: 'inr' },
   stripePaymentIntentId: { type: String, default: '' },

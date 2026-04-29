@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Users, Heart, Building, Brain, Palette, GraduationCap, Home } from "lucide-react";
+import { Users, Heart, Building, Brain, Palette, GraduationCap, Home, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
@@ -44,6 +44,13 @@ const Services = () => {
       title: "Family Therapy",
       description: "Therapy for the whole family unit. Find therapists trained in family-systems work.",
       features: ["Family dynamics", "Communication patterns", "Conflict resolution", "Generational healing"]
+    },
+    {
+      type: 'workshop',
+      icon: BookOpen,
+      title: "Workshops",
+      description: "Short, skill-based learning experiences. One-time or short series; pay, attend, get a certificate.",
+      features: ["Skill-based outcomes", "1-3 sessions", "Certificate of completion", "Open to all"]
     }
   ];
 
@@ -57,6 +64,7 @@ const Services = () => {
     try { await api.updateClientProfile?.({ preferredServiceType: type }); } catch {}
     if (type === 'couple') navigate('/client-dashboard?tab=couples');
     else if (type === 'group') navigate('/group-therapy');
+    else if (type === 'workshop') navigate('/workshops');
     else navigate(`/team?service=${type}`);
   };
 
@@ -142,6 +150,7 @@ const Services = () => {
                       {service.type === 'couple' ? 'Set Up Couples Therapy' :
                        service.type === 'group' ? 'Browse Groups' :
                        service.type === 'family' ? 'Find Family Therapist' :
+                       service.type === 'workshop' ? 'Browse Workshops' :
                        'Find a Therapist'}
                     </Button>
                   </CardContent>

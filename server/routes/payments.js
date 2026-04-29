@@ -173,6 +173,65 @@ router.post('/group-checkout', protect, clientOnly, async (req, res) => {
   }
 });
 
+// POST /api/payments/workshop-checkout
+router.post('/workshop-checkout', protect, clientOnly, async (req, res) => {
+  try {
+    const { registrationId } = req.body;
+    if (!registrationId) return res.status(400).json({ message: 'registrationId required' });
+
+    const WorkshopRegistration = (await import('../models/WorkshopRegistration.js')).default;
+    const Workshop = (await import('../models/Workshop.js')).default;
+    const reg = await WorkshopRegistration.findById(registrationId);
+    if (!reg) return res.status(404).json({ message: 'Registration not found' });
+    if (String(reg.clientId) !== String(req.userId)) return res.status(403).json({ message: 'Not your registration' });
+    if (reg.paymentStatus === 'paid') return res.status(400).json({ message: 'Already paid' });
+
+    const w = await Workshop.findById(reg.workshopId);
+    if (!w) return res.status(404).json({ message: 'Workshop not found' });
+
+    const amount = w.pricePerParticipant;
+    const therapistId = w.facilitatorTherapistIds?.[0];
+
+    const merchantTransactionId = 'EHSAAS_WS_' + uuidv4().replace(/-/g, '').substring(0, 18);
+
+    const payment = await Payment.create({
+      clientId: req.userId,
+      therapistId,
+      workshopRegistrationId: reg._id,
+      amount,
+      status: 'pending',
+      paymentMethod: 'phonepe',
+      stripePaymentIntentId: merchantTransactionId,
+    });
+
+    const payload = {
+      merchantId: MERCHANT_ID,
+      merchantTransactionId,
+      merchantUserId: 'MUID_' + req.userId.toString().substring(0, 20),
+      amount: amount * 100,
+      redirectUrl: `${process.env.CLIENT_URL}/payment-success?transactionId=${merchantTransactionId}&paymentId=${payment._id}&type=workshop`,
+      redirectMode: 'REDIRECT',
+      callbackUrl: `${process.env.CLIENT_URL}/api/payments/callback`,
+      paymentInstrument: { type: 'PAY_PAGE' },
+    };
+    const endpoint = '/pg/v1/pay';
+    const { base64Payload, checksum } = generateChecksum(payload, endpoint);
+    const response = await axios.post(`${PHONEPE_HOST}${endpoint}`, { request: base64Payload },
+      { headers: { 'Content-Type': 'application/json', 'X-VERIFY': checksum } });
+
+    if (response.data.success && response.data.data?.instrumentResponse?.redirectInfo?.url) {
+      payment.stripeSessionId = merchantTransactionId;
+      await payment.save();
+      res.json({ url: response.data.data.instrumentResponse.redirectInfo.url, merchantTransactionId, paymentId: payment._id });
+    } else {
+      res.status(400).json({ message: 'Payment initiation failed', details: response.data.message || 'Unknown' });
+    }
+  } catch (error) {
+    console.error('Workshop checkout error:', error.response?.data || error.message);
+    res.status(500).json({ message: 'Payment error', error: error.response?.data?.message || error.message });
+  }
+});
+
 // POST /api/payments/confirm - verify payment status with PhonePe
 router.post('/confirm', protect, async (req, res) => {
   try {
@@ -225,6 +284,23 @@ router.post('/confirm', protect, async (req, res) => {
           const Session = (await import('../models/Session.js')).default;
           await Session.findByIdAndUpdate(payment.sessionId, { paymentStatus: 'paid' });
         } catch (e) { console.error('[SESSION-PAID]', e.message); }
+      } else if (payment.workshopRegistrationId) {
+        try {
+          const WorkshopRegistration = (await import('../models/WorkshopRegistration.js')).default;
+          const Notification = (await import('../models/Notification.js')).default;
+          const reg = await WorkshopRegistration.findByIdAndUpdate(payment.workshopRegistrationId, {
+            paymentStatus: 'paid',
+            paidAmount: payment.amount,
+            paymentId: payment._id,
+          }, { new: true }).populate('workshopId', 'title sessionDates');
+          if (reg) {
+            Notification.notify(reg.clientId, 'client', 'workshop_paid',
+              `Payment confirmed — ${reg.workshopId?.title}`,
+              `Your spot is confirmed. Joining link will be shared closer to the first session.`,
+              `/workshops/${reg.workshopId?._id}`
+            ).catch(() => {});
+          }
+        } catch (e) { console.error('[WORKSHOP-PAID]', e.message); }
       } else if (payment.groupEnrollmentId) {
         // Group enrollment payment: mark enrollment as paid + status='enrolled'
         try {

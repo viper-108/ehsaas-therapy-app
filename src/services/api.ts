@@ -483,6 +483,76 @@ class ApiService {
     const res = await fetch(`${API_BASE}/group-therapy/by-therapist/${therapistId}`, { headers: this.getHeaders(false) });
     return this.handleResponse(res);
   }
+  // ============ WORKSHOPS ============
+  async listWorkshops(status: 'all' | 'upcoming' | 'ongoing' | 'past' = 'all') {
+    const res = await fetch(`${API_BASE}/workshops?status=${status}`, { headers: this.getHeaders(false) });
+    return this.handleResponse(res);
+  }
+  async getWorkshop(id: string) {
+    const res = await fetch(`${API_BASE}/workshops/${id}`, { headers: this.getHeaders(false) });
+    return this.handleResponse(res);
+  }
+  async requestWorkshop(body: any) {
+    const res = await fetch(`${API_BASE}/workshops/request`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async listPendingWorkshops() {
+    const res = await fetch(`${API_BASE}/workshops/admin/pending`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async approveWorkshop(id: string) {
+    const res = await fetch(`${API_BASE}/workshops/${id}/admin-approve`, { method: 'PUT', headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async rejectWorkshop(id: string, reason?: string) {
+    const res = await fetch(`${API_BASE}/workshops/${id}/admin-reject`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason: reason || '' })
+    });
+    return this.handleResponse(res);
+  }
+  async registerForWorkshop(workshopId: string) {
+    const res = await fetch(`${API_BASE}/workshops/${workshopId}/register`, { method: 'POST', headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async getMyWorkshops() {
+    const res = await fetch(`${API_BASE}/workshops/my/registrations`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async getMyFacilitatingWorkshops() {
+    const res = await fetch(`${API_BASE}/workshops/my/facilitating`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async getWorkshopRegistrations(workshopId: string) {
+    const res = await fetch(`${API_BASE}/workshops/${workshopId}/registrations`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async submitWorkshopFeedback(registrationId: string, body: any) {
+    const res = await fetch(`${API_BASE}/workshops/registrations/${registrationId}/feedback`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async setWorkshopAttendance(workshopId: string, registrations: { id: string; attended: boolean }[]) {
+    const res = await fetch(`${API_BASE}/workshops/${workshopId}/attendance`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ registrations })
+    });
+    return this.handleResponse(res);
+  }
+  async submitWorkshopSummary(workshopId: string, body: any) {
+    const res = await fetch(`${API_BASE}/workshops/${workshopId}/session-summary`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async startWorkshopCheckout(registrationId: string) {
+    const res = await fetch(`${API_BASE}/payments/workshop-checkout`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ registrationId })
+    });
+    return this.handleResponse(res);
+  }
+
   async lockGroupTherapy(id: string) {
     const res = await fetch(`${API_BASE}/group-therapy/${id}/lock`, {
       method: 'POST', headers: this.getHeaders()
