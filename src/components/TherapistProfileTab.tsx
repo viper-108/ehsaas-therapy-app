@@ -75,19 +75,49 @@ export function TherapistProfileTab() {
 
   if (!user) return null;
 
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) return toast({ title: "Image too large", description: "Please upload an image under 3 MB", variant: "destructive" });
+    setUploadingAvatar(true);
+    try {
+      const data = await api.uploadAvatar(file);
+      if (data.user) updateUser(data.user);
+      setForm(p => ({ ...p, image: data.image || data.user?.image || p.image }));
+      toast({ title: "Profile picture updated" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally { setUploadingAvatar(false); e.target.value = ''; }
+  };
+
   return (
     <div className="space-y-5">
-      {/* Header with public-profile link */}
-      <Card className="p-5 flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2"><User className="w-5 h-5 text-primary" /> My Profile</h2>
-          <p className="text-sm text-muted-foreground mt-1">Edit your public-facing details. Pricing is set by Ehsaas admin.</p>
+      {/* Header with avatar + public-profile link */}
+      <Card className="p-5">
+        <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-3xl font-bold text-primary overflow-hidden">
+                {form.image ? <img src={form.image} alt="Profile" className="w-full h-full object-cover" /> : (user?.name?.[0] || '?')}
+              </div>
+              <label className="absolute bottom-0 right-0 bg-primary text-primary-foreground rounded-full w-7 h-7 flex items-center justify-center cursor-pointer shadow-md hover:opacity-90 transition" title="Change profile picture">
+                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} />
+                {uploadingAvatar ? '…' : '📷'}
+              </label>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2"><User className="w-5 h-5 text-primary" /> My Profile</h2>
+              <p className="text-sm text-muted-foreground mt-1">Edit your public-facing details. Pricing is set by Ehsaas admin.</p>
+              <p className="text-xs text-muted-foreground mt-1">Click the camera icon to upload a profile picture (PNG / JPG, ≤3 MB).</p>
+            </div>
+          </div>
+          <Button asChild variant="outline">
+            <Link to={`/psychologist/${user._id}`} target="_blank" rel="noreferrer">
+              <ExternalLink className="w-4 h-4 mr-2" /> View Public Profile
+            </Link>
+          </Button>
         </div>
-        <Button asChild variant="outline">
-          <Link to={`/psychologist/${user._id}`} target="_blank" rel="noreferrer">
-            <ExternalLink className="w-4 h-4 mr-2" /> View Public Profile (clients can book)
-          </Link>
-        </Button>
       </Card>
 
       {/* Pricing summary (read-only) */}

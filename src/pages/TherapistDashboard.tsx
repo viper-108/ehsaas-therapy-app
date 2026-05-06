@@ -229,7 +229,6 @@ const TherapistDashboard = () => {
               { value: 'workshops', label: 'Workshops', icon: BookOpen, group: 'Content' },
               { value: 'supervision', label: 'Supervision', icon: GraduationCap, group: 'Content' },
               { value: 'resources', label: 'Resources', icon: Library, group: 'Content' },
-              { value: 'supervision', label: t('dashboard.supervision'), icon: BookOpen, group: 'Content' },
               ...(user?.therapistType === 'psychiatrist' ? [{ value: 'prescriptions', label: 'Prescriptions', icon: FileText, group: 'Content' } as SidebarItem] : []),
             ];
             return (

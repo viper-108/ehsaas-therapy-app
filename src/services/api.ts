@@ -1079,6 +1079,19 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  // Avatar (profile picture) Upload
+  async uploadAvatar(file: File) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    const token = localStorage.getItem('ehsaas_token');
+    const headers: HeadersInit = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/therapists/dashboard/avatar`, {
+      method: 'POST', headers, body: formData
+    });
+    return this.handleResponse(res);
+  }
+
   // Resume Upload
   async uploadResume(file: File) {
     const formData = new FormData();

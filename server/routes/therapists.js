@@ -918,6 +918,25 @@ router.post('/dashboard/resume', protect, therapistOnly, async (req, res) => {
   });
 });
 
+// POST /api/therapists/dashboard/avatar — therapist uploads their profile picture
+router.post('/dashboard/avatar', protect, therapistOnly, async (req, res) => {
+  const { uploadAvatar } = await import('../middleware/upload.js');
+  uploadAvatar(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message || 'Upload failed' });
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    try {
+      const therapist = await Therapist.findByIdAndUpdate(
+        req.userId,
+        { image: `/uploads/avatars/${req.file.filename}` },
+        { new: true }
+      ).select('-password');
+      res.json({ image: therapist.image, user: therapist, message: 'Profile picture updated' });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+});
+
 // ==================== INTERVIEWS ====================
 
 // GET /api/therapists/dashboard/interviews
