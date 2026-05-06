@@ -1,10 +1,11 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { ArrowLeft, Star, Clock, MessageCircle, MapPin, Calendar, Languages, Loader2, Phone } from "lucide-react";
+import { ArrowLeft, Star, Clock, MessageCircle, MapPin, Calendar, Languages, Loader2, Phone, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BookingModal } from "@/components/BookingModal";
+import { SupervisionBookingDialog } from "@/components/SupervisionBookingDialog";
 import { PaymentSuccess } from "@/components/PaymentSuccess";
 import { ReviewList } from "@/components/ReviewList";
 import { IntroCallForm } from "@/components/IntroCallForm";
@@ -53,6 +54,8 @@ const mongoToPsychologist = (t: any): Psychologist => {
     slidingScaleAvailable: !!t.slidingScaleAvailable,
     // Approved services this therapist offers (admin-finalized + therapist-accepted only)
     approvedServices: Array.isArray(t.approvedServices) ? t.approvedServices : [],
+    // Supervisor pricing (only present if this therapist is an approved supervisor)
+    supervisorProfile: t.supervisorProfile || null,
   };
 };
 
@@ -60,6 +63,7 @@ const PsychologistProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [isSupervisionOpen, setIsSupervisionOpen] = useState(false);
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const [showIntroCall, setShowIntroCall] = useState(false);
   const [bookingDetails, setBookingDetails] = useState<{
@@ -337,27 +341,67 @@ const PsychologistProfile = () => {
         </Card>
 
         {/* Book Session + Intro Call Buttons */}
-        <div className="sticky bottom-4 flex gap-3">
-          {user && role === 'client' && (
-            <Button
-              variant="outline"
-              size="lg"
-              className="flex-shrink-0"
-              onClick={() => setShowIntroCall(true)}
-            >
-              <Phone className="w-4 h-4 mr-2" />
-              Intro Call
-            </Button>
-          )}
-          <Button
-            variant="booking"
-            size="lg"
-            className="flex-1"
-            onClick={() => setIsBookingModalOpen(true)}
-          >
-            Book Session
-          </Button>
-        </div>
+        {(() => {
+          const targetOffersSupervision = Array.isArray((psychologist as any).approvedServices) &&
+            (psychologist as any).approvedServices.some((s: any) => s.type === 'supervision');
+          const viewerIsTherapist = !!user && role === 'therapist';
+          // Therapist viewing themselves shouldn't see booking buttons at all
+          const viewingSelf = viewerIsTherapist && (user as any)?._id === (psychologist as any).id;
+          if (viewingSelf) return null;
+
+          // Therapist viewing a supervisor → request supervision flow (no client-only block)
+          if (viewerIsTherapist && targetOffersSupervision) {
+            return (
+              <div className="sticky bottom-4 flex gap-3">
+                <Button
+                  variant="booking"
+                  size="lg"
+                  className="flex-1"
+                  onClick={() => setIsSupervisionOpen(true)}
+                >
+                  <GraduationCap className="w-4 h-4 mr-2" />
+                  Request Supervision
+                </Button>
+              </div>
+            );
+          }
+
+          // Therapist viewing a non-supervisor — explain why they can't book here
+          if (viewerIsTherapist && !targetOffersSupervision) {
+            return (
+              <div className="sticky bottom-4">
+                <Card className="p-3 text-xs text-muted-foreground bg-muted/30">
+                  This therapist doesn't currently offer supervision. Therapists can only book supervision sessions on Ehsaas — therapy bookings are for clients.
+                </Card>
+              </div>
+            );
+          }
+
+          // Default: client (or signed-out visitor) flow
+          return (
+            <div className="sticky bottom-4 flex gap-3">
+              {user && role === 'client' && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="flex-shrink-0"
+                  onClick={() => setShowIntroCall(true)}
+                >
+                  <Phone className="w-4 h-4 mr-2" />
+                  Intro Call
+                </Button>
+              )}
+              <Button
+                variant="booking"
+                size="lg"
+                className="flex-1"
+                onClick={() => setIsBookingModalOpen(true)}
+              >
+                Book Session
+              </Button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Booking Modal */}
@@ -366,6 +410,20 @@ const PsychologistProfile = () => {
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
         onBookingConfirm={handleBookingConfirm}
+      />
+
+      {/* Supervision Booking Dialog (therapist → supervisor) */}
+      <SupervisionBookingDialog
+        isOpen={isSupervisionOpen}
+        onClose={() => setIsSupervisionOpen(false)}
+        supervisor={{
+          id: psychologist.id,
+          name: psychologist.name,
+          title: psychologist.title,
+          image: psychologist.image,
+          individualPrice50: (psychologist as any).supervisorProfile?.individualPrice50 || 0,
+          individualPrice90: (psychologist as any).supervisorProfile?.individualPrice90 || 0,
+        }}
       />
 
       {/* Intro Call Form */}
