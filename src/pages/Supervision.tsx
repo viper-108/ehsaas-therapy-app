@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { GraduationCap, Loader2, Users, Clock, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import { AuthModal } from "@/components/AuthModal";
 export default function Supervision() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'group' ? 'group' : 'individual';
   const [supervisors, setSupervisors] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +64,7 @@ export default function Supervision() {
             </div>
           </div>
 
-          <Tabs defaultValue="individual">
+          <Tabs defaultValue={initialTab}>
             <TabsList>
               <TabsTrigger value="individual">Individual Supervision ({supervisors.length})</TabsTrigger>
               <TabsTrigger value="group">Group Supervision ({groups.length})</TabsTrigger>

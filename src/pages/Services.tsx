@@ -51,13 +51,6 @@ const Services = () => {
       title: "Workshops",
       description: "Short, skill-based learning experiences. One-time or short series; pay, attend, get a certificate.",
       features: ["Skill-based outcomes", "1-3 sessions", "Certificate of completion", "Open to all"]
-    },
-    {
-      type: 'supervision',
-      icon: GraduationCap,
-      title: "Supervision",
-      description: "Professional supervision for therapists & students — case discussion, ethical practice, skill-building.",
-      features: ["Individual or group", "Case discussion", "Ethical guidance", "Approved supervisors only"]
     }
   ];
 
@@ -101,19 +94,25 @@ const Services = () => {
       icon: Brain,
       title: "Individual Supervision",
       description: "Professional development and clinical guidance for practicing therapists to enhance their skills and practice.",
-      features: ["Case consultation", "Skill development", "Ethical guidance", "Professional growth"]
+      features: ["Case consultation", "Skill development", "Ethical guidance", "Professional growth"],
+      cta: "Browse Supervisors",
+      route: "/supervision",
     },
     {
       icon: Users,
       title: "Group Supervision",
       description: "Collaborative learning environment for therapists to share experiences and learn from peers.",
-      features: ["Peer learning", "Case discussions", "Skill sharing", "Professional networking"]
+      features: ["Peer learning", "Case discussions", "Skill sharing", "Professional networking"],
+      cta: "Browse Group Supervision",
+      route: "/supervision?tab=group",
     },
     {
       icon: GraduationCap,
       title: "Training Programs",
-      description: "Specialized training courses and workshops for mental health professionals to expand their expertise.",
-      features: ["Certification courses", "Workshop series", "Continuing education", "Skill enhancement"]
+      description: "Specialized multi-session training courses for mental health professionals to expand their expertise.",
+      features: ["Certification courses", "Multi-session programs", "Continuing education", "Skill enhancement"],
+      cta: "Browse Trainings",
+      route: "/trainings",
     }
   ];
 
@@ -221,8 +220,12 @@ const Services = () => {
             
             <div className="grid lg:grid-cols-3 gap-8">
               {therapistServices.map((service, index) => (
-                <Card key={index} className="p-6 h-full hover:shadow-large transition-all duration-300">
-                  <CardContent className="pt-6">
+                <Card
+                  key={index}
+                  className="p-6 h-full hover:shadow-large hover:border-primary/40 transition-all duration-300 cursor-pointer flex flex-col"
+                  onClick={() => navigate(service.route)}
+                >
+                  <CardContent className="pt-6 flex flex-col h-full">
                     <div className="text-center mb-6">
                       <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                         <service.icon className="w-8 h-8 text-primary" />
@@ -230,8 +233,8 @@ const Services = () => {
                       <h3 className="text-2xl font-semibold mb-3">{service.title}</h3>
                       <p className="text-muted-foreground">{service.description}</p>
                     </div>
-                    
-                    <div className="space-y-2 mb-6">
+
+                    <div className="space-y-2 mb-6 flex-1">
                       {service.features.map((feature, idx) => (
                         <div key={idx} className="flex items-center text-sm">
                           <div className="w-2 h-2 bg-primary rounded-full mr-3"></div>
@@ -239,9 +242,9 @@ const Services = () => {
                         </div>
                       ))}
                     </div>
-                    
-                    <Button asChild variant="outline" className="w-full">
-                      <Link to="/contact">Learn More</Link>
+
+                    <Button className="w-full" onClick={(e) => { e.stopPropagation(); navigate(service.route); }}>
+                      {service.cta}
                     </Button>
                   </CardContent>
                 </Card>

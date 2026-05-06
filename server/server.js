@@ -122,6 +122,7 @@ import('./routes/priceNegotiations.js').then(m => app.use('/api/price-negotiatio
 import('./routes/groupTherapy.js').then(m => app.use('/api/group-therapy', m.default)).catch(e => console.error('groupTherapy route load failed:', e));
 import('./routes/workshops.js').then(m => app.use('/api/workshops', m.default)).catch(e => console.error('workshops route load failed:', e));
 import('./routes/supervisionFlow.js').then(m => app.use('/api/supervision-flow', m.default)).catch(e => console.error('supervisionFlow route load failed:', e));
+import('./routes/trainings.js').then(m => app.use('/api/trainings', m.default)).catch(e => console.error('trainings route load failed:', e));
 
 // Static files (uploads)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

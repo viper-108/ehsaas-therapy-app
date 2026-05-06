@@ -232,6 +232,66 @@ router.post('/workshop-checkout', protect, clientOnly, async (req, res) => {
   }
 });
 
+// POST /api/payments/training-checkout
+router.post('/training-checkout', protect, async (req, res) => {
+  try {
+    if (req.userRole !== 'client' && req.userRole !== 'therapist') {
+      return res.status(403).json({ message: 'Only client or therapist can pay for training' });
+    }
+    const { registrationId } = req.body;
+    if (!registrationId) return res.status(400).json({ message: 'registrationId required' });
+
+    const TrainingRegistration = (await import('../models/TrainingRegistration.js')).default;
+    const TrainingProgram = (await import('../models/TrainingProgram.js')).default;
+    const reg = await TrainingRegistration.findById(registrationId);
+    if (!reg) return res.status(404).json({ message: 'Registration not found' });
+    if (String(reg.userId) !== String(req.userId)) return res.status(403).json({ message: 'Not your registration' });
+    if (reg.paymentStatus === 'paid') return res.status(400).json({ message: 'Already paid' });
+
+    const t = await TrainingProgram.findById(reg.trainingId);
+    if (!t) return res.status(404).json({ message: 'Training not found' });
+
+    const therapistId = t.facilitators?.[0]?.therapistId || null;
+    const merchantTransactionId = 'EHSAAS_TR_' + uuidv4().replace(/-/g, '').substring(0, 18);
+
+    const payment = await Payment.create({
+      clientId: req.userId,                   // generic — also used for therapist trainees
+      therapistId,
+      trainingRegistrationId: reg._id,
+      amount: t.pricePerTrainee,
+      status: 'pending',
+      paymentMethod: 'phonepe',
+      stripePaymentIntentId: merchantTransactionId,
+    });
+
+    const payload = {
+      merchantId: MERCHANT_ID,
+      merchantTransactionId,
+      merchantUserId: 'MUID_' + req.userId.toString().substring(0, 20),
+      amount: t.pricePerTrainee * 100,
+      redirectUrl: `${process.env.CLIENT_URL}/payment-success?transactionId=${merchantTransactionId}&paymentId=${payment._id}&type=training`,
+      redirectMode: 'REDIRECT',
+      callbackUrl: `${process.env.CLIENT_URL}/api/payments/callback`,
+      paymentInstrument: { type: 'PAY_PAGE' },
+    };
+    const endpoint = '/pg/v1/pay';
+    const { base64Payload, checksum } = generateChecksum(payload, endpoint);
+    const response = await axios.post(`${PHONEPE_HOST}${endpoint}`, { request: base64Payload },
+      { headers: { 'Content-Type': 'application/json', 'X-VERIFY': checksum } });
+
+    if (response.data.success && response.data.data?.instrumentResponse?.redirectInfo?.url) {
+      payment.stripeSessionId = merchantTransactionId;
+      await payment.save();
+      res.json({ url: response.data.data.instrumentResponse.redirectInfo.url, merchantTransactionId, paymentId: payment._id });
+    } else {
+      res.status(400).json({ message: 'Payment initiation failed', details: response.data.message || 'Unknown' });
+    }
+  } catch (e) {
+    console.error('Training checkout error:', e.response?.data || e.message);
+    res.status(500).json({ message: 'Payment error', error: e.response?.data?.message || e.message });
+  }
+});
+
 // POST /api/payments/confirm - verify payment status with PhonePe
 router.post('/confirm', protect, async (req, res) => {
   try {
@@ -284,6 +344,21 @@ router.post('/confirm', protect, async (req, res) => {
           const Session = (await import('../models/Session.js')).default;
           await Session.findByIdAndUpdate(payment.sessionId, { paymentStatus: 'paid' });
         } catch (e) { console.error('[SESSION-PAID]', e.message); }
+      } else if (payment.trainingRegistrationId) {
+        try {
+          const TrainingRegistration = (await import('../models/TrainingRegistration.js')).default;
+          const Notification = (await import('../models/Notification.js')).default;
+          const reg = await TrainingRegistration.findByIdAndUpdate(payment.trainingRegistrationId, {
+            paymentStatus: 'paid', paidAmount: payment.amount, paymentId: payment._id,
+          }, { new: true }).populate('trainingId', 'title');
+          if (reg) {
+            Notification.notify(reg.userId, reg.userRole, 'training_paid',
+              `Payment confirmed — ${reg.trainingId?.title}`,
+              `Your spot is confirmed. Joining link will be shared closer to start.`,
+              `/trainings/${reg.trainingId?._id}`
+            ).catch(() => {});
+          }
+        } catch (e) { console.error('[TRAINING-PAID]', e.message); }
       } else if (payment.workshopRegistrationId) {
         try {
           const WorkshopRegistration = (await import('../models/WorkshopRegistration.js')).default;

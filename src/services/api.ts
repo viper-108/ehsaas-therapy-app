@@ -634,6 +634,54 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  // ============ TRAINING PROGRAMS ============
+  async listTrainings(status: 'all' | 'upcoming' | 'ongoing' | 'past' = 'all') {
+    const res = await fetch(`${API_BASE}/trainings?status=${status}`, { headers: this.getHeaders(false) });
+    return this.handleResponse(res);
+  }
+  async getTraining(id: string) {
+    const res = await fetch(`${API_BASE}/trainings/${id}`, { headers: this.getHeaders(false) });
+    return this.handleResponse(res);
+  }
+  async requestTraining(body: any) {
+    const res = await fetch(`${API_BASE}/trainings/request`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async listPendingTrainings() {
+    const res = await fetch(`${API_BASE}/trainings/admin/pending`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async approveTraining(id: string) {
+    const res = await fetch(`${API_BASE}/trainings/${id}/admin-approve`, { method: 'PUT', headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async rejectTraining(id: string, reason?: string) {
+    const res = await fetch(`${API_BASE}/trainings/${id}/admin-reject`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason: reason || '' })
+    });
+    return this.handleResponse(res);
+  }
+  async registerForTraining(trainingId: string) {
+    const res = await fetch(`${API_BASE}/trainings/${trainingId}/register`, { method: 'POST', headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async getMyTrainingRegistrations() {
+    const res = await fetch(`${API_BASE}/trainings/my/registrations`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async getMyLeadingTrainings() {
+    const res = await fetch(`${API_BASE}/trainings/my/leading`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async startTrainingCheckout(registrationId: string) {
+    const res = await fetch(`${API_BASE}/payments/training-checkout`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ registrationId })
+    });
+    return this.handleResponse(res);
+  }
+
   async startWorkshopCheckout(registrationId: string) {
     const res = await fetch(`${API_BASE}/payments/workshop-checkout`, {
       method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ registrationId })
