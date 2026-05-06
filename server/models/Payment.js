@@ -10,6 +10,8 @@ const paymentSchema = new mongoose.Schema({
   workshopRegistrationId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkshopRegistration', default: null },
   // Training program registration payment
   trainingRegistrationId: { type: mongoose.Schema.Types.ObjectId, ref: 'TrainingRegistration', default: null },
+  // Individual supervision session payment (therapist → therapist booking)
+  supervisionSessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'SupervisionSession', default: null },
   amount: { type: Number, required: true },
   currency: { type: String, default: 'inr' },
   stripePaymentIntentId: { type: String, default: '' },

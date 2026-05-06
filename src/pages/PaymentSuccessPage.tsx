@@ -10,6 +10,9 @@ const PaymentSuccessPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<'loading' | 'success' | 'pending' | 'error'>('loading');
+  const paymentType = searchParams.get('type') || 'session'; // 'supervision' | 'group' | 'workshop' | 'training' | default 'session'
+  const isSupervision = paymentType === 'supervision';
+  const dashboardPath = isSupervision ? '/therapist-dashboard' : '/client-dashboard';
 
   useEffect(() => {
     const confirmPayment = async () => {
@@ -68,10 +71,12 @@ const PaymentSuccessPage = () => {
               </div>
               <h2 className="text-2xl font-bold text-foreground mb-2">Payment Successful!</h2>
               <p className="text-muted-foreground mb-6">
-                Your session has been booked and confirmed. You can view your upcoming sessions in your dashboard.
+                {isSupervision
+                  ? 'Your supervision session is booked and confirmed. A calendar invite has been emailed to you and the supervisor.'
+                  : 'Your session has been booked and confirmed. You can view your upcoming sessions in your dashboard.'}
               </p>
               <div className="flex flex-col gap-3">
-                <Button onClick={() => navigate('/client-dashboard')} size="lg">
+                <Button onClick={() => navigate(dashboardPath)} size="lg">
                   Go to Dashboard
                 </Button>
                 <Button variant="outline" onClick={() => navigate('/team')}>
@@ -90,7 +95,7 @@ const PaymentSuccessPage = () => {
                 Your payment is being processed. This may take a moment. Your session will be confirmed once payment completes.
               </p>
               <div className="flex flex-col gap-3">
-                <Button onClick={() => navigate('/client-dashboard')} size="lg">
+                <Button onClick={() => navigate(dashboardPath)} size="lg">
                   Go to Dashboard
                 </Button>
                 <Button variant="outline" onClick={() => window.location.reload()}>

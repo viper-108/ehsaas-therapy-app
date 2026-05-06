@@ -1180,6 +1180,20 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  // Supervision: pay-up-front individual booking flow
+  async getSupervisionSlots(supervisorId: string, date: string) {
+    const res = await fetch(`${API_BASE}/supervision/availability/${supervisorId}?date=${date}`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(res);
+  }
+  async bookIndividualSupervision(body: { supervisorId: string; date: string; startTime: string; duration: 50 | 90; topic: string }) {
+    const res = await fetch(`${API_BASE}/supervision/book-individual`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body),
+    });
+    return this.handleResponse(res);
+  }
+
   async getMySupervision() {
     const res = await fetch(`${API_BASE}/supervision/my`, { headers: this.getHeaders() });
     return this.handleResponse(res);

@@ -1,11 +1,34 @@
 import express from 'express';
+import crypto from 'crypto';
+import axios from 'axios';
+import { v4 as uuidv4 } from 'uuid';
 import SupervisionSession from '../models/SupervisionSession.js';
 import Therapist from '../models/Therapist.js';
+import Payment from '../models/Payment.js';
+import Session from '../models/Session.js';
 import { protect, therapistOnly, adminOnly } from '../middleware/auth.js';
 import { sendEmail } from '../utils/email.js';
 import { generateICS } from '../utils/calendar.js';
 
 const router = express.Router();
+
+// PhonePe creds (mirrors payments.js so the supervision flow can also use the gateway)
+const PHONEPE_HOST = process.env.PHONEPE_HOST || 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID || 'PGTESTPAYUAT86';
+const SALT_KEY = process.env.PHONEPE_SALT_KEY || '96434309-7796-489d-8924-ab56988a6076';
+const SALT_INDEX = process.env.PHONEPE_SALT_INDEX || '1';
+const generateChecksum = (payload, endpoint) => {
+  const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
+  const string = base64Payload + endpoint + SALT_KEY;
+  const sha256 = crypto.createHash('sha256').update(string).digest('hex');
+  return { base64Payload, checksum: sha256 + '###' + SALT_INDEX };
+};
+
+const calcEndTime = (startTime, duration) => {
+  const [h, m] = startTime.split(':').map(Number);
+  const total = h * 60 + m + duration;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
 
 // POST /api/supervision — therapist creates request
 router.post('/', protect, therapistOnly, async (req, res) => {
@@ -247,6 +270,191 @@ router.put('/:id/join', protect, therapistOnly, async (req, res) => {
     res.json(session);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ===========================================================================
+// INDIVIDUAL SUPERVISION — pay-up-front booking flow (therapist supervisee →
+// approved supervisor). No admin approval per session: both parties are
+// already admin-approved, so the session is confirmed by payment alone.
+// ===========================================================================
+
+// GET /api/supervision/availability/:supervisorId?date=YYYY-MM-DD
+// Returns hourly slots available on the supervisor's calendar (considers
+// both client therapy bookings and other supervision bookings).
+router.get('/availability/:supervisorId', protect, therapistOnly, async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ message: 'date is required' });
+
+    const supervisor = await Therapist.findById(req.params.supervisorId);
+    if (!supervisor) return res.status(404).json({ message: 'Supervisor not found' });
+    if (!supervisor.supervisorProfile?.isApproved) {
+      return res.status(400).json({ message: 'This therapist is not an approved supervisor.' });
+    }
+
+    const requestedDate = new Date(date);
+    const dayOfWeek = requestedDate.getDay();
+    const dayAvailability = (supervisor.availability || []).find(a => a.dayOfWeek === dayOfWeek && a.isAvailable);
+    if (!dayAvailability) return res.json({ slots: [], message: 'Supervisor not available on this day' });
+
+    const startOfDay = new Date(date); startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date); endOfDay.setHours(23, 59, 59, 999);
+
+    const [bookedTherapy, bookedSupervision] = await Promise.all([
+      Session.find({ therapistId: supervisor._id, date: { $gte: startOfDay, $lte: endOfDay }, status: 'scheduled' }).select('startTime'),
+      SupervisionSession.find({
+        supervisorId: supervisor._id,
+        date: { $gte: startOfDay, $lte: endOfDay },
+        status: { $in: ['pending_payment', 'scheduled', 'admin_approved'] },
+      }).select('startTime'),
+    ]);
+    const bookedTimes = new Set([
+      ...bookedTherapy.map(s => s.startTime),
+      ...bookedSupervision.map(s => s.startTime),
+    ]);
+
+    const ranges = (Array.isArray(dayAvailability.chunks) && dayAvailability.chunks.length > 0)
+      ? dayAvailability.chunks
+      : [{ startTime: dayAvailability.startTime || '09:00', endTime: dayAvailability.endTime || '18:00' }];
+
+    const slots = [];
+    const seen = new Set();
+    for (const range of ranges) {
+      const sH = parseInt(String(range.startTime).split(':')[0]);
+      const eH = parseInt(String(range.endTime).split(':')[0]);
+      if (!Number.isFinite(sH) || !Number.isFinite(eH) || sH >= eH) continue;
+      for (let hour = sH; hour < eH; hour++) {
+        const timeStr = `${hour.toString().padStart(2, '0')}:00`;
+        if (seen.has(timeStr) || bookedTimes.has(timeStr)) continue;
+        seen.add(timeStr);
+        slots.push({ time: timeStr, available: true });
+      }
+    }
+    slots.sort((a, b) => a.time.localeCompare(b.time));
+    res.json({ slots });
+  } catch (e) {
+    console.error('Supervision slots error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/supervision/book-individual
+// Body: { supervisorId, date, startTime, duration (50|90), topic }
+// Creates a SupervisionSession with status='pending_payment' AND a Payment
+// record, then kicks off PhonePe checkout. Once payment confirms, the
+// confirm endpoint promotes the session to 'scheduled' and emails ICS.
+router.post('/book-individual', protect, therapistOnly, async (req, res) => {
+  try {
+    const { supervisorId, date, startTime, duration, topic } = req.body || {};
+    if (!supervisorId || !date || !startTime || !duration || !topic) {
+      return res.status(400).json({ message: 'supervisorId, date, startTime, duration and topic are required' });
+    }
+    if (![50, 90].includes(Number(duration))) {
+      return res.status(400).json({ message: 'duration must be 50 or 90 minutes' });
+    }
+
+    // Supervisee must be admin-approved
+    const supervisee = await Therapist.findById(req.userId);
+    if (!supervisee?.superviseeProfile?.isApproved) {
+      return res.status(403).json({ message: 'You must be admin-approved as a supervisee to book supervision sessions.' });
+    }
+
+    // Supervisor must be admin-approved
+    const supervisor = await Therapist.findById(supervisorId);
+    if (!supervisor?.supervisorProfile?.isApproved) {
+      return res.status(400).json({ message: 'This therapist is not an approved supervisor.' });
+    }
+    const supervisionAccepted = (supervisor.approvedServices || []).some(s => s.type === 'supervision' && s.therapistAccepted);
+    if (!supervisionAccepted) {
+      return res.status(400).json({ message: 'This supervisor is not currently accepting supervision bookings.' });
+    }
+
+    // Pricing
+    const priceField = `individualPrice${Number(duration)}`;
+    const amount = Number(supervisor.supervisorProfile?.[priceField] || 0);
+    if (amount <= 0) {
+      return res.status(400).json({ message: `This supervisor does not offer ${duration}-minute sessions.` });
+    }
+
+    // Slot conflict check
+    const startOfDay = new Date(date); startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date); endOfDay.setHours(23, 59, 59, 999);
+    const conflictTherapy = await Session.findOne({ therapistId: supervisorId, date: { $gte: startOfDay, $lte: endOfDay }, startTime, status: 'scheduled' });
+    const conflictSupervision = await SupervisionSession.findOne({
+      supervisorId, date: { $gte: startOfDay, $lte: endOfDay }, startTime,
+      status: { $in: ['pending_payment', 'scheduled', 'admin_approved'] },
+    });
+    if (conflictTherapy || conflictSupervision) {
+      return res.status(409).json({ message: 'That slot is already booked. Please pick another time.' });
+    }
+
+    const endTime = calcEndTime(startTime, Number(duration));
+
+    // Create the supervision session in pending_payment state
+    const session = await SupervisionSession.create({
+      type: 'individual',
+      requesterId: req.userId,
+      supervisorId,
+      date: new Date(date),
+      startTime, endTime,
+      duration: Number(duration),
+      amount,
+      topic,
+      status: 'pending_payment',
+      paymentStatus: 'unpaid',
+    });
+
+    // Payment record (clientId is reused as the buyer's user id, mirroring
+    // the same convention training-checkout already follows).
+    const merchantTransactionId = 'EHSAAS_SUP_' + uuidv4().replace(/-/g, '').substring(0, 18);
+    const payment = await Payment.create({
+      clientId: req.userId,                   // buyer = supervisee therapist
+      therapistId: supervisorId,              // payee = supervisor
+      supervisionSessionId: session._id,
+      amount,
+      status: 'pending',
+      paymentMethod: 'phonepe',
+      stripePaymentIntentId: merchantTransactionId,
+    });
+
+    // Kick off PhonePe checkout
+    const payload = {
+      merchantId: MERCHANT_ID,
+      merchantTransactionId,
+      merchantUserId: 'MUID_' + req.userId.toString().substring(0, 20),
+      amount: amount * 100,
+      redirectUrl: `${process.env.CLIENT_URL}/payment-success?transactionId=${merchantTransactionId}&paymentId=${payment._id}&type=supervision`,
+      redirectMode: 'REDIRECT',
+      callbackUrl: `${process.env.CLIENT_URL}/api/payments/callback`,
+      paymentInstrument: { type: 'PAY_PAGE' },
+    };
+    const endpoint = '/pg/v1/pay';
+    const { base64Payload, checksum } = generateChecksum(payload, endpoint);
+    const response = await axios.post(`${PHONEPE_HOST}${endpoint}`, { request: base64Payload },
+      { headers: { 'Content-Type': 'application/json', 'X-VERIFY': checksum } });
+
+    if (response.data.success && response.data.data?.instrumentResponse?.redirectInfo?.url) {
+      payment.stripeSessionId = merchantTransactionId;
+      await payment.save();
+      session.paymentId = payment._id;
+      await session.save();
+      return res.json({
+        url: response.data.data.instrumentResponse.redirectInfo.url,
+        merchantTransactionId,
+        paymentId: payment._id,
+        supervisionSessionId: session._id,
+        amount,
+      });
+    }
+
+    // PhonePe rejected — clean up the placeholder records so the slot reopens
+    await SupervisionSession.findByIdAndDelete(session._id).catch(() => {});
+    await Payment.findByIdAndDelete(payment._id).catch(() => {});
+    return res.status(400).json({ message: 'Could not start payment. Please try again.', details: response.data.message });
+  } catch (e) {
+    console.error('Book individual supervision error:', e.response?.data || e.message);
+    res.status(500).json({ message: 'Server error', error: e.response?.data?.message || e.message });
   }
 });
 

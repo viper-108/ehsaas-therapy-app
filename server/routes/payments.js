@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Payment from '../models/Payment.js';
 import Session from '../models/Session.js';
 import Therapist from '../models/Therapist.js';
+import { generateICS } from '../utils/calendar.js';
 import { protect, clientOnly } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -376,6 +377,54 @@ router.post('/confirm', protect, async (req, res) => {
             ).catch(() => {});
           }
         } catch (e) { console.error('[WORKSHOP-PAID]', e.message); }
+      } else if (payment.supervisionSessionId) {
+        // Individual supervision: mark session paid + scheduled, send ICS to both parties
+        try {
+          const SupervisionSession = (await import('../models/SupervisionSession.js')).default;
+          const supSession = await SupervisionSession.findById(payment.supervisionSessionId);
+          if (supSession && supSession.paymentStatus !== 'paid') {
+            supSession.paymentStatus = 'paid';
+            supSession.status = 'scheduled';
+            supSession.paymentId = payment._id;
+            await supSession.save();
+
+            const supervisor = await Therapist.findById(supSession.supervisorId);
+            const supervisee = await Therapist.findById(supSession.requesterId);
+            if (supervisor && supervisee) {
+              const ics = generateICS({
+                title: `Supervision: ${supSession.topic}`,
+                description: `Individual Supervision\nTopic: ${supSession.topic}\nMeeting Link: (TBD — supervisor will share)`,
+                startDate: supSession.date,
+                startTime: supSession.startTime,
+                endTime: supSession.endTime,
+                organizerEmail: 'sessions.ehsaas@gmail.com',
+                attendees: [
+                  { name: supervisor.name, email: supervisor.email },
+                  { name: supervisee.name, email: supervisee.email },
+                ],
+              });
+              const dateStr = new Date(supSession.date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+              const html = (forName, otherName) => `
+                <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
+                  <h2 style="color: #16a34a;">Supervision Confirmed ✅</h2>
+                  <p>Hi ${forName}, your individual supervision session is booked and paid.</p>
+                  <table style="width:100%; border-collapse:collapse; margin:15px 0;">
+                    <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">With</td><td style="padding:8px; border:1px solid #ddd;">${otherName}</td></tr>
+                    <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Topic</td><td style="padding:8px; border:1px solid #ddd;">${supSession.topic}</td></tr>
+                    <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Date</td><td style="padding:8px; border:1px solid #ddd;">${dateStr}</td></tr>
+                    <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Time</td><td style="padding:8px; border:1px solid #ddd;">${supSession.startTime} – ${supSession.endTime}</td></tr>
+                    <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Duration</td><td style="padding:8px; border:1px solid #ddd;">${supSession.duration} minutes</td></tr>
+                    <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Amount</td><td style="padding:8px; border:1px solid #ddd;">₹${supSession.amount}</td></tr>
+                  </table>
+                  <p>Calendar invite attached. Meeting link will be shared by the supervisor closer to the session.</p>
+                </div>`;
+              const att = [{ filename: 'supervision.ics', content: ics, contentType: 'text/calendar' }];
+              const sendEmail = (await import('../utils/email.js')).sendEmail;
+              sendEmail(supervisee.email, `Supervision Confirmed — ${supervisor.name}`, html(supervisee.name, supervisor.name), att).catch(() => {});
+              sendEmail(supervisor.email, `New Supervision Booked — ${supervisee.name}`, html(supervisor.name, supervisee.name), att).catch(() => {});
+            }
+          }
+        } catch (e) { console.error('[SUPERVISION-PAID]', e.message); }
       } else if (payment.groupEnrollmentId) {
         // Group enrollment payment: mark enrollment as paid + status='enrolled'
         try {
