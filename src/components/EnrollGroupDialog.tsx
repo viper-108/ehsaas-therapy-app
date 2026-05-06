@@ -45,13 +45,20 @@ export function EnrollGroupDialog({ group, isOpen, onClose, onEnrolled }: Props)
         return;
       }
     }
-    if (!form.agreedToGuidelines) return toast({ title: "Please agree to the guidelines", variant: "destructive" });
     if (!form.age || isNaN(Number(form.age))) return toast({ title: "Enter a valid age", variant: "destructive" });
     const age = Number(form.age);
     if (age < group.ageMin || age > group.ageMax) {
       return toast({ title: `This group is for ages ${group.ageMin}-${group.ageMax}.`, variant: "destructive" });
     }
     if (!form.expectations.trim()) return toast({ title: "Please share what you're expecting", variant: "destructive" });
+    if (!form.priorGroupExperience.trim()) return toast({ title: "Please share your prior group-therapy experience (write \"None\" if not applicable)", variant: "destructive" });
+    if (!form.inIndividualTherapy) return toast({ title: "Please indicate whether you're in individual therapy", variant: "destructive" });
+    if (!form.comfortableSharingFocus) return toast({ title: "Please confirm you're comfortable sharing focus in a group", variant: "destructive" });
+    if (!form.canCommitSchedule) return toast({ title: "Please confirm you can commit to the schedule", variant: "destructive" });
+    if (!form.languageComfortable) return toast({ title: "Please confirm you're comfortable in the group's language", variant: "destructive" });
+    if (!form.notesForFacilitator.trim()) return toast({ title: "Please write a note for the facilitator (write \"None\" if not applicable)", variant: "destructive" });
+    if (!form.safetyRequirements.trim()) return toast({ title: "Please share what would make the group feel safe", variant: "destructive" });
+    if (!form.agreedToGuidelines) return toast({ title: "Please agree to the guidelines", variant: "destructive" });
 
     setSubmitting(true);
     try {
@@ -89,11 +96,11 @@ export function EnrollGroupDialog({ group, isOpen, onClose, onEnrolled }: Props)
               <Textarea rows={3} value={form.expectations} onChange={e => set('expectations', e.target.value)} />
             </div>
             <div>
-              <Label>Have you attended group therapy before? How was your experience?</Label>
-              <Textarea rows={2} value={form.priorGroupExperience} onChange={e => set('priorGroupExperience', e.target.value)} />
+              <Label>Have you attended group therapy before? How was your experience? *</Label>
+              <Textarea required rows={2} placeholder='Write "None" if you haven&apos;t' value={form.priorGroupExperience} onChange={e => set('priorGroupExperience', e.target.value)} />
             </div>
             <div>
-              <Label>Are you currently or recently in individual therapy?</Label>
+              <Label>Are you currently or recently in individual therapy? *</Label>
               <Select value={form.inIndividualTherapy} onValueChange={(v) => set('inIndividualTherapy', v)}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
@@ -163,12 +170,12 @@ export function EnrollGroupDialog({ group, isOpen, onClose, onEnrolled }: Props)
         {step === 3 && (
           <div className="space-y-3 mt-3">
             <div>
-              <Label>Anything you'd like the facilitator to know before the group starts?</Label>
-              <Textarea rows={2} value={form.notesForFacilitator} onChange={e => set('notesForFacilitator', e.target.value)} />
+              <Label>Anything you'd like the facilitator to know before the group starts? *</Label>
+              <Textarea required rows={2} placeholder='Write "None" if not applicable' value={form.notesForFacilitator} onChange={e => set('notesForFacilitator', e.target.value)} />
             </div>
             <div>
-              <Label>What would make this group feel safe for you?</Label>
-              <Textarea rows={2} value={form.safetyRequirements} onChange={e => set('safetyRequirements', e.target.value)} />
+              <Label>What would make this group feel safe for you? *</Label>
+              <Textarea required rows={2} value={form.safetyRequirements} onChange={e => set('safetyRequirements', e.target.value)} />
             </div>
 
             {/* Group's policy text shown for review */}

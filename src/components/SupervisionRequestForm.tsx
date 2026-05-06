@@ -55,6 +55,14 @@ export const SupervisionRequestForm = ({ isOpen, onClose, onCreated }: Supervisi
       toast({ title: "Error", description: "Please select at least one participant", variant: "destructive" });
       return;
     }
+    if (!preferredDate) {
+      toast({ title: "Error", description: "Preferred date is required", variant: "destructive" });
+      return;
+    }
+    if (!preferredTime) {
+      toast({ title: "Error", description: "Preferred time is required", variant: "destructive" });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -157,16 +165,16 @@ export const SupervisionRequestForm = ({ isOpen, onClose, onCreated }: Supervisi
             </div>
           )}
 
-          {/* Preferred Date/Time (optional) */}
+          {/* Preferred Date/Time */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium text-foreground mb-1 block">Preferred Date</label>
-              <Input type="date" value={preferredDate} onChange={e => setPreferredDate(e.target.value)}
+              <label className="text-sm font-medium text-foreground mb-1 block">Preferred Date *</label>
+              <Input type="date" required value={preferredDate} onChange={e => setPreferredDate(e.target.value)}
                 min={new Date().toISOString().split('T')[0]} />
             </div>
             <div>
-              <label className="text-sm font-medium text-foreground mb-1 block">Preferred Time</label>
-              <Input type="time" value={preferredTime} onChange={e => setPreferredTime(e.target.value)} />
+              <label className="text-sm font-medium text-foreground mb-1 block">Preferred Time *</label>
+              <Input type="time" required value={preferredTime} onChange={e => setPreferredTime(e.target.value)} />
             </div>
           </div>
 

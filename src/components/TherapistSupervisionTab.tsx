@@ -92,8 +92,19 @@ export function TherapistSupervisionTab() {
   }, [user]);
 
   const submitSupervisor = async () => {
-    if (!supForm.therapyExperienceYears || !supForm.audience || !supForm.focusBio || !supForm.individualPrice50) {
-      return toast({ title: "Fill all required fields", variant: "destructive" });
+    const required: { key: keyof typeof supForm; label: string }[] = [
+      { key: 'therapyExperienceYears', label: 'Therapy experience' },
+      { key: 'supervisionExperienceYears', label: 'Supervision experience' },
+      { key: 'audience', label: 'Audience' },
+      { key: 'focusBio', label: 'Focus / Bio' },
+      { key: 'approach', label: 'Approach' },
+      { key: 'openTo', label: 'Open to' },
+      { key: 'individualPrice50', label: 'Price (50 min)' },
+      { key: 'individualPrice90', label: 'Price (90 min)' },
+    ];
+    for (const f of required) {
+      const v = String((supForm as any)[f.key] ?? '').trim();
+      if (!v) return toast({ title: `${f.label} is required`, variant: "destructive" });
     }
     setSubmitting(true);
     try {
@@ -116,8 +127,17 @@ export function TherapistSupervisionTab() {
   };
 
   const submitSupervisee = async () => {
+    const required: { key: keyof typeof supeForm; label: string }[] = [
+      { key: 'experienceLevelHours', label: 'Experience hours' },
+      { key: 'currentCaseload', label: 'Current caseload' },
+      { key: 'goalsExpectations', label: 'Goals / Expectations' },
+      { key: 'modalities', label: 'Approaches / Modalities' },
+    ];
+    for (const f of required) {
+      const v = String((supeForm as any)[f.key] ?? '').trim();
+      if (!v) return toast({ title: `${f.label} is required`, variant: "destructive" });
+    }
     if (!supeForm.consentToGuidelines) return toast({ title: "Please consent to the guidelines", variant: "destructive" });
-    if (!supeForm.goalsExpectations.trim()) return toast({ title: "Goals/expectations are required", variant: "destructive" });
     setSubmitting(true);
     try {
       const r = await api.applyAsSupervisee({
@@ -135,8 +155,21 @@ export function TherapistSupervisionTab() {
   };
 
   const submitGroup = async () => {
-    if (!groupForm.title || !groupForm.pricePer4Sessions || !groupForm.groupSize) {
-      return toast({ title: "Required fields missing", variant: "destructive" });
+    const required: { key: keyof typeof groupForm; label: string }[] = [
+      { key: 'title', label: 'Title' },
+      { key: 'description', label: 'Description' },
+      { key: 'level', label: 'Level' },
+      { key: 'groupSize', label: 'Group size' },
+      { key: 'format', label: 'Format' },
+      { key: 'schedule', label: 'Schedule' },
+      { key: 'sessionStartAt', label: 'First session start' },
+      { key: 'totalSessions', label: 'Total sessions' },
+      { key: 'durationMinutes', label: 'Duration' },
+      { key: 'pricePer4Sessions', label: 'Price' },
+    ];
+    for (const f of required) {
+      const v = String((groupForm as any)[f.key] ?? '').trim();
+      if (!v) return toast({ title: `${f.label} is required`, variant: "destructive" });
     }
     setSubmitting(true);
     try {
@@ -321,27 +354,27 @@ export function TherapistSupervisionTab() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Therapy experience (years) *</Label>
-                <Input type="number" value={supForm.therapyExperienceYears} onChange={e => setSupForm(p => ({ ...p, therapyExperienceYears: e.target.value }))} />
+                <Input required type="number" value={supForm.therapyExperienceYears} onChange={e => setSupForm(p => ({ ...p, therapyExperienceYears: e.target.value }))} />
               </div>
               <div>
-                <Label>Supervision experience (years)</Label>
-                <Input type="number" value={supForm.supervisionExperienceYears} onChange={e => setSupForm(p => ({ ...p, supervisionExperienceYears: e.target.value }))} />
+                <Label>Supervision experience (years) *</Label>
+                <Input required type="number" value={supForm.supervisionExperienceYears} onChange={e => setSupForm(p => ({ ...p, supervisionExperienceYears: e.target.value }))} />
               </div>
             </div>
             <div>
               <Label>Who is it for? *</Label>
-              <Input placeholder="e.g. Students, Early-career therapists" value={supForm.audience} onChange={e => setSupForm(p => ({ ...p, audience: e.target.value }))} />
+              <Input required placeholder="e.g. Students, Early-career therapists" value={supForm.audience} onChange={e => setSupForm(p => ({ ...p, audience: e.target.value }))} />
             </div>
             <div>
               <Label>Focus / Bio *</Label>
-              <Textarea rows={3} placeholder="Case discussion, ethical practice, skill-building..." value={supForm.focusBio} onChange={e => setSupForm(p => ({ ...p, focusBio: e.target.value }))} />
+              <Textarea required rows={3} placeholder="Case discussion, ethical practice, skill-building..." value={supForm.focusBio} onChange={e => setSupForm(p => ({ ...p, focusBio: e.target.value }))} />
             </div>
             <div>
-              <Label>Approach</Label>
-              <Input placeholder="Person-centered, CBT, psychodynamic..." value={supForm.approach} onChange={e => setSupForm(p => ({ ...p, approach: e.target.value }))} />
+              <Label>Approach *</Label>
+              <Input required placeholder="Person-centered, CBT, psychodynamic..." value={supForm.approach} onChange={e => setSupForm(p => ({ ...p, approach: e.target.value }))} />
             </div>
             <div>
-              <Label>Open to</Label>
+              <Label>Open to *</Label>
               <Select value={supForm.openTo} onValueChange={(v) => setSupForm(p => ({ ...p, openTo: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -354,11 +387,11 @@ export function TherapistSupervisionTab() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Price (50 min) ₹ *</Label>
-                <Input type="number" value={supForm.individualPrice50} onChange={e => setSupForm(p => ({ ...p, individualPrice50: e.target.value }))} />
+                <Input required type="number" value={supForm.individualPrice50} onChange={e => setSupForm(p => ({ ...p, individualPrice50: e.target.value }))} />
               </div>
               <div>
-                <Label>Price (90 min) ₹</Label>
-                <Input type="number" value={supForm.individualPrice90} onChange={e => setSupForm(p => ({ ...p, individualPrice90: e.target.value }))} />
+                <Label>Price (90 min) ₹ *</Label>
+                <Input required type="number" value={supForm.individualPrice90} onChange={e => setSupForm(p => ({ ...p, individualPrice90: e.target.value }))} />
               </div>
             </div>
 
@@ -377,21 +410,21 @@ export function TherapistSupervisionTab() {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Experience (hours, including direct counseling during master's)</Label>
-                <Input type="number" value={supeForm.experienceLevelHours} onChange={e => setSupeForm(p => ({ ...p, experienceLevelHours: e.target.value }))} />
+                <Label>Experience (hours, including direct counseling during master's) *</Label>
+                <Input required type="number" value={supeForm.experienceLevelHours} onChange={e => setSupeForm(p => ({ ...p, experienceLevelHours: e.target.value }))} />
               </div>
               <div>
-                <Label>Current caseload</Label>
-                <Input type="number" value={supeForm.currentCaseload} onChange={e => setSupeForm(p => ({ ...p, currentCaseload: e.target.value }))} />
+                <Label>Current caseload *</Label>
+                <Input required type="number" value={supeForm.currentCaseload} onChange={e => setSupeForm(p => ({ ...p, currentCaseload: e.target.value }))} />
               </div>
             </div>
             <div>
               <Label>Goals / Expectations from supervision *</Label>
-              <Textarea rows={3} value={supeForm.goalsExpectations} onChange={e => setSupeForm(p => ({ ...p, goalsExpectations: e.target.value }))} />
+              <Textarea required rows={3} value={supeForm.goalsExpectations} onChange={e => setSupeForm(p => ({ ...p, goalsExpectations: e.target.value }))} />
             </div>
             <div>
-              <Label>What approaches / modalities influence your sessions?</Label>
-              <Textarea rows={2} placeholder="CBT, person-centered, narrative therapy..." value={supeForm.modalities} onChange={e => setSupeForm(p => ({ ...p, modalities: e.target.value }))} />
+              <Label>What approaches / modalities influence your sessions? *</Label>
+              <Textarea required rows={2} placeholder="CBT, person-centered, narrative therapy..." value={supeForm.modalities} onChange={e => setSupeForm(p => ({ ...p, modalities: e.target.value }))} />
             </div>
 
             <Card className="p-3 bg-muted/30 text-xs whitespace-pre-wrap">{TC_TEXT}</Card>
@@ -415,48 +448,48 @@ export function TherapistSupervisionTab() {
           <div className="space-y-3">
             <div>
               <Label>Title *</Label>
-              <Input value={groupForm.title} onChange={e => setGroupForm(p => ({ ...p, title: e.target.value }))} />
+              <Input required value={groupForm.title} onChange={e => setGroupForm(p => ({ ...p, title: e.target.value }))} />
             </div>
             <div>
-              <Label>About this group</Label>
-              <Textarea rows={2} value={groupForm.description} onChange={e => setGroupForm(p => ({ ...p, description: e.target.value }))} />
+              <Label>About this group *</Label>
+              <Textarea required rows={2} value={groupForm.description} onChange={e => setGroupForm(p => ({ ...p, description: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Level</Label>
-                <Input placeholder="Beginners 0-2 yrs" value={groupForm.level} onChange={e => setGroupForm(p => ({ ...p, level: e.target.value }))} />
+                <Label>Level *</Label>
+                <Input required placeholder="Beginners 0-2 yrs" value={groupForm.level} onChange={e => setGroupForm(p => ({ ...p, level: e.target.value }))} />
               </div>
               <div>
                 <Label>Group size *</Label>
-                <Input type="number" value={groupForm.groupSize} onChange={e => setGroupForm(p => ({ ...p, groupSize: e.target.value }))} />
+                <Input required type="number" value={groupForm.groupSize} onChange={e => setGroupForm(p => ({ ...p, groupSize: e.target.value }))} />
               </div>
             </div>
             <div>
-              <Label>Format</Label>
-              <Input placeholder="One case discussion, one theme discussion..." value={groupForm.format} onChange={e => setGroupForm(p => ({ ...p, format: e.target.value }))} />
+              <Label>Format *</Label>
+              <Input required placeholder="One case discussion, one theme discussion..." value={groupForm.format} onChange={e => setGroupForm(p => ({ ...p, format: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Schedule (e.g. Mon 7-9 PM)</Label>
-                <Input value={groupForm.schedule} onChange={e => setGroupForm(p => ({ ...p, schedule: e.target.value }))} />
+                <Label>Schedule (e.g. Mon 7-9 PM) *</Label>
+                <Input required value={groupForm.schedule} onChange={e => setGroupForm(p => ({ ...p, schedule: e.target.value }))} />
               </div>
               <div>
-                <Label>First session start</Label>
-                <Input type="datetime-local" value={groupForm.sessionStartAt} onChange={e => setGroupForm(p => ({ ...p, sessionStartAt: e.target.value }))} />
+                <Label>First session start *</Label>
+                <Input required type="datetime-local" value={groupForm.sessionStartAt} onChange={e => setGroupForm(p => ({ ...p, sessionStartAt: e.target.value }))} />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <Label>Total sessions</Label>
-                <Input type="number" value={groupForm.totalSessions} onChange={e => setGroupForm(p => ({ ...p, totalSessions: e.target.value }))} />
+                <Label>Total sessions *</Label>
+                <Input required type="number" value={groupForm.totalSessions} onChange={e => setGroupForm(p => ({ ...p, totalSessions: e.target.value }))} />
               </div>
               <div>
-                <Label>Duration (min)</Label>
-                <Input type="number" value={groupForm.durationMinutes} onChange={e => setGroupForm(p => ({ ...p, durationMinutes: e.target.value }))} />
+                <Label>Duration (min) *</Label>
+                <Input required type="number" value={groupForm.durationMinutes} onChange={e => setGroupForm(p => ({ ...p, durationMinutes: e.target.value }))} />
               </div>
               <div>
                 <Label>Price (lockstep) ₹ *</Label>
-                <Input type="number" value={groupForm.pricePer4Sessions} onChange={e => setGroupForm(p => ({ ...p, pricePer4Sessions: e.target.value }))} />
+                <Input required type="number" value={groupForm.pricePer4Sessions} onChange={e => setGroupForm(p => ({ ...p, pricePer4Sessions: e.target.value }))} />
               </div>
             </div>
             <div className="flex gap-2 pt-2">

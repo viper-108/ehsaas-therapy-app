@@ -119,8 +119,49 @@ export function CouplesProfileTab() {
   const updateChild = (i: number, key: string, v: string) => setForm(p => ({ ...p, children: p.children.map((c, idx) => idx === i ? { ...c, [key]: v } : c) }));
 
   const handleSubmit = async () => {
-    if (!form.partnerName || !form.partnerEmail) {
-      return toast({ title: "Partner name & email required", variant: "destructive" });
+    // Every visible field must have a value. Free-text fields that "may not
+    // apply" (medications, diagnoses, substances) accept an explicit "None"
+    // — we just need them to actively answer rather than skip.
+    const required: { key: string; label: string }[] = [
+      { key: 'partnerName',                     label: 'Partner Name' },
+      { key: 'partnerEmail',                    label: 'Partner Email' },
+      { key: 'phone',                           label: 'Phone' },
+      { key: 'languagePreference',              label: 'Language preference' },
+      { key: 'dateOfBirth',                     label: 'Date of birth' },
+      { key: 'age',                             label: 'Age' },
+      { key: 'assignedSex',                     label: 'Assigned sex' },
+      { key: 'pronouns',                        label: 'Pronouns' },
+      { key: 'occupation',                      label: 'Occupation' },
+      { key: 'highestEducation',                label: 'Highest education' },
+      { key: 'medicationsRegular',              label: 'Medications you take regularly (write "None" if not applicable)' },
+      { key: 'teaCoffeeFrequency',              label: 'Tea/coffee frequency' },
+      { key: 'relationshipStatus',              label: 'Relationship status' },
+      { key: 'relationshipDuration',            label: 'Duration of relationship' },
+      { key: 'livingSituation',                 label: 'Living situation' },
+      { key: 'primaryConcerns',                 label: 'Primary concerns' },
+      { key: 'expectationsFutureRelationship',  label: 'Expectations for the future' },
+      { key: 'expectationsTherapyGoals',        label: 'Expectations / goals from therapy' },
+      { key: 'selfDiagnoses',                   label: 'Your diagnoses (write "None" if not applicable)' },
+      { key: 'partnerDiagnoses',                label: "Partner's diagnoses (write \"None\" if not applicable)" },
+      { key: 'selfHandlesConflict',             label: 'How you handle conflict' },
+      { key: 'partnerHandlesConflict',          label: 'How partner handles conflict' },
+      { key: 'admireInPartner',                 label: 'What you admire in your partner' },
+      { key: 'partnerAdmiresInMe',              label: 'What partner admires in you' },
+      { key: 'funTogether',                     label: 'What you do for fun together' },
+      { key: 'heardAboutEhsaasFrom',            label: 'Where did you hear about us' },
+    ];
+    for (const f of required) {
+      const v = String((form as any)[f.key] ?? '').trim();
+      if (!v) return toast({ title: `${f.label} is required`, variant: "destructive" });
+    }
+    // Numeric ratings
+    const eRating = Number(form.emotionalIntimacyRating);
+    if (!Number.isFinite(eRating) || eRating < 1 || eRating > 10) {
+      return toast({ title: "Emotional intimacy rating (1-10) is required", variant: "destructive" });
+    }
+    const pRating = Number(form.physicalIntimacyRating);
+    if (!Number.isFinite(pRating) || pRating < 1 || pRating > 10) {
+      return toast({ title: "Physical/sexual intimacy rating (1-10) is required", variant: "destructive" });
     }
     setSubmitting(true);
     try {
@@ -150,7 +191,7 @@ export function CouplesProfileTab() {
           {isApproved && <Badge className="bg-success/10 text-success ml-auto"><CheckCircle className="w-3 h-3 mr-1" />Approved</Badge>}
         </div>
         <p className="text-xs text-muted-foreground mb-5">
-          Tell us about you and your relationship. Both partners need to complete this. Sections can be expanded as you go.
+          Tell us about you and your relationship. <strong>All fields marked * are required.</strong> Both partners need to complete this. Expand each section to fill it in.
         </p>
 
         <div className="space-y-3">
@@ -171,12 +212,12 @@ export function CouplesProfileTab() {
             </div>
             <div className="grid md:grid-cols-2 gap-3">
               <div>
-                <Label>Phone (preferably WhatsApp)</Label>
-                <Input value={form.phone} onChange={e => set('phone', e.target.value)} />
+                <Label>Phone (preferably WhatsApp) *</Label>
+                <Input required value={form.phone} onChange={e => set('phone', e.target.value)} />
               </div>
               <div>
-                <Label>Language preference</Label>
-                <Input placeholder="English / Hindi / ..." value={form.languagePreference} onChange={e => set('languagePreference', e.target.value)} />
+                <Label>Language preference *</Label>
+                <Input required placeholder="English / Hindi / ..." value={form.languagePreference} onChange={e => set('languagePreference', e.target.value)} />
               </div>
             </div>
           </Section>
@@ -184,15 +225,15 @@ export function CouplesProfileTab() {
           <Section title="2. Personal demographics">
             <div className="grid md:grid-cols-2 gap-3">
               <div>
-                <Label>Date of birth</Label>
-                <Input type="date" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} />
+                <Label>Date of birth *</Label>
+                <Input required type="date" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} />
               </div>
               <div>
-                <Label>Age</Label>
-                <Input type="number" value={form.age} onChange={e => set('age', e.target.value)} />
+                <Label>Age *</Label>
+                <Input required type="number" value={form.age} onChange={e => set('age', e.target.value)} />
               </div>
               <div>
-                <Label>Assigned sex</Label>
+                <Label>Assigned sex *</Label>
                 <Select value={form.assignedSex} onValueChange={(v) => set('assignedSex', v)}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
@@ -204,27 +245,28 @@ export function CouplesProfileTab() {
                 </Select>
               </div>
               <div>
-                <Label>Pronouns</Label>
-                <Input placeholder="she/her, he/him, they/them, ..." value={form.pronouns} onChange={e => set('pronouns', e.target.value)} />
+                <Label>Pronouns *</Label>
+                <Input required placeholder="she/her, he/him, they/them, ..." value={form.pronouns} onChange={e => set('pronouns', e.target.value)} />
               </div>
               <div>
-                <Label>Occupation</Label>
-                <Input value={form.occupation} onChange={e => set('occupation', e.target.value)} />
+                <Label>Occupation *</Label>
+                <Input required value={form.occupation} onChange={e => set('occupation', e.target.value)} />
               </div>
               <div>
-                <Label>Highest education</Label>
-                <Input value={form.highestEducation} onChange={e => set('highestEducation', e.target.value)} />
+                <Label>Highest education *</Label>
+                <Input required value={form.highestEducation} onChange={e => set('highestEducation', e.target.value)} />
               </div>
             </div>
           </Section>
 
           <Section title="3. Health & lifestyle">
             <div>
-              <Label>Medications you take regularly</Label>
-              <Textarea rows={2} placeholder="(If any)" value={form.medicationsRegular} onChange={e => set('medicationsRegular', e.target.value)} />
+              <Label>Medications you take regularly *</Label>
+              <Textarea required rows={2} placeholder='Write "None" if not applicable' value={form.medicationsRegular} onChange={e => set('medicationsRegular', e.target.value)} />
             </div>
             <div>
               <Label>Substances you use</Label>
+              <p className="text-xs text-muted-foreground mb-1">Tick all that apply (none-of-the-above is fine).</p>
               <div className="flex flex-wrap gap-2 mt-2">
                 {SUBSTANCE_OPTIONS.map(s => (
                   <label key={s} className="flex items-center gap-2 px-3 py-1.5 border rounded text-sm cursor-pointer hover:bg-muted/40">
@@ -235,15 +277,15 @@ export function CouplesProfileTab() {
               </div>
             </div>
             <div>
-              <Label>How often do you have tea/coffee?</Label>
-              <Input placeholder="e.g. 2 cups/day" value={form.teaCoffeeFrequency} onChange={e => set('teaCoffeeFrequency', e.target.value)} />
+              <Label>How often do you have tea/coffee? *</Label>
+              <Input required placeholder="e.g. 2 cups/day" value={form.teaCoffeeFrequency} onChange={e => set('teaCoffeeFrequency', e.target.value)} />
             </div>
           </Section>
 
           <Section title="4. Relationship details">
             <div className="grid md:grid-cols-2 gap-3">
               <div>
-                <Label>Relationship status</Label>
+                <Label>Relationship status *</Label>
                 <Select value={form.relationshipStatus} onValueChange={(v) => set('relationshipStatus', v)}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
@@ -258,13 +300,13 @@ export function CouplesProfileTab() {
                 </Select>
               </div>
               <div>
-                <Label>Duration of relationship</Label>
-                <Input placeholder="e.g. 5 years" value={form.relationshipDuration} onChange={e => set('relationshipDuration', e.target.value)} />
+                <Label>Duration of relationship *</Label>
+                <Input required placeholder="e.g. 5 years" value={form.relationshipDuration} onChange={e => set('relationshipDuration', e.target.value)} />
               </div>
             </div>
             <div>
-              <Label>Living situation</Label>
-              <Input placeholder="e.g. Living together, long-distance..." value={form.livingSituation} onChange={e => set('livingSituation', e.target.value)} />
+              <Label>Living situation *</Label>
+              <Input required placeholder="e.g. Living together, long-distance..." value={form.livingSituation} onChange={e => set('livingSituation', e.target.value)} />
             </div>
             <div>
               <Label>Children</Label>
@@ -289,70 +331,70 @@ export function CouplesProfileTab() {
 
           <Section title="5. Concerns & expectations">
             <div>
-              <Label>Primary concerns about the relationship</Label>
-              <Textarea rows={3} value={form.primaryConcerns} onChange={e => set('primaryConcerns', e.target.value)} />
+              <Label>Primary concerns about the relationship *</Label>
+              <Textarea required rows={3} value={form.primaryConcerns} onChange={e => set('primaryConcerns', e.target.value)} />
             </div>
             <div>
-              <Label>Expectations for the future of your relationship</Label>
-              <Textarea rows={2} value={form.expectationsFutureRelationship} onChange={e => set('expectationsFutureRelationship', e.target.value)} />
+              <Label>Expectations for the future of your relationship *</Label>
+              <Textarea required rows={2} value={form.expectationsFutureRelationship} onChange={e => set('expectationsFutureRelationship', e.target.value)} />
             </div>
             <div>
-              <Label>Expectations / goals from therapy</Label>
-              <Textarea rows={2} value={form.expectationsTherapyGoals} onChange={e => set('expectationsTherapyGoals', e.target.value)} />
+              <Label>Expectations / goals from therapy *</Label>
+              <Textarea required rows={2} value={form.expectationsTherapyGoals} onChange={e => set('expectationsTherapyGoals', e.target.value)} />
             </div>
           </Section>
 
           <Section title="6. Health diagnoses (relevant for sessions)">
             <div>
-              <Label>Any past or present medical / mental-health diagnoses YOU have</Label>
-              <Textarea rows={2} value={form.selfDiagnoses} onChange={e => set('selfDiagnoses', e.target.value)} />
+              <Label>Any past or present medical / mental-health diagnoses YOU have *</Label>
+              <Textarea required rows={2} placeholder='Write "None" if not applicable' value={form.selfDiagnoses} onChange={e => set('selfDiagnoses', e.target.value)} />
             </div>
             <div>
-              <Label>Any diagnoses you believe your PARTNER has (relevant for sessions)</Label>
-              <Textarea rows={2} value={form.partnerDiagnoses} onChange={e => set('partnerDiagnoses', e.target.value)} />
+              <Label>Any diagnoses you believe your PARTNER has (relevant for sessions) *</Label>
+              <Textarea required rows={2} placeholder='Write "None" if not applicable' value={form.partnerDiagnoses} onChange={e => set('partnerDiagnoses', e.target.value)} />
             </div>
           </Section>
 
           <Section title="7. Intimacy & conflict">
             <div className="grid md:grid-cols-2 gap-3">
               <div>
-                <Label>Emotional intimacy (1-10)</Label>
-                <Input type="number" min={1} max={10} value={form.emotionalIntimacyRating} onChange={e => set('emotionalIntimacyRating', e.target.value)} />
+                <Label>Emotional intimacy (1-10) *</Label>
+                <Input required type="number" min={1} max={10} value={form.emotionalIntimacyRating} onChange={e => set('emotionalIntimacyRating', e.target.value)} />
               </div>
               <div>
-                <Label>Physical/sexual intimacy (1-10)</Label>
-                <Input type="number" min={1} max={10} value={form.physicalIntimacyRating} onChange={e => set('physicalIntimacyRating', e.target.value)} />
+                <Label>Physical/sexual intimacy (1-10) *</Label>
+                <Input required type="number" min={1} max={10} value={form.physicalIntimacyRating} onChange={e => set('physicalIntimacyRating', e.target.value)} />
               </div>
             </div>
             <div>
-              <Label>How do YOU handle conflicts in the relationship?</Label>
-              <Textarea rows={3} value={form.selfHandlesConflict} onChange={e => set('selfHandlesConflict', e.target.value)} />
+              <Label>How do YOU handle conflicts in the relationship? *</Label>
+              <Textarea required rows={3} value={form.selfHandlesConflict} onChange={e => set('selfHandlesConflict', e.target.value)} />
             </div>
             <div>
-              <Label>How does your PARTNER handle conflicts (in your view)?</Label>
-              <Textarea rows={3} value={form.partnerHandlesConflict} onChange={e => set('partnerHandlesConflict', e.target.value)} />
+              <Label>How does your PARTNER handle conflicts (in your view)? *</Label>
+              <Textarea required rows={3} value={form.partnerHandlesConflict} onChange={e => set('partnerHandlesConflict', e.target.value)} />
             </div>
           </Section>
 
           <Section title="8. Connection">
             <div>
-              <Label>What do you admire most in your partner?</Label>
-              <Textarea rows={2} value={form.admireInPartner} onChange={e => set('admireInPartner', e.target.value)} />
+              <Label>What do you admire most in your partner? *</Label>
+              <Textarea required rows={2} value={form.admireInPartner} onChange={e => set('admireInPartner', e.target.value)} />
             </div>
             <div>
-              <Label>What do you think your partner admires most in you?</Label>
-              <Textarea rows={2} value={form.partnerAdmiresInMe} onChange={e => set('partnerAdmiresInMe', e.target.value)} />
+              <Label>What do you think your partner admires most in you? *</Label>
+              <Textarea required rows={2} value={form.partnerAdmiresInMe} onChange={e => set('partnerAdmiresInMe', e.target.value)} />
             </div>
             <div>
-              <Label>What do you do for fun together?</Label>
-              <Textarea rows={2} value={form.funTogether} onChange={e => set('funTogether', e.target.value)} />
+              <Label>What do you do for fun together? *</Label>
+              <Textarea required rows={2} value={form.funTogether} onChange={e => set('funTogether', e.target.value)} />
             </div>
           </Section>
 
           <Section title="9. Source">
             <div>
-              <Label>Where did you hear about us?</Label>
-              <Input value={form.heardAboutEhsaasFrom} onChange={e => set('heardAboutEhsaasFrom', e.target.value)} />
+              <Label>Where did you hear about us? *</Label>
+              <Input required value={form.heardAboutEhsaasFrom} onChange={e => set('heardAboutEhsaasFrom', e.target.value)} />
             </div>
           </Section>
         </div>
