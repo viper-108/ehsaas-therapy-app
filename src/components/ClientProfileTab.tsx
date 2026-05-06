@@ -56,21 +56,40 @@ export function ClientProfileTab() {
   };
 
   const handleSave = async () => {
+    // All fields are mandatory — toast the first missing one.
+    const required: { key: keyof typeof form; label: string }[] = [
+      { key: 'name',                   label: 'Full Name' },
+      { key: 'phone',                  label: 'Phone' },
+      { key: 'therapyType',            label: 'Therapy type' },
+      { key: 'preferredLanguage',      label: 'Preferred language' },
+      { key: 'description',            label: 'Tell us more' },
+      { key: 'emergencyName',          label: 'Emergency contact name' },
+      { key: 'emergencyPhone',         label: 'Emergency contact phone' },
+      { key: 'emergencyRelationship',  label: 'Emergency contact relationship' },
+    ];
+    for (const f of required) {
+      const v = String((form as any)[f.key] ?? '').trim();
+      if (!v) return toast({ title: `${f.label} is required`, variant: "destructive" });
+    }
+    if (!Array.isArray(form.concerns) || form.concerns.length === 0) {
+      return toast({ title: "Pick at least one area of concern", variant: "destructive" });
+    }
+
     setSaving(true);
     try {
       const res = await api.updateClientProfile({
-        name: form.name,
-        phone: form.phone,
+        name: form.name.trim(),
+        phone: form.phone.trim(),
         therapyPreferences: {
           type: form.therapyType,
           concerns: form.concerns,
-          preferredLanguage: form.preferredLanguage,
-          description: form.description,
+          preferredLanguage: form.preferredLanguage.trim(),
+          description: form.description.trim(),
         },
         emergencyContact: {
-          name: form.emergencyName,
-          phone: form.emergencyPhone,
-          relationship: form.emergencyRelationship,
+          name: form.emergencyName.trim(),
+          phone: form.emergencyPhone.trim(),
+          relationship: form.emergencyRelationship.trim(),
         }
       });
       if (res?.user) updateUser(res.user);
@@ -86,14 +105,15 @@ export function ClientProfileTab() {
     <Card className="p-6 space-y-6">
       <div>
         <h3 className="text-xl font-bold mb-1 flex items-center gap-2"><User className="w-5 h-5 text-primary" /> Personal Info</h3>
+        <p className="text-xs text-muted-foreground mb-3">All fields marked * are required.</p>
         <div className="grid md:grid-cols-2 gap-4 mt-3">
           <div>
-            <Label>Full Name</Label>
-            <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+            <Label>Full Name <span className="text-destructive">*</span></Label>
+            <Input required value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
           </div>
           <div>
-            <Label>Phone</Label>
-            <Input type="tel" placeholder="+91-XXXXXXXXXX" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+            <Label>Phone <span className="text-destructive">*</span></Label>
+            <Input required type="tel" placeholder="+91-XXXXXXXXXX" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
           </div>
         </div>
       </div>
@@ -102,11 +122,16 @@ export function ClientProfileTab() {
         <h3 className="text-xl font-bold mb-1 flex items-center gap-2"><Heart className="w-5 h-5 text-primary" /> Therapy Preferences</h3>
         <div className="space-y-3 mt-3">
           <div>
-            <Label>Preferred Language</Label>
-            <Input value={form.preferredLanguage} onChange={e => setForm(p => ({ ...p, preferredLanguage: e.target.value }))} />
+            <Label>Preferred Language <span className="text-destructive">*</span></Label>
+            <Input required value={form.preferredLanguage} onChange={e => setForm(p => ({ ...p, preferredLanguage: e.target.value }))} />
           </div>
           <div>
-            <Label>Areas of concern</Label>
+            <Label>Therapy Type <span className="text-destructive">*</span></Label>
+            <Input required placeholder="e.g. Individual, Couple, Family" value={form.therapyType} onChange={e => setForm(p => ({ ...p, therapyType: e.target.value }))} />
+          </div>
+          <div>
+            <Label>Areas of concern <span className="text-destructive">*</span></Label>
+            <p className="text-xs text-muted-foreground">Pick at least one.</p>
             <div className="flex flex-wrap gap-2 mt-2">
               {THERAPY_TYPES.map(type => (
                 <Badge
@@ -121,8 +146,8 @@ export function ClientProfileTab() {
             </div>
           </div>
           <div>
-            <Label>Tell us more (optional)</Label>
-            <Textarea rows={3} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+            <Label>Tell us more <span className="text-destructive">*</span></Label>
+            <Textarea required rows={3} placeholder="A short note about what you're hoping to work on" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
           </div>
         </div>
       </div>
@@ -137,16 +162,16 @@ export function ClientProfileTab() {
         </div>
         <div className="grid md:grid-cols-3 gap-4">
           <div>
-            <Label>Contact Name</Label>
-            <Input placeholder="Full name" value={form.emergencyName} onChange={e => setForm(p => ({ ...p, emergencyName: e.target.value }))} />
+            <Label>Contact Name <span className="text-destructive">*</span></Label>
+            <Input required placeholder="Full name" value={form.emergencyName} onChange={e => setForm(p => ({ ...p, emergencyName: e.target.value }))} />
           </div>
           <div>
-            <Label>Phone Number</Label>
-            <Input type="tel" placeholder="+91-XXXXXXXXXX" value={form.emergencyPhone} onChange={e => setForm(p => ({ ...p, emergencyPhone: e.target.value }))} />
+            <Label>Phone Number <span className="text-destructive">*</span></Label>
+            <Input required type="tel" placeholder="+91-XXXXXXXXXX" value={form.emergencyPhone} onChange={e => setForm(p => ({ ...p, emergencyPhone: e.target.value }))} />
           </div>
           <div>
-            <Label>Relationship</Label>
-            <Input placeholder="e.g. Spouse, Parent, Sibling" value={form.emergencyRelationship} onChange={e => setForm(p => ({ ...p, emergencyRelationship: e.target.value }))} />
+            <Label>Relationship <span className="text-destructive">*</span></Label>
+            <Input required placeholder="e.g. Spouse, Parent, Sibling" value={form.emergencyRelationship} onChange={e => setForm(p => ({ ...p, emergencyRelationship: e.target.value }))} />
           </div>
         </div>
       </div>

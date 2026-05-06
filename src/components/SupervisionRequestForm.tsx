@@ -119,6 +119,7 @@ export const SupervisionRequestForm = ({ isOpen, onClose, onCreated }: Supervisi
           <div>
             <label className="text-sm font-medium text-foreground mb-1 block">Topic *</label>
             <Textarea
+              required
               placeholder="What would you like to discuss in supervision?"
               rows={3}
               value={topic}

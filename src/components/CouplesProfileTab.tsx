@@ -199,11 +199,11 @@ export function CouplesProfileTab() {
             <div className="grid md:grid-cols-2 gap-3">
               <div>
                 <Label>Partner Name *</Label>
-                <Input value={form.partnerName} onChange={e => set('partnerName', e.target.value)} />
+                <Input required value={form.partnerName} onChange={e => set('partnerName', e.target.value)} />
               </div>
               <div>
                 <Label>Partner Email *</Label>
-                <Input type="email" value={form.partnerEmail} onChange={e => set('partnerEmail', e.target.value)} />
+                <Input required type="email" value={form.partnerEmail} onChange={e => set('partnerEmail', e.target.value)} />
               </div>
             </div>
             <div>

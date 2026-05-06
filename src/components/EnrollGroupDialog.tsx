@@ -89,11 +89,11 @@ export function EnrollGroupDialog({ group, isOpen, onClose, onEnrolled }: Props)
           <div className="space-y-3 mt-3">
             <div>
               <Label>Your age *</Label>
-              <Input type="number" value={form.age} onChange={e => set('age', e.target.value)} />
+              <Input required type="number" value={form.age} onChange={e => set('age', e.target.value)} />
             </div>
             <div>
               <Label>What are you expecting from this group? *</Label>
-              <Textarea rows={3} value={form.expectations} onChange={e => set('expectations', e.target.value)} />
+              <Textarea required rows={3} value={form.expectations} onChange={e => set('expectations', e.target.value)} />
             </div>
             <div>
               <Label>Have you attended group therapy before? How was your experience? *</Label>

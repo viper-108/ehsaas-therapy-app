@@ -61,7 +61,7 @@ export const IntroCallForm = ({ therapistId, therapistName, isOpen, onClose }: I
             <label className="text-sm font-medium text-foreground mb-1 block">Full Name *</label>
             <div className="relative">
               <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Your name" className="pl-10"
+              <Input required placeholder="Your name" className="pl-10"
                 value={form.clientName} onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))} />
             </div>
           </div>
@@ -70,7 +70,7 @@ export const IntroCallForm = ({ therapistId, therapistName, isOpen, onClose }: I
             <label className="text-sm font-medium text-foreground mb-1 block">Phone Number *</label>
             <div className="relative">
               <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input type="tel" placeholder="+91-XXXXXXXXXX" className="pl-10"
+              <Input required type="tel" placeholder="+91-XXXXXXXXXX" className="pl-10"
                 value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
             </div>
           </div>
@@ -79,21 +79,21 @@ export const IntroCallForm = ({ therapistId, therapistName, isOpen, onClose }: I
             <label className="text-sm font-medium text-foreground mb-1 block">Email *</label>
             <div className="relative">
               <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input type="email" placeholder="your@email.com" className="pl-10"
+              <Input required type="email" placeholder="your@email.com" className="pl-10"
                 value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
             </div>
           </div>
 
           <div>
             <label className="text-sm font-medium text-foreground mb-1 block">Reason for Therapy *</label>
-            <Textarea placeholder="What brings you to therapy? What are you currently experiencing?"
+            <Textarea required placeholder="What brings you to therapy? What are you currently experiencing?"
               rows={3} value={form.reasonForTherapy}
               onChange={e => setForm(p => ({ ...p, reasonForTherapy: e.target.value }))} />
           </div>
 
           <div>
             <label className="text-sm font-medium text-foreground mb-1 block">What are you looking for from therapy? *</label>
-            <Textarea placeholder="What outcomes or support are you hoping for?"
+            <Textarea required placeholder="What outcomes or support are you hoping for?"
               rows={3} value={form.whatLookingFor}
               onChange={e => setForm(p => ({ ...p, whatLookingFor: e.target.value }))} />
           </div>
@@ -102,7 +102,7 @@ export const IntroCallForm = ({ therapistId, therapistName, isOpen, onClose }: I
             <label className="text-sm font-medium text-foreground mb-1 block">Preferred Date & Time *</label>
             <div className="relative">
               <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input type="datetime-local" className="pl-10"
+              <Input required type="datetime-local" className="pl-10"
                 min={new Date().toISOString().slice(0, 16)}
                 value={form.preferredDateTime}
                 onChange={e => setForm(p => ({ ...p, preferredDateTime: e.target.value }))} />

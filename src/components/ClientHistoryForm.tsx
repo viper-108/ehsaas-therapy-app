@@ -113,50 +113,50 @@ export const ClientHistoryForm = ({ clientId, clientName, isOpen, onClose, onSav
 
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">Date of First Session *</label>
-              <Input type="date" value={form.dateOfFirstSession} onChange={e => set('dateOfFirstSession', e.target.value)} />
+              <Input required type="date" value={form.dateOfFirstSession} onChange={e => set('dateOfFirstSession', e.target.value)} />
             </div>
 
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">Socio-Demographics *</label>
-              <Textarea placeholder="Age, gender, occupation, marital status, location, etc."
+              <Textarea required placeholder="Age, gender, occupation, marital status, location, etc."
                 rows={2} value={form.socioDemographics} onChange={e => set('socioDemographics', e.target.value)} />
             </div>
 
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">Presenting Concerns *</label>
-              <Textarea placeholder="What issues brought the client to therapy?"
+              <Textarea required placeholder="What issues brought the client to therapy?"
                 rows={3} value={form.presentingConcerns} onChange={e => set('presentingConcerns', e.target.value)} />
             </div>
 
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">History of Presenting Concerns *</label>
-              <Textarea placeholder="When did these concerns begin? How have they evolved?"
+              <Textarea required placeholder="When did these concerns begin? How have they evolved?"
                 rows={3} value={form.historyOfPresentingConcerns} onChange={e => set('historyOfPresentingConcerns', e.target.value)} />
             </div>
 
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">Family History of Mental Health Issues *</label>
-              <Textarea placeholder="Any family history of mental health conditions, treatments, or hospitalizations?"
+              <Textarea required placeholder="Any family history of mental health conditions, treatments, or hospitalizations?"
                 rows={3} value={form.familyHistoryMentalHealth} onChange={e => set('familyHistoryMentalHealth', e.target.value)} />
             </div>
 
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">Personal History *</label>
               <p className="text-xs text-muted-foreground mb-1">Developmental milestones, education, relationships, childhood, medical history, sexual history, marital history, substance use</p>
-              <Textarea placeholder="Detailed personal history covering all relevant areas..."
+              <Textarea required placeholder="Detailed personal history covering all relevant areas..."
                 rows={4} value={form.personalHistory} onChange={e => set('personalHistory', e.target.value)} />
             </div>
 
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">Premorbid Personality *</label>
               <p className="text-xs text-muted-foreground mb-1">Social relations, intellectual activities, mood, attitude, energy and initiative, habits</p>
-              <Textarea placeholder="Describe the client's personality before the onset of concerns..."
+              <Textarea required placeholder="Describe the client's personality before the onset of concerns..."
                 rows={3} value={form.premorbidPersonality} onChange={e => set('premorbidPersonality', e.target.value)} />
             </div>
 
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">Client's Engagement and Motivation for Therapy *</label>
-              <Textarea placeholder="How engaged is the client? What is their motivation for seeking help?"
+              <Textarea required placeholder="How engaged is the client? What is their motivation for seeking help?"
                 rows={2} value={form.clientEngagementMotivation} onChange={e => set('clientEngagementMotivation', e.target.value)} />
             </div>
 
