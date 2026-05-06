@@ -141,10 +141,20 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
       } finally {
         setBooking(false);
       }
+    } else if (!isLoggedInClient) {
+      // Not logged in as a client — direct user to log in instead of faking success
+      toast({
+        title: "Please log in as a client",
+        description: "You need to be logged in as a client to book a session.",
+        variant: "destructive",
+      });
     } else {
-      // Fallback: original behavior (no backend, just show success popup)
-      const amount = psychologist.pricing[selectedDuration];
-      onBookingConfirm(selectedDuration, amount);
+      // Logged in but couldn't resolve mongo therapist (legacy static data)
+      toast({
+        title: "Booking unavailable",
+        description: "Sorry, this therapist isn't available for direct booking right now. Please contact admin.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -336,15 +346,6 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
             </div>
           )}
 
-          {/* Not logged in notice */}
-          {!isLoggedInClient && (
-            <Card className="p-3 bg-primary/5 border-primary/20">
-              <p className="text-xs text-primary text-center">
-                💡 Log in as a client to book directly with date & time selection.
-                Or proceed to schedule via Calendly after payment.
-              </p>
-            </Card>
-          )}
 
           {/* Summary */}
           <Card className="p-4 bg-muted/30">
@@ -380,14 +381,6 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
               <div className="flex justify-between items-center mb-3">
                 <span className="text-sm text-muted-foreground">Amount:</span>
                 <span className="text-lg font-bold text-primary">₹{psychologist.pricing[selectedDuration]}</span>
-              </div>
-            )}
-            {!isLoggedInClient && (
-              <div className="border-t pt-2">
-                <p className="text-xs text-muted-foreground">
-                  <Calendar className="w-3 h-3 inline mr-1" />
-                  You can schedule the session after payment via Calendly
-                </p>
               </div>
             )}
           </Card>

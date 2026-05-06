@@ -52,6 +52,30 @@ export function TherapistProfileTab() {
   }, [user]);
 
   const handleSave = async () => {
+    // Validate ALL fields are filled
+    const required: { key: keyof typeof form; label: string }[] = [
+      { key: 'name', label: 'Name' },
+      { key: 'title', label: 'Title' },
+      { key: 'phone', label: 'Phone' },
+      { key: 'experience', label: 'Experience' },
+      { key: 'bio', label: 'Bio' },
+      { key: 'specializations', label: 'Specializations' },
+      { key: 'languages', label: 'Languages' },
+      { key: 'educationBackground', label: 'Education background' },
+      { key: 'highestEducation', label: 'Highest education' },
+    ];
+    for (const f of required) {
+      const v = String(form[f.key] ?? '').trim();
+      if (!v) return toast({ title: `${f.label} is required`, variant: "destructive" });
+    }
+    if (isNaN(Number(form.experience)) || Number(form.experience) < 0) {
+      return toast({ title: "Experience must be a valid number", variant: "destructive" });
+    }
+    const specs = form.specializations.split(',').map(s => s.trim()).filter(Boolean);
+    if (specs.length === 0) return toast({ title: "Add at least one specialization", variant: "destructive" });
+    const langs = form.languages.split(',').map(s => s.trim()).filter(Boolean);
+    if (langs.length === 0) return toast({ title: "Add at least one language", variant: "destructive" });
+
     setSaving(true);
     try {
       const data = await api.updateTherapistProfile({
@@ -60,8 +84,8 @@ export function TherapistProfileTab() {
         phone: form.phone.trim(),
         experience: Number(form.experience) || 0,
         bio: form.bio.trim(),
-        specializations: form.specializations.split(',').map(s => s.trim()).filter(Boolean),
-        languages: form.languages.split(',').map(s => s.trim()).filter(Boolean),
+        specializations: specs,
+        languages: langs,
         educationBackground: form.educationBackground.trim(),
         highestEducation: form.highestEducation.trim(),
         image: form.image.trim(),
@@ -170,44 +194,44 @@ export function TherapistProfileTab() {
         <h3 className="font-semibold text-foreground mb-3">Public Profile</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <Label>Full Name</Label>
-            <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+            <Label>Full Name <span className="text-destructive">*</span></Label>
+            <Input required value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
           </div>
           <div>
-            <Label>Title</Label>
-            <Input placeholder="e.g. Clinical Psychologist" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
+            <Label>Title <span className="text-destructive">*</span></Label>
+            <Input required placeholder="e.g. Clinical Psychologist" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
           </div>
           <div>
-            <Label>Phone</Label>
-            <Input type="tel" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+            <Label>Phone <span className="text-destructive">*</span></Label>
+            <Input required type="tel" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
           </div>
           <div>
-            <Label>Experience (years)</Label>
-            <Input type="number" value={form.experience} onChange={e => setForm(p => ({ ...p, experience: e.target.value }))} />
+            <Label>Experience (years) <span className="text-destructive">*</span></Label>
+            <Input required type="number" min={0} value={form.experience} onChange={e => setForm(p => ({ ...p, experience: e.target.value }))} />
           </div>
           <div>
-            <Label>Highest Education</Label>
-            <Input value={form.highestEducation} onChange={e => setForm(p => ({ ...p, highestEducation: e.target.value }))} />
+            <Label>Highest Education <span className="text-destructive">*</span></Label>
+            <Input required value={form.highestEducation} onChange={e => setForm(p => ({ ...p, highestEducation: e.target.value }))} />
           </div>
           <div>
             <Label>Profile Image URL</Label>
-            <Input value={form.image} onChange={e => setForm(p => ({ ...p, image: e.target.value }))} placeholder="https://..." />
+            <Input value={form.image} onChange={e => setForm(p => ({ ...p, image: e.target.value }))} placeholder="(Use the camera icon above to upload)" />
           </div>
           <div className="md:col-span-2">
-            <Label>Specializations (comma-separated)</Label>
-            <Input value={form.specializations} onChange={e => setForm(p => ({ ...p, specializations: e.target.value }))} />
+            <Label>Specializations (comma-separated) <span className="text-destructive">*</span></Label>
+            <Input required placeholder="Anxiety, Depression, Trauma, ..." value={form.specializations} onChange={e => setForm(p => ({ ...p, specializations: e.target.value }))} />
           </div>
           <div className="md:col-span-2">
-            <Label>Languages (comma-separated)</Label>
-            <Input value={form.languages} onChange={e => setForm(p => ({ ...p, languages: e.target.value }))} />
+            <Label>Languages (comma-separated) <span className="text-destructive">*</span></Label>
+            <Input required placeholder="English, Hindi, ..." value={form.languages} onChange={e => setForm(p => ({ ...p, languages: e.target.value }))} />
           </div>
           <div className="md:col-span-2">
-            <Label>Education Background</Label>
-            <Textarea rows={2} value={form.educationBackground} onChange={e => setForm(p => ({ ...p, educationBackground: e.target.value }))} />
+            <Label>Education Background <span className="text-destructive">*</span></Label>
+            <Textarea required rows={2} value={form.educationBackground} onChange={e => setForm(p => ({ ...p, educationBackground: e.target.value }))} />
           </div>
           <div className="md:col-span-2">
-            <Label>Bio</Label>
-            <Textarea rows={4} value={form.bio} onChange={e => setForm(p => ({ ...p, bio: e.target.value }))} />
+            <Label>Bio <span className="text-destructive">*</span></Label>
+            <Textarea required rows={4} value={form.bio} onChange={e => setForm(p => ({ ...p, bio: e.target.value }))} />
           </div>
         </div>
         <div className="flex justify-end pt-4 border-t mt-4">

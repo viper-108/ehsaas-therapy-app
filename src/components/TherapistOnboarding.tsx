@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { CheckCircle, Clock, FileText, Loader2, Upload, User, Briefcase, Languages, IndianRupee, Check } from "lucide-react";
+import { CheckCircle, Clock, FileText, Loader2, Upload, User, Briefcase, Languages, IndianRupee, Check, ChevronsUpDown, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import Navigation from "@/components/Navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
@@ -429,54 +431,100 @@ export const TherapistOnboarding = () => {
                 <div className="bg-muted/30 rounded-lg p-4 border border-border">
                   <p className="text-sm font-semibold text-foreground mb-2">🩺 Services You Offer <span className="text-destructive">*</span></p>
                   <p className="text-xs text-muted-foreground mb-3">
-                    Select every kind of therapy you'd like to offer and your preferred Min/Max charges. <strong>Admin will finalize each service + price after your interview.</strong>
+                    Pick every kind of therapy you'd like to offer (multi-select), then enter your preferred Min/Max charges for each. <strong>Admin will finalize each service + price after your interview.</strong>
                   </p>
-                  <div className="space-y-2">
-                    {SERVICE_TYPES.map(t => {
-                      const s = services[t];
-                      const labels: Record<string, { name: string; desc: string }> = {
-                        individual: { name: 'Individual Therapy', desc: '1-on-1 sessions' },
-                        couple: { name: 'Couples Therapy', desc: 'Two partners, one therapist' },
-                        group: { name: 'Group Therapy', desc: '5–10 clients, focused topic' },
-                        family: { name: 'Family Therapy', desc: 'Multiple family members' },
-                        supervision: { name: 'Supervision', desc: 'For other therapists' },
-                      };
-                      const lbl = labels[t];
-                      return (
-                        <div key={t} className={`p-3 rounded-md border ${s.offered ? 'bg-primary/5 border-primary/30' : 'bg-background border-border'}`}>
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <Checkbox
-                              checked={s.offered}
-                              onCheckedChange={(v) => setServices(p => ({ ...p, [t]: { ...p[t], offered: v === true } }))}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-foreground">{lbl.name}</p>
-                              <p className="text-[11px] text-muted-foreground">{lbl.desc}</p>
-                            </div>
-                            {s.offered && (
-                              <div className="flex gap-2 items-center">
-                                <Input
-                                  type="number"
-                                  placeholder="Min ₹"
-                                  className="w-24 h-9"
-                                  value={s.min}
-                                  onChange={e => setServices(p => ({ ...p, [t]: { ...p[t], min: e.target.value } }))}
-                                />
-                                <span className="text-xs text-muted-foreground">to</span>
-                                <Input
-                                  type="number"
-                                  placeholder="Max ₹"
-                                  className="w-24 h-9"
-                                  value={s.max}
-                                  onChange={e => setServices(p => ({ ...p, [t]: { ...p[t], max: e.target.value } }))}
-                                />
+
+                  {(() => {
+                    const labels: Record<string, { name: string; desc: string }> = {
+                      individual: { name: 'Individual Therapy', desc: '1-on-1 sessions' },
+                      couple: { name: 'Couples Therapy', desc: 'Two partners, one therapist' },
+                      group: { name: 'Group Therapy', desc: '5–10 clients, focused topic' },
+                      family: { name: 'Family Therapy', desc: 'Multiple family members' },
+                      supervision: { name: 'Supervision', desc: 'For other therapists' },
+                    };
+                    const selectedTypes = SERVICE_TYPES.filter(t => services[t].offered);
+                    return (
+                      <>
+                        {/* Multi-select dropdown using Popover + Command */}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" type="button" className="w-full justify-between h-auto min-h-10 py-2">
+                              <div className="flex flex-wrap gap-1 items-center">
+                                {selectedTypes.length === 0 ? (
+                                  <span className="text-muted-foreground text-sm">Select services…</span>
+                                ) : selectedTypes.map(t => (
+                                  <Badge key={t} variant="secondary" className="text-xs">
+                                    {labels[t].name}
+                                    <X className="w-3 h-3 ml-1 cursor-pointer" onClick={(e) => {
+                                      e.stopPropagation();
+                                      setServices(p => ({ ...p, [t]: { ...p[t], offered: false } }));
+                                    }} />
+                                  </Badge>
+                                ))}
                               </div>
-                            )}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-full p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search services…" />
+                              <CommandList>
+                                <CommandEmpty>No service found.</CommandEmpty>
+                                <CommandGroup>
+                                  {SERVICE_TYPES.map(t => {
+                                    const isSel = services[t].offered;
+                                    return (
+                                      <CommandItem
+                                        key={t}
+                                        onSelect={() => setServices(p => ({ ...p, [t]: { ...p[t], offered: !isSel } }))}
+                                      >
+                                        <Check className={`mr-2 h-4 w-4 ${isSel ? 'opacity-100' : 'opacity-0'}`} />
+                                        <div className="flex-1">
+                                          <p className="text-sm">{labels[t].name}</p>
+                                          <p className="text-[11px] text-muted-foreground">{labels[t].desc}</p>
+                                        </div>
+                                      </CommandItem>
+                                    );
+                                  })}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+
+                        {/* Per-service Min/Max inputs (only for selected services) */}
+                        {selectedTypes.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {selectedTypes.map(t => {
+                              const s = services[t];
+                              return (
+                                <div key={t} className="p-2 rounded-md bg-primary/5 border border-primary/20 flex items-center gap-3 flex-wrap">
+                                  <span className="text-sm font-medium flex-1 min-w-[140px]">{labels[t].name}</span>
+                                  <div className="flex gap-2 items-center">
+                                    <Input
+                                      type="number"
+                                      placeholder="Min ₹"
+                                      className="w-24 h-9"
+                                      value={s.min}
+                                      onChange={e => setServices(p => ({ ...p, [t]: { ...p[t], min: e.target.value } }))}
+                                    />
+                                    <span className="text-xs text-muted-foreground">to</span>
+                                    <Input
+                                      type="number"
+                                      placeholder="Max ₹"
+                                      className="w-24 h-9"
+                                      value={s.max}
+                                      onChange={e => setServices(p => ({ ...p, [t]: { ...p[t], max: e.target.value } }))}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 

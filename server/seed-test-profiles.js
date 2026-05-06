@@ -12,7 +12,6 @@
  */
 
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -43,7 +42,9 @@ if (!MONGODB_URI) {
   process.exit(1);
 }
 
-const hashOnce = async () => bcrypt.hash(PASSWORD, 10);
+// NOTE: each model has a pre('save') hook that hashes password automatically.
+// Pass the PLAIN password — model hashes once. Pre-hashing here would double-hash
+// and break login.
 
 const wipe = async () => {
   console.log('Wiping existing test data…');
@@ -85,7 +86,7 @@ const wipe = async () => {
 //   9  APPROVED — Individual; Has SLIDING SCALE enabled with min/max
 //   10 APPROVED — Psychiatrist (individual + supervision)
 //
-const seedTherapists = async (passwordHash) => {
+const seedTherapists = async () => {
   const baseAvailability = [
     { dayOfWeek: 1, startTime: '09:00', endTime: '18:00', isAvailable: true, chunks: [{ startTime: '09:00', endTime: '12:00' }, { startTime: '14:00', endTime: '18:00' }] },
     { dayOfWeek: 2, startTime: '09:00', endTime: '18:00', isAvailable: true, chunks: [{ startTime: '09:00', endTime: '18:00' }] },
@@ -396,7 +397,7 @@ const seedTherapists = async (passwordHash) => {
 
   const therapists = [];
   for (const d of data) {
-    const t = await Therapist.create({ ...d, password: passwordHash, accountStatus: 'active' });
+    const t = await Therapist.create({ ...d, password: PASSWORD, accountStatus: 'active' });
     therapists.push(t);
     console.log(`  ✓ Therapist ${d.email} (${d.name}) — ${d.onboardingStatus}`);
   }
@@ -419,7 +420,7 @@ const seedTherapists = async (passwordHash) => {
 //   9  Regular client — has had multiple sessions (used for past-sessions UI)
 //   10 Brand new client — no preference set (lands on /services after login)
 //
-const seedClients = async (passwordHash) => {
+const seedClients = async () => {
   const data = [
     // 1. Pending couples profile, partner not yet registered
     {
@@ -549,7 +550,7 @@ const seedClients = async (passwordHash) => {
 
   const clients = [];
   for (const d of data) {
-    const c = await Client.create({ ...d, password: passwordHash });
+    const c = await Client.create({ ...d, password: PASSWORD });
     clients.push(c);
     console.log(`  ✓ Client ${d.email} (${d.name})`);
   }
@@ -563,10 +564,10 @@ const seedClients = async (passwordHash) => {
 // ============================================================
 // ADMIN
 // ============================================================
-const seedAdmin = async (passwordHash) => {
+const seedAdmin = async () => {
   const a = await Admin.create({
     email: 'admin@ehsaas.test',
-    password: passwordHash,
+    password: PASSWORD,
     name: 'Ehsaas Admin',
   });
   console.log(`  ✓ Admin ${a.email}`);
@@ -580,17 +581,16 @@ const main = async () => {
 
   await wipe();
 
-  const passwordHash = await hashOnce();
   console.log('\nCreating accounts (password: Test@123)…\n');
 
   console.log('Therapists:');
-  const therapists = await seedTherapists(passwordHash);
+  const therapists = await seedTherapists();
 
   console.log('\nClients:');
-  const clients = await seedClients(passwordHash);
+  const clients = await seedClients();
 
   console.log('\nAdmin:');
-  await seedAdmin(passwordHash);
+  await seedAdmin();
 
   // Summary
   console.log('\n=================================================================');
