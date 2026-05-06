@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Calendar, Clock, DollarSign, Users, TrendingUp, CheckCircle,
   XCircle, Settings, BarChart3, ChevronRight, LogOut, FileText, MessageCircle, ClipboardList, Phone, BookOpen, Library,
-  MoreVertical, User as UserIcon, ClipboardCheck, GraduationCap
+  MoreVertical, User as UserIcon, ClipboardCheck, GraduationCap, Heart
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Navigation from "@/components/Navigation";
 import { TherapistOnboarding } from "@/components/TherapistOnboarding";
 import { SessionNotesDialog } from "@/components/SessionNotesDialog";
+import { CouplesSessionNotesDialog } from "@/components/CouplesSessionNotesDialog";
 import { ClientHistoryForm } from "@/components/ClientHistoryForm";
 import { CalendarSyncButton } from "@/components/CalendarSyncButton";
 import { ConversationList } from "@/components/ConversationList";
@@ -53,6 +54,7 @@ const TherapistDashboard = () => {
   const [availability, setAvailability] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview');
   const [notesSessionId, setNotesSessionId] = useState<string | null>(null);
+  const [couplesNotesSessionId, setCouplesNotesSessionId] = useState<string | null>(null);
   const [waitlistCount, setWaitlistCount] = useState(0);
   const [chatConvKey, setChatConvKey] = useState('');
   const [chatOtherUser, setChatOtherUser] = useState<any>(null);
@@ -461,6 +463,12 @@ const TherapistDashboard = () => {
                                 <FileText className="w-3 h-3 mr-1" />
                                 {session.notes?.clientMood || session.notes?.importantNotes ? 'View Notes' : 'Add Notes'}
                               </Button>
+                              {session.sessionType === 'couple' && (
+                                <Button size="sm" variant="outline" className="border-pink-400 text-pink-600 hover:bg-pink-50" onClick={() => setCouplesNotesSessionId(session._id)}>
+                                  <Heart className="w-3 h-3 mr-1" />
+                                  {session.couplesNotes?.relationshipPattern || session.couplesNotes?.sessionOutcome ? 'View Couples Notes' : 'Couples Notes'}
+                                </Button>
+                              )}
                               <Button size="sm" variant="ghost" className="text-xs" onClick={() => setClientHistoryModal({ clientId: session.clientId?._id || session.clientId, clientName: session.clientId?.name || 'Client' })}>
                                 <ClipboardList className="w-3 h-3 mr-1" /> History
                               </Button>
@@ -761,6 +769,15 @@ const TherapistDashboard = () => {
           sessionId={notesSessionId}
           isOpen={!!notesSessionId}
           onClose={() => { setNotesSessionId(null); loadDashboard(); }}
+        />
+      )}
+
+      {/* Couples Session Notes Dialog */}
+      {couplesNotesSessionId && (
+        <CouplesSessionNotesDialog
+          sessionId={couplesNotesSessionId}
+          isOpen={!!couplesNotesSessionId}
+          onClose={() => { setCouplesNotesSessionId(null); loadDashboard(); }}
         />
       )}
 

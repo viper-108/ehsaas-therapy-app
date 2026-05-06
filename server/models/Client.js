@@ -22,13 +22,65 @@ const clientSchema = new mongoose.Schema({
   preferredServiceType: { type: String, enum: ['individual', 'couple', 'group', 'family', 'supervision', null], default: null },
   // Couples therapy profile (only used if preferredServiceType === 'couple')
   couplesProfile: {
+    // Partner linkage
     partnerEmail: { type: String, default: '' },
     partnerName: { type: String, default: '' },
     partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', default: null },
-    relationshipDuration: { type: String, default: '' },     // e.g. "5 years"
-    relationshipType: { type: String, default: '' },          // e.g. "married", "dating"
-    challengesFacing: { type: String, default: '' },
-    goalsForTherapy: { type: String, default: '' },
+    polyamorousNote: { type: String, default: '' },         // e.g. who is coming to therapy in poly relationships
+
+    // Personal demographics
+    dateOfBirth: { type: Date, default: null },
+    age: { type: Number, default: null },
+    phone: { type: String, default: '' },                    // preferably WhatsApp
+    languagePreference: { type: String, default: '' },
+    assignedSex: { type: String, default: '' },               // assigned at birth
+    pronouns: { type: String, default: '' },
+    occupation: { type: String, default: '' },
+    highestEducation: { type: String, default: '' },
+
+    // Health & lifestyle
+    medicationsRegular: { type: String, default: '' },
+    substancesUsed: [{ type: String }],                       // alcohol, cigarettes, vape, weed
+    teaCoffeeFrequency: { type: String, default: '' },
+
+    // Relationship details
+    relationshipStatus: { type: String, default: '' },         // in-relationship, married, divorced...
+    relationshipDuration: { type: String, default: '' },        // e.g. "5 years"
+    relationshipType: { type: String, default: '' },            // legacy field - keep for backwards compat
+    livingSituation: { type: String, default: '' },
+    children: [{                                                // optional list
+      name: { type: String, default: '' },
+      age: { type: Number, default: null },
+      gender: { type: String, default: '' },
+      _id: false,
+    }],
+
+    // Concerns & expectations
+    primaryConcerns: { type: String, default: '' },             // pertaining to the relationship
+    expectationsFutureRelationship: { type: String, default: '' },
+    expectationsTherapyGoals: { type: String, default: '' },
+    challengesFacing: { type: String, default: '' },             // legacy — keep
+    goalsForTherapy: { type: String, default: '' },              // legacy — keep
+
+    // Health diagnoses
+    selfDiagnoses: { type: String, default: '' },                // medical/mental health (self)
+    partnerDiagnoses: { type: String, default: '' },             // perceived diagnoses of partner
+
+    // Intimacy & conflict (1-10 ratings, conflict prose)
+    emotionalIntimacyRating: { type: Number, min: 1, max: 10, default: null },
+    physicalIntimacyRating: { type: Number, min: 1, max: 10, default: null },
+    selfHandlesConflict: { type: String, default: '' },
+    partnerHandlesConflict: { type: String, default: '' },
+
+    // Connection & admiration
+    admireInPartner: { type: String, default: '' },
+    partnerAdmiresInMe: { type: String, default: '' },
+    funTogether: { type: String, default: '' },
+
+    // Source
+    heardAboutEhsaasFrom: { type: String, default: '' },
+
+    // Status
     profileCompletedAt: { type: Date, default: null },
     isApprovedByAdmin: { type: Boolean, default: false },
     approvedAt: { type: Date, default: null },

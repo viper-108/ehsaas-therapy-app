@@ -698,6 +698,62 @@ router.put('/dashboard/sessions/:sessionId/notes', protect, therapistOnly, async
   }
 });
 
+// PUT /api/therapists/dashboard/sessions/:sessionId/couples-notes
+// Couples-specific structured notes (used when sessionType === 'couple')
+router.put('/dashboard/sessions/:sessionId/couples-notes', protect, therapistOnly, async (req, res) => {
+  try {
+    const { couplesNotes } = req.body || {};
+    const { isPastRelationship } = await import('../utils/relationshipAccess.js');
+    const session = await Session.findOne({ _id: req.params.sessionId, therapistId: req.userId });
+    if (!session) return res.status(404).json({ message: 'Session not found, or you are not the conducting therapist' });
+    if (await isPastRelationship(req.userId, session.clientId)) {
+      return res.status(403).json({ message: 'You no longer have access to this client.' });
+    }
+    if (session.sessionType !== 'couple') {
+      return res.status(400).json({ message: 'Couples notes are only for couples sessions' });
+    }
+    if (session.status !== 'completed') {
+      return res.status(400).json({ message: 'Can only add notes to completed sessions' });
+    }
+
+    // At least one couples-specific field must be filled
+    const filled = Object.values(couplesNotes || {}).some(v => typeof v === 'string' && v.trim());
+    if (!filled) return res.status(400).json({ message: 'Please fill at least one couples-notes field' });
+
+    session.couplesNotes = couplesNotes;
+    await session.save();
+    res.json({ couplesNotes: session.couplesNotes });
+  } catch (error) {
+    console.error('Couples notes save error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/therapists/dashboard/sessions/:sessionId/couples-notes
+router.get('/dashboard/sessions/:sessionId/couples-notes', protect, therapistOnly, async (req, res) => {
+  try {
+    const { hasActiveAccess, isPastRelationship } = await import('../utils/relationshipAccess.js');
+    const session = await Session.findById(req.params.sessionId).populate('clientId', 'name couplesProfile');
+    if (!session) return res.status(404).json({ message: 'Session not found' });
+
+    const isOwner = String(session.therapistId) === String(req.userId);
+    const hasAccess = await hasActiveAccess(req.userId, session.clientId._id);
+    const wasTransferredAway = isOwner && await isPastRelationship(req.userId, session.clientId._id);
+
+    if (wasTransferredAway) return res.status(403).json({ message: 'Access removed (client transferred).' });
+    if (!isOwner && !hasAccess) return res.status(403).json({ message: 'Not authorized.' });
+
+    res.json({
+      couplesNotes: session.couplesNotes || {},
+      sessionDate: session.date,
+      clientName: session.clientId?.name || '',
+      partnerName: session.clientId?.couplesProfile?.partnerName || '',
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // ==================== CLIENT HISTORY ====================
 
 // GET /api/therapists/dashboard/client-history/:clientId

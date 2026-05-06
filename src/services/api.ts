@@ -611,6 +611,18 @@ class ApiService {
     const res = await fetch(`${API_BASE}/supervision-flow/my/groups-leading`, { headers: this.getHeaders() });
     return this.handleResponse(res);
   }
+  // ============ COUPLES SESSION NOTES ============
+  async getCouplesSessionNotes(sessionId: string) {
+    const res = await fetch(`${API_BASE}/therapists/dashboard/sessions/${sessionId}/couples-notes`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async saveCouplesSessionNotes(sessionId: string, couplesNotes: any) {
+    const res = await fetch(`${API_BASE}/therapists/dashboard/sessions/${sessionId}/couples-notes`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ couplesNotes })
+    });
+    return this.handleResponse(res);
+  }
+
   async writeSupervisionNote(body: any) {
     const res = await fetch(`${API_BASE}/supervision-flow/notes`, {
       method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)

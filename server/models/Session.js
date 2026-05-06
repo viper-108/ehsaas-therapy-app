@@ -9,6 +9,21 @@ const sessionNotesSchema = new mongoose.Schema({
   readingsOrSupervisionQuestions: { type: String, default: '' },
 }, { _id: false });
 
+// Couples-specific notes — used when sessionType === 'couple'
+const couplesSessionNotesSchema = new mongoose.Schema({
+  presentingConcernPartnerA: { type: String, default: '' },
+  presentingConcernPartnerB: { type: String, default: '' },
+  relationshipPattern: { type: String, default: '' },          // trigger → behavior → response → reinforcement
+  emotionalUndercurrentsA: { type: String, default: '' },      // primary vs secondary emotions for partner A
+  emotionalUndercurrentsB: { type: String, default: '' },
+  attachmentDynamics: { type: String, default: '' },           // pursuer-withdrawer, anxious-avoidant, etc.
+  communicationStyle: { type: String, default: '' },           // criticism, defensiveness, stonewalling, repair attempts
+  strengthsProtectiveFactors: { type: String, default: '' },   // shared values, past repair, commitment
+  interventionsUsed: { type: String, default: '' },            // reframing, enactment, validation, boundary setting
+  sessionOutcome: { type: String, default: '' },               // insight gained, de-escalation, partial repair, stuckness
+  actionPlanBetweenSessions: { type: String, default: '' },    // structured dialogue, time-outs, appreciation
+}, { _id: false });
+
 const sessionSchema = new mongoose.Schema({
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
   therapistId: { type: mongoose.Schema.Types.ObjectId, ref: 'Therapist', required: true },
@@ -24,6 +39,8 @@ const sessionSchema = new mongoose.Schema({
   },
   paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment' },
   notes: { type: sessionNotesSchema, default: () => ({}) },
+  // Couples-specific notes (only populated when sessionType === 'couple')
+  couplesNotes: { type: couplesSessionNotesSchema, default: () => ({}) },
   sessionType: {
     type: String,
     enum: ['individual', 'couple', 'group'],

@@ -436,34 +436,68 @@ router.put('/client/profile', protect, async (req, res) => {
   }
 });
 
-// PUT /api/auth/client/couples-profile — fill or update couples profile
-// Body: { partnerEmail, partnerName, relationshipDuration, relationshipType, challengesFacing, goalsForTherapy }
+// PUT /api/auth/client/couples-profile — fill or update couples profile (full intake)
 router.put('/client/couples-profile', protect, async (req, res) => {
   try {
     if (req.userRole !== 'client') return res.status(403).json({ message: 'Client only' });
-    const {
-      partnerEmail, partnerName, relationshipDuration, relationshipType,
-      challengesFacing, goalsForTherapy
-    } = req.body || {};
+    const b = req.body || {};
 
-    if (!partnerEmail || !partnerName || !relationshipType) {
-      return res.status(400).json({ message: 'partnerEmail, partnerName, and relationshipType are required' });
+    if (!b.partnerEmail || !b.partnerName) {
+      return res.status(400).json({ message: 'partnerEmail and partnerName are required' });
     }
 
     // If a partner client already exists with that email, link them
-    const partner = await Client.findOne({ email: partnerEmail.trim().toLowerCase() });
+    const partner = await Client.findOne({ email: b.partnerEmail.trim().toLowerCase() });
     const me = await Client.findById(req.userId);
     if (!me) return res.status(404).json({ message: 'Client not found' });
 
+    // Compute age from DOB if provided
+    let age = b.age != null ? Number(b.age) : null;
+    if (b.dateOfBirth && (!age || isNaN(age))) {
+      const dob = new Date(b.dateOfBirth);
+      const today = new Date();
+      age = today.getFullYear() - dob.getFullYear();
+      const m = today.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+    }
+
     me.couplesProfile = {
-      ...(me.couplesProfile || {}),
-      partnerEmail: partnerEmail.trim().toLowerCase(),
-      partnerName: partnerName.trim(),
+      ...(me.couplesProfile?.toObject ? me.couplesProfile.toObject() : me.couplesProfile || {}),
+      partnerEmail: b.partnerEmail.trim().toLowerCase(),
+      partnerName: b.partnerName.trim(),
       partnerId: partner?._id || null,
-      relationshipDuration: relationshipDuration || '',
-      relationshipType,
-      challengesFacing: challengesFacing || '',
-      goalsForTherapy: goalsForTherapy || '',
+      polyamorousNote: b.polyamorousNote || '',
+      dateOfBirth: b.dateOfBirth ? new Date(b.dateOfBirth) : null,
+      age: age || null,
+      phone: b.phone || '',
+      languagePreference: b.languagePreference || '',
+      assignedSex: b.assignedSex || '',
+      pronouns: b.pronouns || '',
+      occupation: b.occupation || '',
+      highestEducation: b.highestEducation || '',
+      medicationsRegular: b.medicationsRegular || '',
+      substancesUsed: Array.isArray(b.substancesUsed) ? b.substancesUsed : [],
+      teaCoffeeFrequency: b.teaCoffeeFrequency || '',
+      relationshipStatus: b.relationshipStatus || '',
+      relationshipDuration: b.relationshipDuration || '',
+      relationshipType: b.relationshipType || b.relationshipStatus || '',
+      livingSituation: b.livingSituation || '',
+      children: Array.isArray(b.children) ? b.children : [],
+      primaryConcerns: b.primaryConcerns || b.challengesFacing || '',
+      expectationsFutureRelationship: b.expectationsFutureRelationship || '',
+      expectationsTherapyGoals: b.expectationsTherapyGoals || b.goalsForTherapy || '',
+      challengesFacing: b.challengesFacing || b.primaryConcerns || '',
+      goalsForTherapy: b.goalsForTherapy || b.expectationsTherapyGoals || '',
+      selfDiagnoses: b.selfDiagnoses || '',
+      partnerDiagnoses: b.partnerDiagnoses || '',
+      emotionalIntimacyRating: b.emotionalIntimacyRating != null ? Number(b.emotionalIntimacyRating) : null,
+      physicalIntimacyRating: b.physicalIntimacyRating != null ? Number(b.physicalIntimacyRating) : null,
+      selfHandlesConflict: b.selfHandlesConflict || '',
+      partnerHandlesConflict: b.partnerHandlesConflict || '',
+      admireInPartner: b.admireInPartner || '',
+      partnerAdmiresInMe: b.partnerAdmiresInMe || '',
+      funTogether: b.funTogether || '',
+      heardAboutEhsaasFrom: b.heardAboutEhsaasFrom || '',
       profileCompletedAt: new Date(),
       partnerInvitedAt: partner ? me.couplesProfile?.partnerInvitedAt : new Date(),
     };
