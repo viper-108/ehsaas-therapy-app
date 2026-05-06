@@ -8,12 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PsychologistCard } from "@/components/PsychologistCard";
 import { BookingModal } from "@/components/BookingModal";
+import { AuthModal } from "@/components/AuthModal";
 import { PaymentSuccess } from "@/components/PaymentSuccess";
 import { psychologists } from "@/data/psychologists";
 import { Psychologist, BookingSession } from "@/types/psychologist";
 import Navigation from "@/components/Navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const SERVICE_LABELS: Record<string, string> = {
   individual: 'Individual Therapy',
@@ -34,6 +37,9 @@ const Team = () => {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const [bookingDetails, setBookingDetails] = useState<BookingSession | null>(null);
+  const [showAuth, setShowAuth] = useState(false);
+  const { user, role } = useAuth();
+  const { toast } = useToast();
 
   // Dynamic therapists when service filter is active
   const [dynamicTherapists, setDynamicTherapists] = useState<any[] | null>(null);
@@ -93,6 +99,23 @@ const Team = () => {
   };
 
   const handleBookNow = (psychologist: Psychologist) => {
+    // Individual therapy bookings are for clients only — gate signed-out
+    // users to AuthModal and non-clients to a clear toast.
+    if (!user) {
+      setSelectedPsychologist(psychologist);
+      setShowAuth(true);
+      return;
+    }
+    if (role !== 'client') {
+      toast({
+        title: "Therapy bookings are for clients",
+        description: role === 'therapist'
+          ? "You're logged in as a therapist. Therapy sessions can only be booked by clients."
+          : "You're logged in as an admin. Therapy sessions can only be booked by clients.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSelectedPsychologist(psychologist);
     setShowBookingModal(true);
   };
@@ -295,6 +318,13 @@ const Team = () => {
           )}
         </div>
       </div>
+
+      {/* Auth Modal — opens when a signed-out visitor clicks Book Now */}
+      <AuthModal
+        isOpen={showAuth}
+        onClose={() => setShowAuth(false)}
+        defaultTab="client"
+      />
 
       {/* Modals */}
       {selectedPsychologist && (

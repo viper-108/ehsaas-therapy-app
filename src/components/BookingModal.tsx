@@ -37,27 +37,35 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
-    if (isOpen) {
-      setSelectedDuration(availableDurations[0] || 30);
-      setSelectedDate('');
-      setSelectedTime('');
-      setAvailableSlots([]);
-      setBookingSuccess(false);
-      setMongoTherapistId(null);
-
-      // Try to find this therapist in MongoDB by name
-      if (psychologist && user && role === 'client') {
-        api.getTherapists({ search: psychologist.name })
-          .then(therapists => {
-            const match = therapists.find((t: any) => t.name === psychologist.name);
-            if (match) {
-              setMongoTherapistId(match._id);
-            }
-          })
-          .catch(() => {});
-      }
-    }
+    if (!isOpen) return;
+    setSelectedDuration(availableDurations[0] || 30);
+    setSelectedDate('');
+    setSelectedTime('');
+    setAvailableSlots([]);
+    setBookingSuccess(false);
+    setMongoTherapistId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, psychologist]);
+
+  // Resolve the therapist's Mongo ID whenever the modal is open AND we have
+  // a logged-in client. Re-runs if user / role change so a login that
+  // happens after the modal opened is picked up cleanly.
+  useEffect(() => {
+    if (!isOpen || !psychologist || !user || role !== 'client') return;
+    // If `id` already looks like a Mongo ObjectId (24 hex chars), use it
+    // directly — saves a search round-trip and works for therapists whose
+    // names aren't unique.
+    if (typeof psychologist.id === 'string' && /^[a-f0-9]{24}$/i.test(psychologist.id)) {
+      setMongoTherapistId(psychologist.id);
+      return;
+    }
+    api.getTherapists({ search: psychologist.name })
+      .then(therapists => {
+        const match = therapists.find((t: any) => t.name === psychologist.name);
+        if (match) setMongoTherapistId(match._id);
+      })
+      .catch(() => {});
+  }, [isOpen, psychologist, user, role]);
 
   // Load available slots when date changes
   useEffect(() => {
@@ -80,81 +88,74 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
   const isLoggedInClient = user && role === 'client';
 
   const handlePayment = async () => {
-    // If client is logged in AND we have a mongo therapist match, do real booking
-    if (isLoggedInClient && mongoTherapistId) {
-      if (!selectedDate || !selectedTime) {
-        toast({ title: "Select date & time", description: "Please pick a date and time slot for your session", variant: "destructive" });
-        return;
-      }
-
-      setBooking(true);
-      try {
-        let session;
-
-        if (isRecurring) {
-          // Book 4 weekly recurring sessions
-          const result = await api.bookRecurring({
-            therapistId: mongoTherapistId,
-            date: selectedDate,
-            startTime: selectedTime,
-            duration: selectedDuration,
-            sessionType: 'individual',
-            weeks: 4,
-          });
-          session = result.sessions[0]; // use first session for payment
-          toast({ title: "Recurring Sessions Created", description: `${result.sessions.length} weekly sessions booked!` });
-        } else {
-          // Single session
-          session = await api.bookSession({
-            therapistId: mongoTherapistId,
-            date: selectedDate,
-            startTime: selectedTime,
-            duration: selectedDuration,
-            sessionType: 'individual',
-          });
-        }
-
-        // 2. Create PhonePe checkout — use total amount for recurring
-        const totalAmount = isRecurring
-          ? psychologist.pricing[selectedDuration] * 4
-          : psychologist.pricing[selectedDuration];
-        try {
-          const checkout = await api.createCheckout({
-            sessionId: session._id,
-            therapistId: mongoTherapistId,
-            amount: totalAmount,
-            duration: selectedDuration,
-            isRecurring: isRecurring || false,
-            recurringGroupId: isRecurring ? session.recurringGroupId : undefined,
-          });
-
-          if (checkout.url) {
-            window.location.href = checkout.url;
-          } else {
-            toast({ title: "Payment Error", description: "Could not create payment session. Please try again.", variant: "destructive" });
-          }
-        } catch (paymentError: any) {
-          toast({ title: "Payment Error", description: paymentError.message || "Payment initiation failed. Please try again.", variant: "destructive" });
-        }
-      } catch (error: any) {
-        toast({ title: "Booking Failed", description: error.message, variant: "destructive" });
-      } finally {
-        setBooking(false);
-      }
-    } else if (!isLoggedInClient) {
-      // Not logged in as a client — direct user to log in instead of faking success
-      toast({
-        title: "Please log in as a client",
-        description: "You need to be logged in as a client to book a session.",
-        variant: "destructive",
-      });
-    } else {
-      // Logged in but couldn't resolve mongo therapist (legacy static data)
+    // Defensive: the modal is only ever opened for logged-in clients now,
+    // but double-check so the function is safe in isolation.
+    if (!isLoggedInClient) {
+      toast({ title: "Please log in as a client", variant: "destructive" });
+      return;
+    }
+    if (!mongoTherapistId) {
       toast({
         title: "Booking unavailable",
-        description: "Sorry, this therapist isn't available for direct booking right now. Please contact admin.",
+        description: "This therapist isn't available for direct booking right now. Please contact admin.",
         variant: "destructive",
       });
+      return;
+    }
+    if (!selectedDate || !selectedTime) {
+      toast({ title: "Select date & time", description: "Please pick a date and time slot for your session", variant: "destructive" });
+      return;
+    }
+
+    setBooking(true);
+    try {
+      let session;
+      if (isRecurring) {
+        const result = await api.bookRecurring({
+          therapistId: mongoTherapistId,
+          date: selectedDate,
+          startTime: selectedTime,
+          duration: selectedDuration,
+          sessionType: 'individual',
+          weeks: 4,
+        });
+        session = result.sessions[0];
+        toast({ title: "Recurring Sessions Created", description: `${result.sessions.length} weekly sessions booked!` });
+      } else {
+        session = await api.bookSession({
+          therapistId: mongoTherapistId,
+          date: selectedDate,
+          startTime: selectedTime,
+          duration: selectedDuration,
+          sessionType: 'individual',
+        });
+      }
+
+      const totalAmount = isRecurring
+        ? psychologist.pricing[selectedDuration] * 4
+        : psychologist.pricing[selectedDuration];
+
+      try {
+        const checkout = await api.createCheckout({
+          sessionId: session._id,
+          therapistId: mongoTherapistId,
+          amount: totalAmount,
+          duration: selectedDuration,
+          isRecurring: isRecurring || false,
+          recurringGroupId: isRecurring ? session.recurringGroupId : undefined,
+        });
+        if (checkout.url) {
+          window.location.href = checkout.url;
+        } else {
+          toast({ title: "Payment Error", description: "Could not create payment session. Please try again.", variant: "destructive" });
+        }
+      } catch (paymentError: any) {
+        toast({ title: "Payment Error", description: paymentError.message || "Payment initiation failed. Please try again.", variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Booking Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setBooking(false);
     }
   };
 
@@ -277,7 +278,20 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
             </div>
           </div>
 
-          {/* Date & Time Selection (only for logged-in clients) */}
+          {/* Helpful inline notice when this therapist isn't bookable directly
+              (e.g. legacy hardcoded profile with no Mongo match). */}
+          {isLoggedInClient && !mongoTherapistId && (
+            <Card className="p-3 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-xs">
+              <p className="font-medium text-amber-900 dark:text-amber-100">
+                Direct booking isn't available for this therapist yet.
+              </p>
+              <p className="text-amber-800 dark:text-amber-200 mt-1">
+                Please reach out to admin or pick another therapist from your dashboard.
+              </p>
+            </Card>
+          )}
+
+          {/* Date & Time Selection (only for logged-in clients with a resolved therapist) */}
           {isLoggedInClient && mongoTherapistId && (
             <div className="space-y-3">
               <div>
@@ -398,7 +412,7 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
               variant="payment"
               onClick={handlePayment}
               className="w-full"
-              disabled={booking || (isLoggedInClient && mongoTherapistId ? (!selectedDate || !selectedTime) : false)}
+              disabled={booking || !mongoTherapistId || !selectedDate || !selectedTime}
             >
               {booking ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Booking...</>

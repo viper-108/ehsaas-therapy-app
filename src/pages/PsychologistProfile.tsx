@@ -6,9 +6,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BookingModal } from "@/components/BookingModal";
 import { SupervisionBookingDialog } from "@/components/SupervisionBookingDialog";
+import { AuthModal } from "@/components/AuthModal";
 import { PaymentSuccess } from "@/components/PaymentSuccess";
 import { ReviewList } from "@/components/ReviewList";
 import { IntroCallForm } from "@/components/IntroCallForm";
+import { useToast } from "@/hooks/use-toast";
 import { psychologists } from "@/data/psychologists";
 import { Psychologist } from "@/types/psychologist";
 import { useAuth } from "@/contexts/AuthContext";
@@ -66,12 +68,46 @@ const PsychologistProfile = () => {
   const [isSupervisionOpen, setIsSupervisionOpen] = useState(false);
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const [showIntroCall, setShowIntroCall] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
   const [bookingDetails, setBookingDetails] = useState<{
     duration: number;
     amount: number;
     psychologist: Psychologist;
   } | null>(null);
   const { user, role } = useAuth();
+  const { toast } = useToast();
+
+  /**
+   * Click handler for the "Book Session" button. Routes the user based on
+   * their auth state — keeping the individual-therapy flow strictly for
+   * clients, with a clear login prompt for signed-out visitors.
+   */
+  const handleBookSessionClick = () => {
+    if (!user) {
+      setShowAuth(true);   // signed-out → open AuthModal so they can log in / sign up
+      return;
+    }
+    if (role !== 'client') {
+      toast({
+        title: "Therapy bookings are for clients",
+        description: role === 'therapist'
+          ? "You're logged in as a therapist. Therapy sessions on Ehsaas can only be booked by clients."
+          : "You're logged in as an admin. Therapy sessions can only be booked by clients.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsBookingModalOpen(true);
+  };
+
+  const handleIntroCallClick = () => {
+    if (!user) { setShowAuth(true); return; }
+    if (role !== 'client') {
+      toast({ title: "Intro calls are for clients", variant: "destructive" });
+      return;
+    }
+    setShowIntroCall(true);
+  };
 
   // Try hardcoded lookup first (for Team page links like /psychologist/1)
   const staticPsychologist = psychologists.find(p => p.id === id);
@@ -377,15 +413,17 @@ const PsychologistProfile = () => {
             );
           }
 
-          // Default: client (or signed-out visitor) flow
+          // Default: client (or signed-out visitor) flow.
+          // Click handlers gate by auth state so signed-out users get the
+          // AuthModal and non-clients get a toast — never a broken modal.
           return (
             <div className="sticky bottom-4 flex gap-3">
-              {user && role === 'client' && (
+              {(!user || role === 'client') && (
                 <Button
                   variant="outline"
                   size="lg"
                   className="flex-shrink-0"
-                  onClick={() => setShowIntroCall(true)}
+                  onClick={handleIntroCallClick}
                 >
                   <Phone className="w-4 h-4 mr-2" />
                   Intro Call
@@ -395,7 +433,7 @@ const PsychologistProfile = () => {
                 variant="booking"
                 size="lg"
                 className="flex-1"
-                onClick={() => setIsBookingModalOpen(true)}
+                onClick={handleBookSessionClick}
               >
                 Book Session
               </Button>
@@ -435,6 +473,13 @@ const PsychologistProfile = () => {
           onClose={() => setShowIntroCall(false)}
         />
       )}
+
+      {/* Auth Modal (shown when a signed-out user tries to book) */}
+      <AuthModal
+        isOpen={showAuth}
+        onClose={() => setShowAuth(false)}
+        defaultTab="client"
+      />
 
       {/* Payment Success */}
       {showPaymentSuccess && bookingDetails && (
