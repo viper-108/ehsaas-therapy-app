@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Users, Calendar, Clock, Loader2, Lock, UserPlus, ChevronLeft, IndianRupee, Target } from "lucide-react";
+import { Users, Calendar, Clock, Loader2, Lock, UserPlus, ChevronLeft, IndianRupee, Target, Bookmark, Share2, MessageSquare } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,9 +93,46 @@ export default function GroupTherapyDetail() {
     <div className="min-h-screen bg-background">
       <Navigation />
       <div className="max-w-4xl mx-auto px-4 py-10">
-        <Button variant="ghost" size="sm" className="mb-4" onClick={() => navigate('/group-therapy')}>
-          <ChevronLeft className="w-4 h-4 mr-1" /> Back to all groups
-        </Button>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/group-therapy')}>
+            <ChevronLeft className="w-4 h-4 mr-1" /> Back to all groups
+          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => {
+              const saved = JSON.parse(localStorage.getItem('saved_groups') || '[]');
+              if (saved.includes(group._id)) {
+                localStorage.setItem('saved_groups', JSON.stringify(saved.filter((id: string) => id !== group._id)));
+                toast({ title: "Removed from saved" });
+              } else {
+                saved.push(group._id);
+                localStorage.setItem('saved_groups', JSON.stringify(saved));
+                toast({ title: "Saved for later" });
+              }
+            }}>
+              <Bookmark className="w-4 h-4 mr-1" />
+              {(JSON.parse(localStorage.getItem('saved_groups') || '[]') as string[]).includes(group._id) ? 'Saved' : 'Save'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={async () => {
+              const url = window.location.href;
+              const title = `Group Therapy: ${group.title}`;
+              if (navigator.share) {
+                try { await navigator.share({ title, url }); } catch {}
+              } else {
+                try { await navigator.clipboard.writeText(url); toast({ title: "Link copied" }); } catch {
+                  window.prompt('Copy this link:', url);
+                }
+              }
+            }}>
+              <Share2 className="w-4 h-4 mr-1" /> Share
+            </Button>
+            {/* Text the therapist before joining (clients only) */}
+            {role === 'client' && group.leadTherapists?.[0]?._id && (
+              <Button size="sm" variant="outline" onClick={() => navigate(`/client-dashboard?tab=messages&start=${group.leadTherapists[0]._id}`)}>
+                <MessageSquare className="w-4 h-4 mr-1" /> Talk to therapist
+              </Button>
+            )}
+          </div>
+        </div>
 
         <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl p-6 mb-6">
           <div className="flex items-start justify-between flex-wrap gap-4">

@@ -713,6 +713,109 @@ router.get('/by-therapist/:therapistId', async (req, res) => {
   }
 });
 
+// =============== GROUP EFFECTIVENESS INDICATORS (post-session notes) ===============
+// PUT /api/group-therapy/:id/effectiveness/:sessionNumber
+router.put('/:id/effectiveness/:sessionNumber', protect, therapistOnly, async (req, res) => {
+  try {
+    const group = await GroupTherapy.findById(req.params.id);
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+    const isLead = group.leadTherapists.some(tid => String(tid) === String(req.userId));
+    if (!isLead) return res.status(403).json({ message: 'Only lead therapists can save indicators' });
+
+    const sessionNumber = Math.max(1, parseInt(req.params.sessionNumber) || 1);
+    const GroupEffectivenessIndicator = (await import('../models/GroupEffectivenessIndicator.js')).default;
+    const fields = req.body || {};
+
+    const updated = await GroupEffectivenessIndicator.findOneAndUpdate(
+      { groupId: group._id, sessionNumber },
+      {
+        $set: {
+          authorTherapistId: req.userId,
+          sessionDate: fields.sessionDate ? new Date(fields.sessionDate) : new Date(),
+          attendanceCount: Number(fields.attendanceCount) || 0,
+          topicCovered: fields.topicCovered || '',
+          goalForSession: fields.goalForSession || '',
+          goalAchieved: fields.goalAchieved || '',
+          interventions: fields.interventions || '',
+          processingNotes: fields.processingNotes || '',
+          groupDynamics: fields.groupDynamics || '',
+          notableMoments: fields.notableMoments || '',
+          overallMood: fields.overallMood || '',
+          participationLevel: ['low', 'medium', 'high', ''].includes(fields.participationLevel) ? fields.participationLevel : '',
+          conflictsBiasesCountertransferences: fields.conflictsBiasesCountertransferences || '',
+          crisisOccurred: fields.crisisOccurred || '',
+          memberFeedbacks: fields.memberFeedbacks || '',
+          selfReflection: fields.selfReflection || '',
+          questionsForSupervision: fields.questionsForSupervision || '',
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json(updated);
+  } catch (e) {
+    console.error('Group effectiveness save error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/group-therapy/:id/effectiveness — list all indicators for a group (lead therapist or admin)
+router.get('/:id/effectiveness', protect, async (req, res) => {
+  try {
+    const group = await GroupTherapy.findById(req.params.id);
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+    const isLead = group.leadTherapists.some(tid => String(tid) === String(req.userId));
+    if (req.userRole !== 'admin' && !isLead) return res.status(403).json({ message: 'Forbidden' });
+    const GroupEffectivenessIndicator = (await import('../models/GroupEffectivenessIndicator.js')).default;
+    const list = await GroupEffectivenessIndicator.find({ groupId: group._id }).sort({ sessionNumber: 1 });
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// =============== ATTENDANCE TRACKING ===============
+// PUT /api/group-therapy/:id/attendance/:sessionNumber
+// Body: { records: [{ enrollmentId, attended }] }
+router.put('/:id/attendance/:sessionNumber', protect, therapistOnly, async (req, res) => {
+  try {
+    const group = await GroupTherapy.findById(req.params.id);
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+    const isLead = group.leadTherapists.some(tid => String(tid) === String(req.userId));
+    if (!isLead) return res.status(403).json({ message: 'Only lead therapists can mark attendance' });
+    const sessionNumber = Math.max(1, parseInt(req.params.sessionNumber) || 1);
+    const records = Array.isArray(req.body?.records) ? req.body.records : [];
+
+    for (const r of records) {
+      if (!r?.enrollmentId) continue;
+      const enroll = await GroupEnrollment.findById(r.enrollmentId);
+      if (!enroll || String(enroll.groupId) !== String(group._id)) continue;
+      const arr = (enroll.attendance || []).filter(a => a.sessionNumber !== sessionNumber);
+      arr.push({ sessionNumber, attended: !!r.attended, markedAt: new Date() });
+      enroll.attendance = arr;
+      await enroll.save();
+    }
+    res.json({ message: 'Attendance saved' });
+  } catch (e) {
+    console.error('Group attendance error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/group-therapy/by-therapist/:therapistId — public list of groups led by a therapist
+router.get('/by-therapist/:therapistId', async (req, res) => {
+  try {
+    const list = await GroupTherapy.find({
+      leadTherapists: req.params.therapistId,
+      status: { $in: ['upcoming', 'ongoing', 'completed'] },
+    }).populate('leadTherapists', 'name title image').sort({ sessionStartAt: -1 });
+    const result = list.map(g => ({ ...g.toObject(), liveStatus: liveStatus(g) }));
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // =============== ADMIN PENDING GROUPS ===============
 // GET /api/group-therapy/admin/pending
 router.get('/admin/pending', protect, adminOnly, async (req, res) => {

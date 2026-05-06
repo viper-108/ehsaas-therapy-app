@@ -689,6 +689,28 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  // Group attendance + effectiveness indicators
+  async saveGroupAttendance(groupId: string, sessionNumber: number, records: { enrollmentId: string; attended: boolean }[]) {
+    const res = await fetch(`${API_BASE}/group-therapy/${groupId}/attendance/${sessionNumber}`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ records })
+    });
+    return this.handleResponse(res);
+  }
+  async saveGroupEffectiveness(groupId: string, sessionNumber: number, body: any) {
+    const res = await fetch(`${API_BASE}/group-therapy/${groupId}/effectiveness/${sessionNumber}`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async getGroupEffectiveness(groupId: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/${groupId}/effectiveness`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async getGroupsByTherapist(therapistId: string) {
+    const res = await fetch(`${API_BASE}/group-therapy/by-therapist/${therapistId}`, { headers: this.getHeaders(false) });
+    return this.handleResponse(res);
+  }
+
   async lockGroupTherapy(id: string) {
     const res = await fetch(`${API_BASE}/group-therapy/${id}/lock`, {
       method: 'POST', headers: this.getHeaders()

@@ -9,6 +9,7 @@ import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { CreateGroupTherapyDialog } from "@/components/CreateGroupTherapyDialog";
+import { GroupEffectivenessDialog } from "@/components/GroupEffectivenessDialog";
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   pending_admin: { label: 'Pending admin approval', cls: 'bg-amber-500/10 text-amber-700' },
@@ -26,6 +27,7 @@ export function TherapistGroupsTab() {
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [effectivenessGroup, setEffectivenessGroup] = useState<any | null>(null);
   const [enrollmentsByGroup, setEnrollmentsByGroup] = useState<Record<string, any[]>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -115,6 +117,12 @@ export function TherapistGroupsTab() {
           <Button size="sm" variant="outline" onClick={() => navigate(`/group-therapy/${g._id}`)}>
             View public page <ChevronRight className="w-3 h-3 ml-1" />
           </Button>
+          {/* Effectiveness indicators (post-session) — available once any session has happened */}
+          {(['upcoming', 'ongoing', 'completed'].includes(g.status)) && enrolled.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setEffectivenessGroup({ ...g, _enrollments: enrolled })}>
+              <ClipboardList className="w-3 h-3 mr-1" /> Session Indicators / Attendance
+            </Button>
+          )}
           {canLock && (
             <Button size="sm" disabled={busy === g._id} onClick={() => handleLock(g._id)}>
               <Lock className="w-3 h-3 mr-1" /> Lock Group (creates chat)
@@ -236,6 +244,17 @@ export function TherapistGroupsTab() {
       )}
 
       <CreateGroupTherapyDialog isOpen={showCreate} onClose={() => setShowCreate(false)} onCreated={load} />
+
+      {effectivenessGroup && (
+        <GroupEffectivenessDialog
+          groupId={effectivenessGroup._id}
+          totalSessions={effectivenessGroup.totalSessions || 1}
+          enrollments={effectivenessGroup._enrollments || []}
+          isOpen={!!effectivenessGroup}
+          onClose={() => setEffectivenessGroup(null)}
+          onSaved={load}
+        />
+      )}
     </div>
   );
 }
