@@ -11,6 +11,8 @@ import { Link } from "react-router-dom";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { MyServicesPanel } from "@/components/MyServicesPanel";
+import { ManageServicesPanel } from "@/components/ManageServicesPanel";
 
 export function TherapistProfileTab() {
   const { user, updateUser } = useAuth();
@@ -188,6 +190,10 @@ export function TherapistProfileTab() {
           />
         </div>
       </Card>
+
+      {/* Approved services + apply for new ones */}
+      <MyServicesPanel />
+      <ManageServicesPanel />
 
       {/* Editable profile fields */}
       <Card className="p-5">

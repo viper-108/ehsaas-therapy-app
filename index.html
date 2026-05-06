@@ -16,6 +16,19 @@
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="/ehsaas-logo.png" />
+
+    <!-- Apply saved theme BEFORE React renders so new tabs (public profile, etc.) -->
+    <!-- pick up dark/light mode without a flash of the wrong theme. -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('ehsaas_theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = saved === 'dark' || (!saved && prefersDark);
+          if (isDark) document.documentElement.classList.add('dark');
+        } catch (e) { /* ignore */ }
+      })();
+    </script>
   </head>
 
   <body>
