@@ -93,6 +93,47 @@ const therapistSchema = new mongoose.Schema({
     }],
     default: [],
   },
+
+  // ========== SUPERVISION ==========
+  // 1) Therapist offering SUPERVISION — applies via supervisorProfile.
+  //    Independent from the 'supervision' service in approvedServices —
+  //    the latter must also be approved+accepted for a supervisor to be listed publicly.
+  supervisorProfile: {
+    isApplied: { type: Boolean, default: false },
+    isApproved: { type: Boolean, default: false },
+    isRejected: { type: Boolean, default: false },
+    appliedAt: { type: Date, default: null },
+    approvedAt: { type: Date, default: null },
+    rejectedAt: { type: Date, default: null },
+    rejectionReason: { type: String, default: '' },
+    // Supervisor intake details
+    therapyExperienceYears: { type: Number, default: 0 },
+    supervisionExperienceYears: { type: Number, default: 0 },
+    audience: { type: String, default: '' },          // "students, early-career therapists..."
+    focusBio: { type: String, default: '' },          // "case discussion, ethics..."
+    approach: { type: String, default: '' },
+    durationOptions: [{ type: Number }],              // e.g. [50, 90]
+    individualPrice50: { type: Number, default: 0 },
+    individualPrice90: { type: Number, default: 0 },
+    openTo: { type: String, enum: ['individual', 'group', 'both', ''], default: '' },
+  },
+
+  // 2) Therapist requesting SUPERVISION (supervisee) — applies via superviseeProfile.
+  superviseeProfile: {
+    isApplied: { type: Boolean, default: false },
+    isApproved: { type: Boolean, default: false },
+    isRejected: { type: Boolean, default: false },
+    appliedAt: { type: Date, default: null },
+    approvedAt: { type: Date, default: null },
+    rejectedAt: { type: Date, default: null },
+    rejectionReason: { type: String, default: '' },
+    // Supervisee intake details
+    experienceLevelHours: { type: Number, default: 0 },
+    currentCaseload: { type: Number, default: 0 },
+    goalsExpectations: { type: String, default: '' },
+    modalities: { type: String, default: '' },        // approaches/modalities
+    consentToGuidelines: { type: Boolean, default: false },
+  },
   availability: [availabilitySlotSchema],
   calendlyLink: { type: String, default: '' },
   isApproved: { type: Boolean, default: false },

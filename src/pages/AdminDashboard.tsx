@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, UserCheck, UserX, Clock, Calendar, DollarSign, BarChart3,
   CheckCircle, XCircle, LogOut, ChevronRight, Shield, Loader2, Star, TrendingUp,
-  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight, FileText, Download, Heart, Briefcase, BookOpen
+  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight, FileText, Download, Heart, Briefcase, BookOpen, GraduationCap
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator
@@ -64,6 +64,9 @@ const AdminDashboard = () => {
   const [pendingCouples, setPendingCouples] = useState<any[]>([]);
   const [serviceChangeRequests, setServiceChangeRequests] = useState<any[]>([]);
   const [pendingWorkshops, setPendingWorkshops] = useState<any[]>([]);
+  const [pendingSupervisors, setPendingSupervisors] = useState<any[]>([]);
+  const [pendingSupervisees, setPendingSupervisees] = useState<any[]>([]);
+  const [pendingSupervisionGroups, setPendingSupervisionGroups] = useState<any[]>([]);
   const [allTherapists, setAllTherapists] = useState<any[]>([]);
   const [allClients, setAllClients] = useState<any[]>([]);
   const [allSessions, setAllSessions] = useState<any[]>([]);
@@ -141,7 +144,7 @@ const AdminDashboard = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData, serviceChangeData, pendingWorkshopsData] = await Promise.all([
+      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData, serviceChangeData, pendingWorkshopsData, pSup, pSupe, pSupGroups] = await Promise.all([
         api.getAdminStats(),
         api.getPendingTherapists(),
         api.getAllTherapistsAdmin(),
@@ -154,6 +157,9 @@ const AdminDashboard = () => {
         api.getPendingCouplesProfiles().catch(() => []),
         api.listServiceChangeRequests().catch(() => []),
         api.listPendingWorkshops().catch(() => []),
+        api.listPendingSupervisors().catch(() => []),
+        api.listPendingSupervisees().catch(() => []),
+        api.listPendingSupervisionGroups().catch(() => []),
       ]);
       setStats(statsData);
       setPending(pendingData);
@@ -167,6 +173,9 @@ const AdminDashboard = () => {
       setPendingCouples(pendingCouplesData);
       setServiceChangeRequests(serviceChangeData);
       setPendingWorkshops(pendingWorkshopsData);
+      setPendingSupervisors(pSup);
+      setPendingSupervisees(pSupe);
+      setPendingSupervisionGroups(pSupGroups);
     } catch (error) {
       console.error('Admin dashboard load error:', error);
     } finally {
@@ -254,7 +263,7 @@ const AdminDashboard = () => {
           ) : (
             (() => {
               const sidebarItems: SidebarItem[] = [
-                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length + pendingCouples.length + serviceChangeRequests.length + pendingWorkshops.length) || null, group: 'Approvals' },
+                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length + pendingCouples.length + serviceChangeRequests.length + pendingWorkshops.length + pendingSupervisors.length + pendingSupervisees.length + pendingSupervisionGroups.length) || null, group: 'Approvals' },
                 { value: 'reviews', label: 'Reviews', icon: Star, group: 'Approvals' },
                 { value: 'therapists', label: 'Therapists', icon: UserCheck, group: 'People' },
                 { value: 'clients', label: 'Clients', icon: Users, group: 'People' },
@@ -752,8 +761,141 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
+                {/* ===== PENDING SUPERVISOR APPLICATIONS ===== */}
+                {pendingSupervisors.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-primary" /> Pending Supervisor Applications ({pendingSupervisors.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {pendingSupervisors.map((t: any) => {
+                        const sp = t.supervisorProfile || {};
+                        return (
+                          <Card key={t._id} className="p-4">
+                            <div className="flex justify-between items-start gap-3 flex-wrap">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium">{t.name} <span className="text-muted-foreground font-normal">({t.email})</span></p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {sp.therapyExperienceYears}+ yrs therapy · {sp.supervisionExperienceYears || 0}+ yrs supervision · Open to: <span className="capitalize">{sp.openTo}</span>
+                                </p>
+                                {sp.audience && <p className="text-xs text-muted-foreground mt-1"><strong>For:</strong> {sp.audience}</p>}
+                                {sp.focusBio && <p className="text-xs text-muted-foreground mt-1 italic">"{sp.focusBio}"</p>}
+                                <p className="text-xs text-muted-foreground mt-1">₹{sp.individualPrice50}/50min{sp.individualPrice90 > 0 ? ` · ₹${sp.individualPrice90}/90min` : ''}</p>
+                              </div>
+                              <div className="flex gap-2 flex-wrap">
+                                <Button size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50" onClick={async () => {
+                                  const ok = await confirm({ title: `Approve ${t.name} as Supervisor?`, description: 'They will appear in the public supervisor directory once they also accept the "supervision" service.', confirmLabel: 'Approve' });
+                                  if (!ok) return;
+                                  try { await api.decideSupervisor(t._id, true); toast({ title: "Approved" }); loadAll(); }
+                                  catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                }}>
+                                  <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                                </Button>
+                                <Button size="sm" variant="outline" className="border-red-500 text-red-600 hover:bg-red-50" onClick={async () => {
+                                  const reason = window.prompt('Reason for rejection (optional):') || '';
+                                  try { await api.decideSupervisor(t._id, false, reason); toast({ title: "Rejected" }); loadAll(); }
+                                  catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                }}>
+                                  <XCircle className="w-3 h-3 mr-1" /> Reject
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => openTherapistDetail(t._id)}>View Profile</Button>
+                              </div>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ===== PENDING SUPERVISEE APPLICATIONS ===== */}
+                {pendingSupervisees.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-primary" /> Pending Supervisee Applications ({pendingSupervisees.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {pendingSupervisees.map((t: any) => {
+                        const svp = t.superviseeProfile || {};
+                        return (
+                          <Card key={t._id} className="p-4">
+                            <div className="flex justify-between items-start gap-3 flex-wrap">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium">{t.name} <span className="text-muted-foreground font-normal">({t.email})</span></p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {svp.experienceLevelHours} hrs experience · Caseload: {svp.currentCaseload}
+                                </p>
+                                {svp.goalsExpectations && <p className="text-xs text-muted-foreground mt-1 italic">"{svp.goalsExpectations}"</p>}
+                                {svp.modalities && <p className="text-xs text-muted-foreground mt-1"><strong>Modalities:</strong> {svp.modalities}</p>}
+                              </div>
+                              <div className="flex gap-2 flex-wrap">
+                                <Button size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50" onClick={async () => {
+                                  const ok = await confirm({ title: `Approve ${t.name} for Supervision?`, description: 'They will be able to book individual or group supervision.', confirmLabel: 'Approve' });
+                                  if (!ok) return;
+                                  try { await api.decideSupervisee(t._id, true); toast({ title: "Approved" }); loadAll(); }
+                                  catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                }}>
+                                  <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                                </Button>
+                                <Button size="sm" variant="outline" className="border-red-500 text-red-600 hover:bg-red-50" onClick={async () => {
+                                  const reason = window.prompt('Reason for rejection (optional):') || '';
+                                  try { await api.decideSupervisee(t._id, false, reason); toast({ title: "Rejected" }); loadAll(); }
+                                  catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                }}>
+                                  <XCircle className="w-3 h-3 mr-1" /> Reject
+                                </Button>
+                              </div>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ===== PENDING SUPERVISION GROUPS ===== */}
+                {pendingSupervisionGroups.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-primary" /> Pending Supervision Groups ({pendingSupervisionGroups.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {pendingSupervisionGroups.map((g: any) => (
+                        <Card key={g._id} className="p-4">
+                          <div className="flex justify-between items-start gap-3 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium">{g.title}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{g.level} · {g.totalSessions}×{g.durationMinutes}min · ₹{g.pricePer4Sessions}/{g.totalSessions} sessions · Up to {g.groupSize} members</p>
+                              <p className="text-xs text-muted-foreground mt-1">Led by: {(g.supervisorTherapistIds || []).map((t: any) => t.name).join(' & ')}</p>
+                              {g.format && <p className="text-xs text-muted-foreground mt-1"><strong>Format:</strong> {g.format}</p>}
+                              {g.description && <p className="text-xs text-muted-foreground mt-1 italic">"{g.description}"</p>}
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button size="sm" variant="outline" className="border-green-500 text-green-600 hover:bg-green-50" onClick={async () => {
+                                const ok = await confirm({ title: `Approve "${g.title}"?`, description: 'It will appear in the public supervision page.', confirmLabel: 'Approve' });
+                                if (!ok) return;
+                                try { await api.decideSupervisionGroup(g._id, true); toast({ title: "Approved" }); loadAll(); }
+                                catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}>
+                                <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                              </Button>
+                              <Button size="sm" variant="outline" className="border-red-500 text-red-600 hover:bg-red-50" onClick={async () => {
+                                const reason = window.prompt('Reason for rejection (optional):') || '';
+                                try { await api.decideSupervisionGroup(g._id, false, reason); toast({ title: "Rejected" }); loadAll(); }
+                                catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}>
+                                <XCircle className="w-3 h-3 mr-1" /> Reject
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* "All caught up" — when literally nothing is pending */}
-                {pending.length === 0 && pendingReviews.length === 0 && pendingNegotiations.length === 0 && pendingGroups.length === 0 && pendingCouples.length === 0 && serviceChangeRequests.length === 0 && pendingWorkshops.length === 0 && (
+                {pending.length === 0 && pendingReviews.length === 0 && pendingNegotiations.length === 0 && pendingGroups.length === 0 && pendingCouples.length === 0 && serviceChangeRequests.length === 0 && pendingWorkshops.length === 0 && pendingSupervisors.length === 0 && pendingSupervisees.length === 0 && pendingSupervisionGroups.length === 0 && (
                   <Card className="p-12 text-center mt-4">
                     <CheckCircle className="w-12 h-12 text-success mx-auto mb-3" />
                     <p className="text-muted-foreground">No pending items. All caught up!</p>

@@ -51,11 +51,23 @@ const Services = () => {
       title: "Workshops",
       description: "Short, skill-based learning experiences. One-time or short series; pay, attend, get a certificate.",
       features: ["Skill-based outcomes", "1-3 sessions", "Certificate of completion", "Open to all"]
+    },
+    {
+      type: 'supervision',
+      icon: GraduationCap,
+      title: "Supervision",
+      description: "Professional supervision for therapists & students — case discussion, ethical practice, skill-building.",
+      features: ["Individual or group", "Case discussion", "Ethical guidance", "Approved supervisors only"]
     }
   ];
 
   // Click handler: based on service type and login state, route to the right flow.
   const pickService = async (type: string) => {
+    // Supervision is open to therapists too — don't gate by client login
+    if (type === 'supervision') {
+      navigate('/supervision');
+      return;
+    }
     if (!user || role !== 'client') {
       setShowAuth(true);
       return;
@@ -65,6 +77,7 @@ const Services = () => {
     if (type === 'couple') navigate('/client-dashboard?tab=couples');
     else if (type === 'group') navigate('/group-therapy');
     else if (type === 'workshop') navigate('/workshops');
+    else if (type === 'supervision') navigate('/supervision');
     else navigate(`/team?service=${type}`);
   };
 
@@ -151,6 +164,7 @@ const Services = () => {
                        service.type === 'group' ? 'Browse Groups' :
                        service.type === 'family' ? 'Find Family Therapist' :
                        service.type === 'workshop' ? 'Browse Workshops' :
+                       service.type === 'supervision' ? 'Browse Supervisors' :
                        'Find a Therapist'}
                     </Button>
                   </CardContent>

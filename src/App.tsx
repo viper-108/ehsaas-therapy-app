@@ -29,6 +29,7 @@ import ChooseService from "./pages/ChooseService";
 import GroupTherapyDetail from "./pages/GroupTherapyDetail";
 import Workshops from "./pages/Workshops";
 import WorkshopDetail from "./pages/WorkshopDetail";
+import Supervision from "./pages/Supervision";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -71,6 +72,7 @@ const App = () => (
             <Route path="/group-therapy/:id" element={<GroupTherapyDetail />} />
             <Route path="/workshops" element={<Workshops />} />
             <Route path="/workshops/:id" element={<WorkshopDetail />} />
+            <Route path="/supervision" element={<Supervision />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/notifications" element={<NotificationsPage />} />

@@ -546,6 +546,82 @@ class ApiService {
     });
     return this.handleResponse(res);
   }
+  // ============ SUPERVISION FLOW ============
+  async applyAsSupervisor(body: any) {
+    const res = await fetch(`${API_BASE}/supervision-flow/supervisor-apply`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async applyAsSupervisee(body: any) {
+    const res = await fetch(`${API_BASE}/supervision-flow/supervisee-apply`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async listPendingSupervisors() {
+    const res = await fetch(`${API_BASE}/supervision-flow/admin/pending-supervisors`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async listPendingSupervisees() {
+    const res = await fetch(`${API_BASE}/supervision-flow/admin/pending-supervisees`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async decideSupervisor(id: string, approve: boolean, reason?: string) {
+    const res = await fetch(`${API_BASE}/supervision-flow/supervisor/${id}/decide`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ approve, reason: reason || '' })
+    });
+    return this.handleResponse(res);
+  }
+  async decideSupervisee(id: string, approve: boolean, reason?: string) {
+    const res = await fetch(`${API_BASE}/supervision-flow/supervisee/${id}/decide`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ approve, reason: reason || '' })
+    });
+    return this.handleResponse(res);
+  }
+  async listSupervisors() {
+    const res = await fetch(`${API_BASE}/supervision-flow/supervisors`, { headers: this.getHeaders(false) });
+    return this.handleResponse(res);
+  }
+  async listSupervisionGroups() {
+    const res = await fetch(`${API_BASE}/supervision-flow/groups`, { headers: this.getHeaders(false) });
+    return this.handleResponse(res);
+  }
+  async getSupervisionGroup(id: string) {
+    const res = await fetch(`${API_BASE}/supervision-flow/groups/${id}`, { headers: this.getHeaders(false) });
+    return this.handleResponse(res);
+  }
+  async createSupervisionGroup(body: any) {
+    const res = await fetch(`${API_BASE}/supervision-flow/groups`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async listPendingSupervisionGroups() {
+    const res = await fetch(`${API_BASE}/supervision-flow/groups/admin/pending`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async decideSupervisionGroup(id: string, approve: boolean, reason?: string) {
+    const res = await fetch(`${API_BASE}/supervision-flow/groups/${id}/decide`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ approve, reason: reason || '' })
+    });
+    return this.handleResponse(res);
+  }
+  async getMyLeadingSupervisionGroups() {
+    const res = await fetch(`${API_BASE}/supervision-flow/my/groups-leading`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async writeSupervisionNote(body: any) {
+    const res = await fetch(`${API_BASE}/supervision-flow/notes`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify(body)
+    });
+    return this.handleResponse(res);
+  }
+  async getMySupervisionNotes() {
+    const res = await fetch(`${API_BASE}/supervision-flow/my/notes`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+
   async startWorkshopCheckout(registrationId: string) {
     const res = await fetch(`${API_BASE}/payments/workshop-checkout`, {
       method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ registrationId })

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Calendar, Clock, DollarSign, Users, TrendingUp, CheckCircle,
   XCircle, Settings, BarChart3, ChevronRight, LogOut, FileText, MessageCircle, ClipboardList, Phone, BookOpen, Library,
-  MoreVertical, User as UserIcon, ClipboardCheck
+  MoreVertical, User as UserIcon, ClipboardCheck, GraduationCap
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +27,7 @@ import { TherapistEarningsTab } from "@/components/TherapistEarningsTab";
 import { TherapistGroupsTab } from "@/components/TherapistGroupsTab";
 import { TherapistApprovalsTab } from "@/components/TherapistApprovalsTab";
 import { TherapistWorkshopsTab } from "@/components/TherapistWorkshopsTab";
+import { TherapistSupervisionTab } from "@/components/TherapistSupervisionTab";
 import { TherapistProfileTab } from "@/components/TherapistProfileTab";
 import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { CancelSessionDialog } from "@/components/CancelSessionDialog";
@@ -224,6 +225,7 @@ const TherapistDashboard = () => {
               { value: 'messages', label: t('dashboard.messages'), icon: MessageCircle, group: 'Clients' },
               { value: 'group-therapy', label: 'Group Therapy', icon: Users, group: 'Content' },
               { value: 'workshops', label: 'Workshops', icon: BookOpen, group: 'Content' },
+              { value: 'supervision', label: 'Supervision', icon: GraduationCap, group: 'Content' },
               { value: 'resources', label: 'Resources', icon: Library, group: 'Content' },
               { value: 'supervision', label: t('dashboard.supervision'), icon: BookOpen, group: 'Content' },
               ...(user?.therapistType === 'psychiatrist' ? [{ value: 'prescriptions', label: 'Prescriptions', icon: FileText, group: 'Content' } as SidebarItem] : []),
@@ -695,6 +697,11 @@ const TherapistDashboard = () => {
             {/* ========== WORKSHOPS TAB ========== */}
             <TabsContent value="workshops">
               <TherapistWorkshopsTab />
+            </TabsContent>
+
+            {/* ========== SUPERVISION TAB ========== */}
+            <TabsContent value="supervision">
+              <TherapistSupervisionTab />
             </TabsContent>
 
             {/* ========== RESOURCES TAB ========== */}
