@@ -2,9 +2,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { useEffect } from "react";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { useEffect, ReactNode } from "react";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ChatProvider } from "@/components/ChatProvider";
 import { ConfirmProvider } from "@/components/ConfirmDialog";
@@ -46,6 +46,29 @@ const ScrollToTop = () => {
   return null;
 };
 
+/**
+ * Hard role-gate at the route level. Prevents a non-matching user from ever
+ * rendering the dashboard component (and seeing e.g. "Admin Dashboard" text)
+ * even for a single frame while a child-level effect catches up.
+ *
+ * Once auth has settled (isLoading === false):
+ *   - Not logged in → bounce to "/"
+ *   - Logged in with the wrong role → send to *their* dashboard
+ *   - Logged in with the right role → render the children
+ */
+const RequireRole = ({ role: required, children }: { role: 'client' | 'therapist' | 'admin'; children: ReactNode }) => {
+  const { user, role, isLoading } = useAuth();
+  if (isLoading) return null;             // wait for /auth/me to settle
+  if (!user || !role) return <Navigate to="/" replace />;
+  if (role !== required) {
+    const dest = role === 'admin' ? '/admin-dashboard'
+               : role === 'therapist' ? '/therapist-dashboard'
+               : '/client-dashboard';
+    return <Navigate to={dest} replace />;
+  }
+  return <>{children}</>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -66,10 +89,10 @@ const App = () => (
             <Route path="/contact" element={<Contact />} />
             <Route path="/faqs" element={<FAQs />} />
             <Route path="/psychologist/:id" element={<PsychologistProfile />} />
-            <Route path="/therapist-dashboard" element={<TherapistDashboard />} />
-            <Route path="/client-dashboard" element={<ClientDashboard />} />
+            <Route path="/therapist-dashboard" element={<RequireRole role="therapist"><TherapistDashboard /></RequireRole>} />
+            <Route path="/client-dashboard" element={<RequireRole role="client"><ClientDashboard /></RequireRole>} />
             <Route path="/payment-success" element={<PaymentSuccessPage />} />
-            <Route path="/admin-dashboard" element={<AdminDashboard />} />
+            <Route path="/admin-dashboard" element={<RequireRole role="admin"><AdminDashboard /></RequireRole>} />
             <Route path="/group-therapy" element={<GroupTherapy />} />
             <Route path="/group-therapy/:id" element={<GroupTherapyDetail />} />
             <Route path="/workshops" element={<Workshops />} />

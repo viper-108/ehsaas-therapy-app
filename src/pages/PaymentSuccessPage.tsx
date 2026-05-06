@@ -5,14 +5,21 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Navigation from "@/components/Navigation";
 import { api } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const PaymentSuccessPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { role } = useAuth();
   const [status, setStatus] = useState<'loading' | 'success' | 'pending' | 'error'>('loading');
   const paymentType = searchParams.get('type') || 'session'; // 'supervision' | 'group' | 'workshop' | 'training' | default 'session'
   const isSupervision = paymentType === 'supervision';
-  const dashboardPath = isSupervision ? '/therapist-dashboard' : '/client-dashboard';
+  // Always send the user to *their own* dashboard based on the logged-in role.
+  // Defaults to /client-dashboard for the common (client booking) path.
+  const dashboardPath =
+    role === 'admin' ? '/admin-dashboard'
+    : role === 'therapist' ? '/therapist-dashboard'
+    : '/client-dashboard';
 
   useEffect(() => {
     const confirmPayment = async () => {
