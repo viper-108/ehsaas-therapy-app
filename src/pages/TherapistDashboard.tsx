@@ -635,62 +635,6 @@ const TherapistDashboard = () => {
               </Card>
             </TabsContent>
 
-            {/* ========== SUPERVISION TAB ========== */}
-            <TabsContent value="supervision">
-              <Card className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-semibold text-foreground">Supervision Sessions</h2>
-                  <Button onClick={() => setShowSupervisionForm(true)}>
-                    <BookOpen className="w-4 h-4 mr-2" /> Request Supervision
-                  </Button>
-                </div>
-                {supervisionSessions.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-12">No supervision sessions yet. Request one to get started.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {supervisionSessions.map(s => (
-                      <div key={s._id} className="p-4 border rounded-lg">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <p className="font-medium text-foreground">{s.topic}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {s.type === 'individual' ? 'Individual' : 'Group'} Supervision
-                              {s.type === 'individual' && s.supervisorId && ` with ${s.supervisorId.name}`}
-                            </p>
-                          </div>
-                          <Badge className={
-                            s.status === 'scheduled' ? 'bg-success/10 text-success' :
-                            s.status === 'admin_approved' ? 'bg-primary/10 text-primary' :
-                            s.status === 'requested' ? 'bg-warm/10 text-warm' :
-                            s.status === 'rejected' ? 'bg-destructive/10 text-destructive' :
-                            'bg-muted text-muted-foreground'
-                          }>
-                            {s.status.replace('_', ' ')}
-                          </Badge>
-                        </div>
-                        {s.date && (
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(s.date).toLocaleDateString('en-IN')} at {s.startTime}
-                            {s.meetingLink && <> • <a href={s.meetingLink} target="_blank" rel="noopener noreferrer" className="text-primary underline">Join Meeting</a></>}
-                          </p>
-                        )}
-                        {s.type === 'group' && s.participants?.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {s.participants.map((p: any, i: number) => (
-                              <Badge key={i} variant="outline" className="text-xs">
-                                {p.therapistId?.name || 'Therapist'} ({p.status})
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                        {s.adminNotes && <p className="text-sm text-muted-foreground mt-1"><strong>Admin notes:</strong> {s.adminNotes}</p>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            </TabsContent>
-
             {/* ========== APPROVALS TAB ========== */}
             <TabsContent value="approvals">
               <TherapistApprovalsTab />

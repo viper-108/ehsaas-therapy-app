@@ -331,6 +331,22 @@ router.post('/confirm', protect, async (req, res) => {
       payment.status = 'completed';
       await payment.save();
 
+      // Flow-isolation guard: each Payment is tied to exactly ONE booking
+      // resource (session OR recurring group OR group enrollment OR workshop
+      // OR training OR supervision). Guard against the if/else cascade
+      // accidentally running >1 branch on a corrupted record.
+      const linkages = [
+        payment.recurringGroupId ? 'recurringGroupId' : null,
+        payment.sessionId ? 'sessionId' : null,
+        payment.groupEnrollmentId ? 'groupEnrollmentId' : null,
+        payment.workshopRegistrationId ? 'workshopRegistrationId' : null,
+        payment.trainingRegistrationId ? 'trainingRegistrationId' : null,
+        payment.supervisionSessionId ? 'supervisionSessionId' : null,
+      ].filter(Boolean);
+      if (linkages.length > 1) {
+        console.error('[PAYMENT-LINKAGE]', `Payment ${payment._id} has multiple linkages:`, linkages);
+      }
+
       // For recurring: mark ALL sessions in group as paid
       if (payment.recurringGroupId) {
         try {

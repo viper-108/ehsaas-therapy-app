@@ -27,6 +27,19 @@ router.post('/', protect, clientOnly, async (req, res) => {
       return res.status(400).json({ message: 'This therapist is no longer available. Please choose another therapist.' });
     }
 
+    // Flow-isolation guard: don't allow a client to book a sessionType
+    // (e.g. 'couple', 'family', 'group') the therapist hasn't been approved
+    // for. Without this an attacker could POST sessionType='couple' to an
+    // individual-only therapist and trigger the couples auto-chat-group code
+    // path on the wrong relationship.
+    const requestedType = sessionType || 'individual';
+    if (requestedType !== 'individual') {
+      const accepted = (therapist.approvedServices || []).some(s => s.type === requestedType && s.therapistAccepted);
+      if (!accepted) {
+        return res.status(400).json({ message: `This therapist does not offer ${requestedType} sessions.` });
+      }
+    }
+
     const pricing = therapist.pricing instanceof Map ? Object.fromEntries(therapist.pricing) : therapist.pricing;
     const baseAmount = pricing[String(duration)];
     if (!baseAmount) return res.status(400).json({ message: `Therapist does not offer ${duration} minute sessions` });
@@ -56,10 +69,23 @@ router.post('/', protect, clientOnly, async (req, res) => {
     });
     if (existingSession) return res.status(409).json({ message: 'This time slot is already booked' });
 
+    // Same cross-flow check as available-slots: don't let an individual
+    // booking land on a slot already held by a SupervisionSession.
+    try {
+      const SupervisionSession = (await import('../models/SupervisionSession.js')).default;
+      const supConflict = await SupervisionSession.findOne({
+        supervisorId: therapistId,
+        date: { $gte: dayStart, $lte: dayEnd },
+        startTime,
+        status: { $in: ['pending_payment', 'scheduled', 'admin_approved'] },
+      });
+      if (supConflict) return res.status(409).json({ message: 'This time slot is already booked' });
+    } catch { /* model may not exist on legacy DB */ }
+
     const session = await Session.create({
       clientId: req.userId, therapistId, date: new Date(date),
       startTime, endTime, duration, amount,
-      sessionType: sessionType || 'individual', status: 'scheduled'
+      sessionType: requestedType, status: 'scheduled'
     });
 
     // Ensure active relationship exists (used for transfer access control)
@@ -146,6 +172,15 @@ router.post('/recurring', protect, clientOnly, async (req, res) => {
       return res.status(400).json({ message: 'This therapist is no longer available. Please choose another therapist.' });
     }
 
+    // Same flow-isolation guard as POST /api/sessions
+    const requestedType = sessionType || 'individual';
+    if (requestedType !== 'individual') {
+      const accepted = (therapist.approvedServices || []).some(s => s.type === requestedType && s.therapistAccepted);
+      if (!accepted) {
+        return res.status(400).json({ message: `This therapist does not offer ${requestedType} sessions.` });
+      }
+    }
+
     const pricing = therapist.pricing instanceof Map ? Object.fromEntries(therapist.pricing) : therapist.pricing;
     const baseAmount = pricing[String(duration)];
     if (!baseAmount) return res.status(400).json({ message: `Therapist does not offer ${duration} minute sessions` });
@@ -177,18 +212,28 @@ router.post('/recurring', protect, clientOnly, async (req, res) => {
       }
     }
 
-    // All clear, create all sessions
-    for (let i = 0; i < numWeeks; i++) {
-      const sessionDate = new Date(date);
-      sessionDate.setDate(sessionDate.getDate() + (i * 7));
+    // All clear, create all sessions. Track created docs so we can roll back
+    // if any subsequent insert fails — prevents orphaned partial bookings.
+    try {
+      for (let i = 0; i < numWeeks; i++) {
+        const sessionDate = new Date(date);
+        sessionDate.setDate(sessionDate.getDate() + (i * 7));
 
-      const session = await Session.create({
-        clientId: req.userId, therapistId, date: sessionDate,
-        startTime, endTime, duration, amount,
-        sessionType: sessionType || 'individual', status: 'scheduled',
-        isRecurring: true, recurringGroupId,
-      });
-      sessions.push(session);
+        const session = await Session.create({
+          clientId: req.userId, therapistId, date: sessionDate,
+          startTime, endTime, duration, amount,
+          sessionType: requestedType, status: 'scheduled',
+          isRecurring: true, recurringGroupId,
+        });
+        sessions.push(session);
+      }
+    } catch (createErr) {
+      // Rollback any sessions that did get inserted
+      if (sessions.length > 0) {
+        await Session.deleteMany({ recurringGroupId }).catch(() => {});
+      }
+      console.error('Recurring partial-failure rollback:', createErr.message);
+      return res.status(500).json({ message: 'Could not create all recurring sessions. Please try again.' });
     }
 
     // Ensure active relationship exists
@@ -214,6 +259,10 @@ router.post('/recurring', protect, clientOnly, async (req, res) => {
 });
 
 // DELETE /api/sessions/recurring/:groupId - cancel all sessions in a recurring group
+// Same 24-hour rule as single-session client cancellation: any session that's
+// less than 24 hours away cannot be cancelled. We refuse the bulk cancel if
+// ANY session in the group is too close — client must cancel that one
+// separately (with the appropriate refund/no-refund handling).
 router.delete('/recurring/:groupId', protect, clientOnly, async (req, res) => {
   try {
     const sessions = await Session.find({
@@ -224,9 +273,22 @@ router.delete('/recurring/:groupId', protect, clientOnly, async (req, res) => {
 
     if (sessions.length === 0) return res.status(404).json({ message: 'No scheduled sessions found in this group' });
 
+    const now = Date.now();
+    const tooClose = sessions.find(s => {
+      const start = new Date(s.date);
+      const [h, m] = String(s.startTime || '00:00').split(':').map(Number);
+      start.setHours(h || 0, m || 0, 0, 0);
+      return start.getTime() - now < 24 * 60 * 60 * 1000;
+    });
+    if (tooClose) {
+      return res.status(400).json({
+        message: 'One or more sessions in this series are within 24 hours and cannot be cancelled in bulk. Please cancel future sessions individually.',
+      });
+    }
+
     await Session.updateMany(
       { recurringGroupId: req.params.groupId, clientId: req.userId, status: 'scheduled' },
-      { status: 'cancelled' }
+      { status: 'cancelled', cancelledBy: 'client', cancelledAt: new Date() }
     );
 
     res.json({ message: `Cancelled ${sessions.length} sessions`, count: sessions.length });

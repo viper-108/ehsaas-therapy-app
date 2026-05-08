@@ -102,6 +102,21 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
       });
       return;
     }
+    // Flow-isolation guard: this modal only books individual therapy. If the
+    // therapist has an approvedServices list and 'individual' isn't in it,
+    // we surface a clear message instead of silently submitting.
+    const approvedServices: any[] = (psychologist as any).approvedServices;
+    if (Array.isArray(approvedServices) && approvedServices.length > 0) {
+      const offersIndividual = approvedServices.some(s => s.type === 'individual' && s.therapistAccepted);
+      if (!offersIndividual) {
+        toast({
+          title: "Individual therapy not offered",
+          description: "This therapist doesn't currently offer individual therapy. Please pick another therapist.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     if (!selectedDate || !selectedTime) {
       toast({ title: "Select date & time", description: "Please pick a date and time slot for your session", variant: "destructive" });
       return;

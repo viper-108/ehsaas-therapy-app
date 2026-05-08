@@ -150,7 +150,21 @@ router.get('/:id/available-slots', async (req, res) => {
       status: { $in: ['scheduled'] }
     });
 
-    const bookedTimes = bookedSessions.map(s => s.startTime);
+    // Cross-flow guard: a slot held for a SUPERVISION booking on this therapist's
+    // calendar must also be excluded from regular therapy slots, otherwise a
+    // client could double-book a time the therapist is already in supervision.
+    let supervisionBookedTimes = [];
+    try {
+      const SupervisionSession = (await import('../models/SupervisionSession.js')).default;
+      const supBookings = await SupervisionSession.find({
+        supervisorId: req.params.id,
+        date: { $gte: startOfDay, $lte: endOfDay },
+        status: { $in: ['pending_payment', 'scheduled', 'admin_approved'] },
+      }).select('startTime');
+      supervisionBookedTimes = supBookings.map(s => s.startTime);
+    } catch { /* SupervisionSession may not exist yet on legacy DBs — ignore */ }
+
+    const bookedTimes = [...bookedSessions.map(s => s.startTime), ...supervisionBookedTimes];
 
     // Check max sessions per day — per-day override takes precedence
     const dayLimit = (dayAvailability.maxSessionsThisDay != null && dayAvailability.maxSessionsThisDay > 0)
