@@ -378,8 +378,17 @@ const PsychologistProfile = () => {
 
         {/* Book Session + Intro Call Buttons */}
         {(() => {
-          const targetOffersSupervision = Array.isArray((psychologist as any).approvedServices) &&
-            (psychologist as any).approvedServices.some((s: any) => s.type === 'supervision');
+          const approvedSvcs: any[] = Array.isArray((psychologist as any).approvedServices)
+            ? (psychologist as any).approvedServices
+            : [];
+          const targetOffersSupervision = approvedSvcs.some((s: any) => s.type === 'supervision');
+          // For real (Mongo-backed) therapists, approvedServices is the source of
+          // truth for "do they take individual therapy bookings". For static
+          // demo therapists (data/psychologists.ts) the array is empty, so we
+          // treat them as offering individual by default to preserve the demo.
+          const targetOffersIndividual = approvedSvcs.length === 0
+            ? true
+            : approvedSvcs.some((s: any) => s.type === 'individual' && s.therapistAccepted);
           const viewerIsTherapist = !!user && role === 'therapist';
           // Therapist viewing themselves shouldn't see booking buttons at all
           const viewingSelf = viewerIsTherapist && (user as any)?._id === (psychologist as any).id;
@@ -408,6 +417,41 @@ const PsychologistProfile = () => {
               <div className="sticky bottom-4">
                 <Card className="p-3 text-xs text-muted-foreground bg-muted/30">
                   This therapist doesn't currently offer supervision. Therapists can only book supervision sessions on Ehsaas — therapy bookings are for clients.
+                </Card>
+              </div>
+            );
+          }
+
+          // Client / signed-out viewing a therapist who *doesn't* currently
+          // offer individual therapy — show a clear info card and the
+          // services they DO offer, instead of a Book Session button that
+          // would later be blocked at payment time.
+          if (!targetOffersIndividual) {
+            const otherServices = approvedSvcs
+              .filter((s: any) => s.therapistAccepted && s.type !== 'individual')
+              .map((s: any) => ({
+                individual: 'Individual',
+                couple: 'Couples',
+                group: 'Group',
+                family: 'Family',
+                supervision: 'Supervision',
+              }[s.type] || s.type));
+            return (
+              <div className="sticky bottom-4">
+                <Card className="p-4 bg-muted/30 border-amber-200 dark:border-amber-800">
+                  <p className="text-sm font-medium text-foreground mb-1">
+                    This therapist doesn't currently offer individual therapy.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {otherServices.length > 0
+                      ? <>They take bookings for: <strong>{otherServices.join(', ')}</strong>. Pick one of those services from the menu, or browse other individual therapists.</>
+                      : <>Please pick another therapist from the directory.</>}
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <Button size="sm" variant="outline" onClick={() => navigate('/team?service=individual')}>
+                      Browse individual therapists
+                    </Button>
+                  </div>
                 </Card>
               </div>
             );
