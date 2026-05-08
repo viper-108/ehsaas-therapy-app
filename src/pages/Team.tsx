@@ -106,8 +106,8 @@ const Team = () => {
   };
 
   const handleBookNow = (psychologist: Psychologist) => {
-    // Individual therapy bookings are for clients only — gate signed-out
-    // users to AuthModal and non-clients to a clear toast.
+    // Therapy bookings are for clients only — gate signed-out users to
+    // AuthModal and non-clients to a clear toast.
     if (!user) {
       setSelectedPsychologist(psychologist);
       setShowAuth(true);
@@ -123,6 +123,26 @@ const Team = () => {
       });
       return;
     }
+    // Route by the active service filter so Book Now from /team?service=group
+    // (or couple) goes to the right flow instead of opening the individual
+    // BookingModal that would then reject the booking.
+    if (serviceFilter === 'couple') {
+      navigate('/services');
+      toast({
+        title: "Couples therapy needs a couples-profile first",
+        description: "Both partners complete the couples profile, admin approves, then you can book.",
+      });
+      return;
+    }
+    if (serviceFilter === 'group') {
+      navigate('/group-therapy');
+      return;
+    }
+    if (serviceFilter === 'supervision') {
+      toast({ title: "Supervision is for therapists, not clients", variant: "destructive" });
+      return;
+    }
+    // Individual or family — both handled by BookingModal with the right sessionType
     setSelectedPsychologist(psychologist);
     setShowBookingModal(true);
   };
@@ -333,13 +353,15 @@ const Team = () => {
         defaultTab="client"
       />
 
-      {/* Modals */}
+      {/* Modals — pass sessionType from URL service filter so booking from
+          /team?service=family books a family session, not an individual one */}
       {selectedPsychologist && (
         <BookingModal
           psychologist={selectedPsychologist}
           isOpen={showBookingModal}
           onClose={() => setShowBookingModal(false)}
           onBookingConfirm={handleBookingConfirm}
+          sessionType={(serviceFilter === 'family' || serviceFilter === 'individual') ? serviceFilter : 'individual'}
         />
       )}
 

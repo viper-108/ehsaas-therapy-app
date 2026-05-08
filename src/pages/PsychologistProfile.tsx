@@ -65,6 +65,9 @@ const PsychologistProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  // Which service the BookingModal was opened for. The same modal handles
+  // individual + family bookings (couple/group go through their own flows).
+  const [bookingServiceType, setBookingServiceType] = useState<'individual' | 'family'>('individual');
   const [isSupervisionOpen, setIsSupervisionOpen] = useState(false);
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const [showIntroCall, setShowIntroCall] = useState(false);
@@ -107,6 +110,62 @@ const PsychologistProfile = () => {
       return;
     }
     setShowIntroCall(true);
+  };
+
+  /**
+   * Click handler for the per-service Book buttons in the Services Offered
+   * card. Routes by service type:
+   *   individual / family → BookingModal (with the right sessionType)
+   *   couple              → /services (couples flow needs profile approval)
+   *   group               → /team?service=group filtered to this therapist
+   *   supervision         → SupervisionBookingDialog (therapist-only)
+   */
+  const handleBookServiceClick = (svcType: string) => {
+    if (svcType === 'supervision') {
+      // Supervision is therapist→therapist. Reuse the dialog's own gating.
+      if (!user) { setShowAuth(true); return; }
+      if (role !== 'therapist') {
+        toast({ title: "Supervision is for therapists", variant: "destructive" });
+        return;
+      }
+      setIsSupervisionOpen(true);
+      return;
+    }
+
+    // All non-supervision services are for clients
+    if (!user) { setShowAuth(true); return; }
+    if (role !== 'client') {
+      toast({
+        title: "Therapy bookings are for clients",
+        description: role === 'therapist'
+          ? "You're logged in as a therapist. Therapy sessions can only be booked by clients."
+          : "You're logged in as an admin. Therapy sessions can only be booked by clients.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (svcType === 'individual' || svcType === 'family') {
+      setBookingServiceType(svcType);
+      setIsBookingModalOpen(true);
+      return;
+    }
+    if (svcType === 'couple') {
+      // Couples therapy has its own intake-and-approval flow on /services →
+      // Couples Therapy, not a direct booking modal. Send them there.
+      navigate('/services');
+      toast({
+        title: "Couples therapy needs a couples-profile first",
+        description: "Both partners complete the couples profile, admin approves, then you can book.",
+      });
+      return;
+    }
+    if (svcType === 'group') {
+      // Group therapy: see this therapist's groups (already shown lower on the
+      // page) or browse all groups.
+      navigate('/group-therapy');
+      return;
+    }
   };
 
   // Try hardcoded lookup first (for Team page links like /psychologist/1)
@@ -279,28 +338,49 @@ const PsychologistProfile = () => {
           </div>
         </Card>
 
-        {/* Services Offered (admin-approved + therapist-accepted) */}
-        {Array.isArray((psychologist as any).approvedServices) && (psychologist as any).approvedServices.length > 0 && (
+        {/* Services Offered — each row is now bookable. The button routes
+            to the right flow for that service (see handleBookServiceClick). */}
+        {Array.isArray((psychologist as any).approvedServices) && (psychologist as any).approvedServices.filter((s: any) => s.therapistAccepted).length > 0 && (
           <Card className="p-6">
             <h2 className="font-semibold text-foreground mb-4">Services Offered</h2>
+            <p className="text-xs text-muted-foreground mb-3">
+              Pick the service you want to book. Each service routes to the right flow.
+            </p>
             <div className="space-y-2">
-              {(psychologist as any).approvedServices.map((s: any) => {
-                const labels: Record<string, string> = {
-                  individual: 'Individual Therapy',
-                  couple: 'Couples Therapy',
-                  group: 'Group Therapy',
-                  family: 'Family Therapy',
-                  supervision: 'Supervision',
-                };
-                return (
-                  <div key={s.type} className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
-                    <span className="text-sm font-medium text-foreground">{labels[s.type] || s.type}</span>
-                    <span className="text-sm text-primary font-semibold">
-                      {s.minPrice && s.minPrice !== s.maxPrice ? `₹${s.minPrice} – ₹${s.maxPrice}` : `₹${s.maxPrice}`}
-                    </span>
-                  </div>
-                );
-              })}
+              {(psychologist as any).approvedServices
+                .filter((s: any) => s.therapistAccepted)
+                .map((s: any) => {
+                  const labels: Record<string, string> = {
+                    individual: 'Individual Therapy',
+                    couple: 'Couples Therapy',
+                    group: 'Group Therapy',
+                    family: 'Family Therapy',
+                    supervision: 'Supervision',
+                  };
+                  const ctaLabel: Record<string, string> = {
+                    individual: 'Book',
+                    couple: 'Set up',
+                    group: 'Browse groups',
+                    family: 'Book',
+                    supervision: 'Request',
+                  };
+                  // Hide the supervision row from non-therapist viewers — clients
+                  // can't book supervision, so showing it would be confusing.
+                  if (s.type === 'supervision' && role !== 'therapist') return null;
+                  return (
+                    <div key={s.type} className="flex items-center justify-between gap-3 p-3 bg-primary/5 rounded-lg flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">{labels[s.type] || s.type}</p>
+                        <p className="text-xs text-primary font-semibold">
+                          {s.minPrice && s.minPrice !== s.maxPrice ? `₹${s.minPrice} – ₹${s.maxPrice}` : `₹${s.maxPrice}`}
+                        </p>
+                      </div>
+                      <Button size="sm" onClick={() => handleBookServiceClick(s.type)}>
+                        {ctaLabel[s.type] || 'Book'}
+                      </Button>
+                    </div>
+                  );
+                })}
             </div>
           </Card>
         )}
@@ -423,29 +503,18 @@ const PsychologistProfile = () => {
           }
 
           // Client / signed-out viewing a therapist who *doesn't* currently
-          // offer individual therapy — show a clear info card and the
-          // services they DO offer, instead of a Book Session button that
-          // would later be blocked at payment time.
+          // offer individual therapy — the Services Offered card above
+          // already lists their actual services with per-service Book
+          // buttons, so the bottom sticky bar just nudges them up to it.
           if (!targetOffersIndividual) {
-            const otherServices = approvedSvcs
-              .filter((s: any) => s.therapistAccepted && s.type !== 'individual')
-              .map((s: any) => ({
-                individual: 'Individual',
-                couple: 'Couples',
-                group: 'Group',
-                family: 'Family',
-                supervision: 'Supervision',
-              }[s.type] || s.type));
             return (
               <div className="sticky bottom-4">
                 <Card className="p-4 bg-muted/30 border-amber-200 dark:border-amber-800">
                   <p className="text-sm font-medium text-foreground mb-1">
-                    This therapist doesn't currently offer individual therapy.
+                    This therapist doesn't offer individual therapy.
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {otherServices.length > 0
-                      ? <>They take bookings for: <strong>{otherServices.join(', ')}</strong>. Pick one of those services from the menu, or browse other individual therapists.</>
-                      : <>Please pick another therapist from the directory.</>}
+                    Use the <strong>Services Offered</strong> section above to book one of the services they actually provide, or browse other individual therapists.
                   </p>
                   <div className="flex gap-2 mt-3">
                     <Button size="sm" variant="outline" onClick={() => navigate('/team?service=individual')}>
@@ -486,12 +555,13 @@ const PsychologistProfile = () => {
         })()}
       </div>
 
-      {/* Booking Modal */}
+      {/* Booking Modal — same component handles individual + family bookings */}
       <BookingModal
         psychologist={psychologist}
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
         onBookingConfirm={handleBookingConfirm}
+        sessionType={bookingServiceType}
       />
 
       {/* Supervision Booking Dialog (therapist → supervisor) */}

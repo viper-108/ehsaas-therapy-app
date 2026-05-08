@@ -17,9 +17,15 @@ interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onBookingConfirm: (duration: number, amount: number) => void;
+  /**
+   * Which sessionType this modal is booking. The modal otherwise behaves
+   * identically; only the validation (must be in approvedServices) and the
+   * payload sent to /api/sessions differ. Defaults to 'individual'.
+   */
+  sessionType?: 'individual' | 'couple' | 'family' | 'group';
 }
 
-export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }: BookingModalProps) => {
+export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm, sessionType = 'individual' }: BookingModalProps) => {
   const { user, role } = useAuth();
   const { toast } = useToast();
   const availableDurations = psychologist ? Object.keys(psychologist.pricing).map(Number).sort() : [];
@@ -102,16 +108,17 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
       });
       return;
     }
-    // Flow-isolation guard: this modal only books individual therapy. If the
-    // therapist has an approvedServices list and 'individual' isn't in it,
-    // we surface a clear message instead of silently submitting.
+    // Flow-isolation guard: gate by the sessionType this modal was opened
+    // for (individual / couple / family / group). The server-side guard
+    // re-checks the same thing, but failing fast on the client is friendlier.
     const approvedServices: any[] = (psychologist as any).approvedServices;
     if (Array.isArray(approvedServices) && approvedServices.length > 0) {
-      const offersIndividual = approvedServices.some(s => s.type === 'individual' && s.therapistAccepted);
-      if (!offersIndividual) {
+      const offersThisService = approvedServices.some(s => s.type === sessionType && s.therapistAccepted);
+      if (!offersThisService) {
+        const labelMap: Record<string, string> = { individual: 'individual therapy', couple: 'couples therapy', family: 'family therapy', group: 'group therapy' };
         toast({
-          title: "Individual therapy not offered",
-          description: "This therapist doesn't currently offer individual therapy. Please pick another therapist.",
+          title: `${labelMap[sessionType] || sessionType} not offered`,
+          description: `This therapist doesn't currently offer ${labelMap[sessionType] || sessionType}. Please pick another therapist.`,
           variant: "destructive",
         });
         return;
@@ -131,7 +138,7 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
           date: selectedDate,
           startTime: selectedTime,
           duration: selectedDuration,
-          sessionType: 'individual',
+          sessionType,
           weeks: 4,
         });
         session = result.sessions[0];
@@ -142,7 +149,7 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
           date: selectedDate,
           startTime: selectedTime,
           duration: selectedDuration,
-          sessionType: 'individual',
+          sessionType,
         });
       }
 
@@ -229,7 +236,12 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm }
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md mx-4 animate-slide-up max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">Book Session</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
+            {sessionType === 'family' ? 'Book Family Session'
+              : sessionType === 'couple' ? 'Book Couples Session'
+              : sessionType === 'group' ? 'Book Group Session'
+              : 'Book Session'}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
