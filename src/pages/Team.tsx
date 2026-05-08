@@ -54,12 +54,18 @@ const Team = () => {
       .finally(() => setLoadingDynamic(false));
   }, [serviceFilter]);
 
-  // Adapt API therapists into the static Psychologist shape used by PsychologistCard
+  // Adapt API therapists into the static Psychologist shape used by PsychologistCard.
+  // Crucially, only carry forward duration→price entries that *actually exist* on
+  // the therapist record. Synthesizing a fake 30-min price when the therapist
+  // only offers 50/60 min was making the BookingModal show a 30-min duration
+  // card that the therapist doesn't really support.
   const adaptedDynamic: Psychologist[] = (dynamicTherapists || []).map((t: any) => {
-    const pricing = t.pricing instanceof Map ? Object.fromEntries(t.pricing) : (t.pricing || {});
-    // For service-filtered listings, prefer the service-specific price (max)
-    const matchedSvc = (t.approvedServices || []).find((s: any) => s.type === serviceFilter);
-    const displayPrice = matchedSvc?.maxPrice || pricing['50'] || pricing['30'] || 0;
+    const rawPricing = t.pricing instanceof Map ? Object.fromEntries(t.pricing) : (t.pricing || {});
+    const pricing: Record<string, number> = {};
+    for (const [k, v] of Object.entries(rawPricing)) {
+      const num = Number(v);
+      if (Number.isFinite(num) && num > 0) pricing[String(k)] = num;
+    }
     return {
       id: t._id,
       name: t.name,
@@ -69,7 +75,8 @@ const Team = () => {
       rating: t.rating || 5,
       languages: t.languages || [],
       bio: t.bio || '',
-      pricing: { '30': pricing['30'] || displayPrice, '50': pricing['50'] || displayPrice },
+      pricing,                                       // only real durations
+      approvedServices: t.approvedServices || [],    // surface so BookingModal can gate
       availability: [],
       title: t.title || 'Psychologist',
     } as any;

@@ -47,6 +47,11 @@ const ClientDashboard = () => {
   const [therapists, setTherapists] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConcern, setSelectedConcern] = useState('');
+  // Service-type filter — empty string = all services. Backend filter ensures
+  // only therapists who have admin-approved + therapist-accepted that service
+  // are returned, so a client can never get a Book button for a service the
+  // therapist doesn't actually offer.
+  const [selectedService, setSelectedService] = useState('individual');
   const [reviewSession, setReviewSession] = useState<{ id: string; therapistName: string } | null>(null);
   const [chatConvKey, setChatConvKey] = useState('');
   const [chatOtherUser, setChatOtherUser] = useState<any>(null);
@@ -85,6 +90,7 @@ const ClientDashboard = () => {
       const params: any = {};
       if (searchTerm) params.search = searchTerm;
       if (selectedConcern) params.specialization = selectedConcern;
+      if (selectedService) params.service = selectedService;
       const data = await api.getTherapists(params);
       setTherapists(data);
     } catch (error) {
@@ -97,7 +103,7 @@ const ClientDashboard = () => {
       searchTherapists();
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedConcern]);
+  }, [searchTerm, selectedConcern, selectedService]);
 
   const handleCancelSession = async (sessionId: string) => {
     try {
@@ -165,6 +171,34 @@ const ClientDashboard = () => {
                       />
                     </div>
                   </div>
+
+                  {/* Service-type filter — keeps booking flows isolated by only
+                      showing therapists who actually offer the chosen service. */}
+                  <div>
+                    <p className="text-sm font-medium text-foreground mb-2">Type of therapy</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { value: 'individual', label: 'Individual' },
+                        { value: 'couple',     label: 'Couples' },
+                        { value: 'family',     label: 'Family' },
+                        { value: 'group',      label: 'Group' },
+                        { value: '',           label: 'All services' },
+                      ].map(s => (
+                        <Badge
+                          key={s.value || 'all'}
+                          variant={selectedService === s.value ? "default" : "outline"}
+                          className="cursor-pointer"
+                          onClick={() => setSelectedService(s.value)}
+                        >
+                          {s.label}
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Only therapists who currently offer the selected service appear here.
+                    </p>
+                  </div>
+
                   <div>
                     <p className="text-sm font-medium text-foreground mb-2">What are you looking for help with?</p>
                     <div className="flex flex-wrap gap-2">
