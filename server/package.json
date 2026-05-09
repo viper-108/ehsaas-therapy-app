@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "ensure-admin": "node scripts/ensureAdmin.js",
+    "migrate-static": "node scripts/migrateStaticTherapists.js"
   },
   "dependencies": {
     "axios": "^1.7.7",
