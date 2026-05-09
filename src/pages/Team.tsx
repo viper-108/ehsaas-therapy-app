@@ -41,14 +41,20 @@ const Team = () => {
   const { user, role } = useAuth();
   const { toast } = useToast();
 
-  // Dynamic therapists when service filter is active
+  // Always fetch the live therapist list from the API so the directory and
+  // booking flow share a single source of truth (MongoDB). The legacy
+  // static array is now imported into MongoDB by migrateStaticTherapists.js
+  // — see server/scripts. Falling back to the static array would otherwise
+  // render cards that route to /psychologist/1 etc. (non-bookable static
+  // IDs) and would also miss any therapist added via the admin flow.
   const [dynamicTherapists, setDynamicTherapists] = useState<any[] | null>(null);
   const [loadingDynamic, setLoadingDynamic] = useState(false);
 
   useEffect(() => {
-    if (!serviceFilter) { setDynamicTherapists(null); return; }
     setLoadingDynamic(true);
-    api.getAllTherapists?.({ service: serviceFilter } as any)
+    const params: any = {};
+    if (serviceFilter) params.service = serviceFilter;
+    (api.getAllTherapists?.(params) || api.getTherapists(params))
       .then((data: any) => setDynamicTherapists(Array.isArray(data) ? data : []))
       .catch(() => setDynamicTherapists([]))
       .finally(() => setLoadingDynamic(false));
@@ -82,8 +88,13 @@ const Team = () => {
     } as any;
   });
 
-  // Choose data source: dynamic when service filter active, else static
-  const effectivePsychologists: Psychologist[] = serviceFilter ? adaptedDynamic : psychologists;
+  // Single source of truth: the live therapist list from the API. The
+  // static `psychologists` array is kept around only as a last-resort
+  // fallback while the API call is in flight or has failed.
+  const effectivePsychologists: Psychologist[] =
+    dynamicTherapists !== null
+      ? adaptedDynamic
+      : (loadingDynamic ? [] : psychologists);
 
   // Get unique specializations for filter
   const allSpecializations = Array.from(

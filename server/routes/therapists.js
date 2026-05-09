@@ -29,9 +29,17 @@ router.get('/', async (req, res) => {
         { bio: new RegExp(search, 'i') },
       ];
     }
-    // Filter by service type — therapist must have admin-approved AND therapist-accepted that service
+    // Filter by service type — therapist must have admin-approved AND
+    // therapist-accepted that service. Uses the denormalised
+    // offeredServiceTypes field as the primary check (cheap index query).
+    // The $or fallback covers any legacy doc that hasn't had its
+    // offeredServiceTypes populated yet (the pre-save hook derives it on
+    // next save; the migration script also backfills).
     if (service && ['individual', 'couple', 'group', 'family', 'supervision'].includes(service)) {
-      query.approvedServices = { $elemMatch: { type: service, therapistAccepted: true } };
+      query.$or = [
+        { offeredServiceTypes: service },
+        { approvedServices: { $elemMatch: { type: service, therapistAccepted: true } } },
+      ];
     }
 
     const therapists = await Therapist.find(query).select('-password');

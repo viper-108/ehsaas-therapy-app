@@ -74,6 +74,18 @@ const therapistSchema = new mongoose.Schema({
     }],
     default: [],
   },
+  // Denormalised flat list of services this therapist is currently open
+  // for. Always derived from approvedServices (only entries where the
+  // therapist has accepted are listed). Kept as its own field so client-
+  // facing filters are simple `{ offeredServiceTypes: <type> }` queries
+  // and so the directory can show a quick "offers: X, Y, Z" chip without
+  // sub-document parsing. Maintained automatically by the pre-save hook
+  // — never set this directly, edit approvedServices instead.
+  offeredServiceTypes: {
+    type: [{ type: String, enum: ['individual', 'couple', 'group', 'family', 'supervision'] }],
+    default: [],
+    index: true,
+  },
   // True once admin has done the per-service review (i.e. approvedServices is locked in)
   servicesFinalized: { type: Boolean, default: false },
   // Set when an existing approved therapist requests to add/remove services.
@@ -180,9 +192,36 @@ const therapistSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 therapistSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  const salt = await bcrypt.genSalt(12);
-  this.password = await bcrypt.hash(this.password, salt);
+  // Keep offeredServiceTypes in sync with approvedServices on every save.
+  // Source of truth = approvedServices entries with therapistAccepted=true.
+  if (this.isModified('approvedServices') || this.isNew) {
+    const accepted = (this.approvedServices || [])
+      .filter(s => s && s.therapistAccepted)
+      .map(s => s.type);
+    // Dedup, preserve order
+    this.offeredServiceTypes = [...new Set(accepted)];
+  }
+  if (this.isModified('password')) {
+    const salt = await bcrypt.genSalt(12);
+    this.password = await bcrypt.hash(this.password, salt);
+  }
+  next();
+});
+
+// findOneAndUpdate paths (e.g. service accept/reject endpoints) skip the
+// pre('save') hook. Mirror the same offeredServiceTypes derivation here so
+// the field stays consistent regardless of how approvedServices was changed.
+therapistSchema.pre('findOneAndUpdate', function(next) {
+  const update = this.getUpdate() || {};
+  const $set = update.$set || update;
+  if ($set && Array.isArray($set.approvedServices)) {
+    const accepted = $set.approvedServices
+      .filter(s => s && s.therapistAccepted)
+      .map(s => s.type);
+    if (update.$set) update.$set.offeredServiceTypes = [...new Set(accepted)];
+    else update.offeredServiceTypes = [...new Set(accepted)];
+    this.setUpdate(update);
+  }
   next();
 });
 
