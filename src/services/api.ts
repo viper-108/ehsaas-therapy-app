@@ -1123,6 +1123,27 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  async requestInterviewReschedule(interviewId: string, body: { proposedDate: string; proposedTime: string; reason?: string }) {
+    const res = await fetch(`${API_BASE}/therapists/dashboard/interviews/${interviewId}/request-reschedule`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify(body),
+    });
+    return this.handleResponse(res);
+  }
+
+  async decideInterviewReschedule(interviewId: string, accept: boolean, adminNote?: string) {
+    const res = await fetch(`${API_BASE}/admin/interviews/${interviewId}/reschedule-decision`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ accept, adminNote }),
+    });
+    return this.handleResponse(res);
+  }
+
+  async rescheduleIntroCall(introCallId: string, preferredDateTime: string) {
+    const res = await fetch(`${API_BASE}/intro-calls/${introCallId}/reschedule`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ preferredDateTime }),
+    });
+    return this.handleResponse(res);
+  }
+
   // Group Sessions
   async getGroupSessions() {
     const res = await fetch(`${API_BASE}/group-sessions`, { headers: this.getHeaders(false) });

@@ -12,6 +12,12 @@ const interviewScheduleSchema = new mongoose.Schema({
   },
   meetingLink: { type: String, required: true },
   notes: { type: String, default: '' },
+  // If the therapist proposes a new date/time, admin sees it on their side
+  // and can either accept (replacing scheduledDate/Time) or decline.
+  rescheduleRequestedAt: { type: Date, default: null },
+  rescheduleProposedDate: { type: Date, default: null },
+  rescheduleProposedTime: { type: String, default: '' },
+  rescheduleReason: { type: String, default: '' },
 }, { timestamps: true });
 
 interviewScheduleSchema.index({ therapistId: 1 });

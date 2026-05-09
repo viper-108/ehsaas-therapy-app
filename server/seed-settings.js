@@ -23,7 +23,7 @@ const defaults = [
   { key: 'contactEmail', value: 'sessions.ehsaas@gmail.com', category: 'platform', description: 'Support email' },
   { key: 'contactWhatsApp', value: '+91-7411948161', category: 'platform', description: 'Support WhatsApp number' },
   { key: 'contactInstagram', value: '@ehsaas.therapy.centre', category: 'platform', description: 'Instagram handle' },
-  { key: 'adminEmails', value: ['shukla.amitedcjss@gmail.com', 'Pdsethia17@gmail.com'], category: 'platform', description: 'Admin notification emails' },
+  { key: 'adminEmails', value: ['therapy.ehsaas@gmail.com', 'shukla.amitedcjss@gmail.com', 'Pdsethia17@gmail.com'], category: 'platform', description: 'Admin notification emails' },
 
   // Terms & Conditions - Client
   { key: 'clientTermsAndConditions', value: `EHSAAS THERAPY CENTRE — CLIENT TERMS & CONDITIONS

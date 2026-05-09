@@ -565,13 +565,13 @@ const seedClients = async () => {
 // ADMIN
 // ============================================================
 const seedAdmin = async () => {
-  const a = await Admin.create({
-    email: 'admin@ehsaas.test',
-    password: PASSWORD,
-    name: 'Ehsaas Admin',
-  });
-  console.log(`  ✓ Admin ${a.email}`);
-  return a;
+  // Two admins: the test one + the canonical operations email.
+  const admins = await Promise.all([
+    Admin.create({ email: 'admin@ehsaas.test',         password: PASSWORD, name: 'Ehsaas Admin (test)' }),
+    Admin.create({ email: 'therapy.ehsaas@gmail.com',  password: PASSWORD, name: 'Ehsaas Therapy Centre' }),
+  ]);
+  for (const a of admins) console.log(`  ✓ Admin ${a.email}`);
+  return admins[0];
 };
 
 // ============================================================

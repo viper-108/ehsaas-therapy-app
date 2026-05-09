@@ -11,6 +11,7 @@ import { WaitlistButton } from "@/components/WaitlistButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { todayIstISO, isSlotPastIst, formatDateIst } from "@/lib/dateIst";
 
 interface BookingModalProps {
   psychologist: Psychologist | null;
@@ -39,8 +40,10 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm, 
   const [mongoTherapistId, setMongoTherapistId] = useState<string | null>(null);
   const [isRecurring, setIsRecurring] = useState(false);
 
-  // Get minimum date (today)
-  const today = new Date().toISOString().split('T')[0];
+  // Minimum bookable date in IST. Using the user's local date here would let
+  // a user in a timezone west of IST book "tomorrow" that's actually today
+  // in India (or vice-versa).
+  const today = todayIstISO();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -198,12 +201,12 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm, 
                 <div>
                   <div className="text-muted-foreground text-xs mb-1">Date</div>
                   <div className="font-medium text-foreground">
-                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                    {formatDateIst(selectedDate + 'T00:00:00')}
                   </div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-xs mb-1">Time</div>
-                  <div className="font-medium text-foreground">{selectedTime}</div>
+                  <div className="font-medium text-foreground">{selectedTime} IST</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-xs mb-1">Duration</div>
@@ -339,14 +342,14 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm, 
                 <div>
                   <h4 className="font-medium mb-2 text-foreground flex items-center gap-2">
                     <Clock className="w-4 h-4 text-primary" />
-                    Select Time
+                    Select Time <span className="text-xs text-muted-foreground font-normal">(IST)</span>
                   </h4>
                   {loadingSlots ? (
                     <div className="flex items-center justify-center py-4">
                       <Loader2 className="w-5 h-5 animate-spin text-primary" />
                       <span className="ml-2 text-sm text-muted-foreground">Loading available slots...</span>
                     </div>
-                  ) : availableSlots.length === 0 ? (
+                  ) : availableSlots.filter(s => !isSlotPastIst(selectedDate, s.time)).length === 0 ? (
                     <div>
                       <p className="text-sm text-muted-foreground py-2 mb-2">No available slots on this date.</p>
                       {mongoTherapistId && selectedDate && (
@@ -355,7 +358,12 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm, 
                     </div>
                   ) : (
                     <div className="grid grid-cols-3 gap-2">
-                      {availableSlots.map(slot => (
+                      {availableSlots
+                        // Defense-in-depth past-time filter — server already
+                        // filters but the cached slot list may have gone
+                        // stale while the user lingered on the modal.
+                        .filter(slot => !isSlotPastIst(selectedDate, slot.time))
+                        .map(slot => (
                         <Button
                           key={slot.time}
                           variant={selectedTime === slot.time ? "default" : "outline"}
@@ -398,8 +406,8 @@ export const BookingModal = ({ psychologist, isOpen, onClose, onBookingConfirm, 
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm text-muted-foreground">Date & Time:</span>
                 <span className="font-medium text-foreground">
-                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-                  {selectedTime && ` at ${selectedTime}`}
+                  {formatDateIst(selectedDate + 'T00:00:00', { month: 'short', day: 'numeric' })}
+                  {selectedTime && ` at ${selectedTime} IST`}
                 </span>
               </div>
             )}

@@ -27,6 +27,16 @@ router.post('/', protect, clientOnly, async (req, res) => {
       return res.status(400).json({ message: 'This therapist is no longer available. Please choose another therapist.' });
     }
 
+    // IST past-time guard. /available-slots already filters this, but the
+    // booking endpoint must also reject in case the client crafted a
+    // request manually (or had a slot stale-cached from earlier in the day).
+    {
+      const { isSlotPastIst } = await import('../utils/dateIst.js');
+      if (isSlotPastIst(String(date).split('T')[0], startTime)) {
+        return res.status(400).json({ message: 'That time has already passed. Please pick a future slot.' });
+      }
+    }
+
     // Flow-isolation guard: don't allow a client to book a sessionType
     // (e.g. 'couple', 'family', 'group') the therapist hasn't been approved
     // for. Without this an attacker could POST sessionType='couple' to an

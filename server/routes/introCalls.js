@@ -126,6 +126,45 @@ router.put('/:id/status', protect, therapistOnly, async (req, res) => {
   }
 });
 
+// PUT /api/intro-calls/:id/reschedule — therapist proposes a new date/time
+// for an existing intro call request. Updates the preferred slot, keeps the
+// request in 'pending' status (or 'approved' if it was already approved),
+// and emails the client the new time.
+router.put('/:id/reschedule', protect, therapistOnly, async (req, res) => {
+  try {
+    const { preferredDateTime } = req.body;
+    if (!preferredDateTime) return res.status(400).json({ message: 'preferredDateTime is required' });
+    const newDt = new Date(preferredDateTime);
+    if (Number.isNaN(newDt.getTime())) return res.status(400).json({ message: 'Invalid date/time' });
+    if (newDt.getTime() < Date.now()) return res.status(400).json({ message: 'New time must be in the future' });
+
+    const request = await IntroCallRequest.findOne({ _id: req.params.id, therapistId: req.userId });
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+    if (request.status === 'rejected' || request.status === 'completed') {
+      return res.status(400).json({ message: `Cannot reschedule a ${request.status} call` });
+    }
+
+    request.preferredDateTime = newDt;
+    await request.save();
+
+    const therapist = await Therapist.findById(req.userId);
+    const { formatDateTimeIst } = await import('../utils/dateIst.js');
+    const html = `
+      <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #f59e0b;">Intro Call Rescheduled</h2>
+        <p>Your intro call with <strong>${therapist.name}</strong> has been rescheduled.</p>
+        <p><strong>New time:</strong> ${formatDateTimeIst(newDt)}</p>
+        <p>If this doesn't work for you, please respond to this email or message ${therapist.name} on the platform.</p>
+      </div>`;
+    sendEmail(request.email, `Intro Call Rescheduled — ${therapist.name}`, html).catch(() => {});
+
+    res.json(request);
+  } catch (error) {
+    console.error('Intro call reschedule error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // GET /api/intro-calls/admin — admin sees all (added to admin routes later)
 router.get('/all', protect, async (req, res) => {
   try {

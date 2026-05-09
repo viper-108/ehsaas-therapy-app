@@ -10,6 +10,7 @@ import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
+import { todayIstISO, isSlotPastIst, formatDateIst } from "@/lib/dateIst";
 
 interface Supervisor {
   id: string;
@@ -62,7 +63,7 @@ export function SupervisionBookingDialog({ isOpen, onClose, supervisor }: Superv
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayIstISO();
   const price = duration === 50 ? supervisor.individualPrice50 : supervisor.individualPrice90;
 
   // Reset form when dialog closes
@@ -245,11 +246,11 @@ export function SupervisionBookingDialog({ isOpen, onClose, supervisor }: Superv
                 <div className="text-center py-4">
                   <Loader2 className="w-5 h-5 animate-spin text-primary mx-auto" />
                 </div>
-              ) : slots.length === 0 ? (
+              ) : slots.filter(s => !isSlotPastIst(date, s.time)).length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">No available slots on this date. Try another day.</p>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
-                  {slots.map(s => (
+                  {slots.filter(s => !isSlotPastIst(date, s.time)).map(s => (
                     <Button
                       key={s.time}
                       variant={time === s.time ? "default" : "outline"}
@@ -272,7 +273,7 @@ export function SupervisionBookingDialog({ isOpen, onClose, supervisor }: Superv
                 <span className="font-bold text-primary text-lg">₹{price}</span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {duration} min on {new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })} at {time}
+                {duration} min on {formatDateIst(date + 'T00:00:00', { month: 'short', day: 'numeric' })} at {time} IST
               </p>
             </Card>
           ) : null}

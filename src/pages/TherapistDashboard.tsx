@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { formatDateIst, formatDateTimeIst } from "@/lib/dateIst";
 import {
   Calendar, Clock, DollarSign, Users, TrendingUp, CheckCircle,
   XCircle, Settings, BarChart3, ChevronRight, LogOut, FileText, MessageCircle, ClipboardList, Phone, BookOpen, Library,
@@ -27,6 +28,7 @@ import { SessionFilterBar, applySessionFilters, buildEntityOptions, defaultFilte
 import { TherapistEarningsTab } from "@/components/TherapistEarningsTab";
 import { TherapistGroupsTab } from "@/components/TherapistGroupsTab";
 import { TherapistApprovalsTab } from "@/components/TherapistApprovalsTab";
+import { CallsInterviewsTab } from "@/components/CallsInterviewsTab";
 import { TherapistWorkshopsTab } from "@/components/TherapistWorkshopsTab";
 import { TherapistSupervisionTab } from "@/components/TherapistSupervisionTab";
 import { TherapistProfileTab } from "@/components/TherapistProfileTab";
@@ -223,7 +225,7 @@ const TherapistDashboard = () => {
               { value: 'upcoming', label: t('dashboard.upcoming'), icon: Calendar, group: 'Sessions' },
               { value: 'past', label: t('dashboard.past'), icon: Clock, group: 'Sessions' },
               { value: 'availability', label: t('dashboard.availability'), icon: Settings, group: 'Sessions' },
-              { value: 'intro-calls', label: t('dashboard.introCalls'), icon: Phone, badge: pendingIntroCalls || null, group: 'Clients' },
+              { value: 'intro-calls', label: 'Calls & Interviews', icon: Phone, badge: pendingIntroCalls || null, group: 'Clients' },
               { value: 'messages', label: t('dashboard.messages'), icon: MessageCircle, group: 'Clients' },
               { value: 'group-therapy', label: 'Group Therapy', icon: Users, group: 'Content' },
               { value: 'workshops', label: 'Workshops', icon: BookOpen, group: 'Content' },
@@ -330,7 +332,7 @@ const TherapistDashboard = () => {
                             <div>
                               <p className="font-medium text-foreground">{session.clientId?.name || 'Client'}</p>
                               <p className="text-sm text-muted-foreground">
-                                {new Date(session.date).toLocaleDateString()} at {session.startTime} • {session.duration} min
+                                {formatDateIst(session.date)} at {session.startTime} IST • {session.duration} min
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -367,7 +369,7 @@ const TherapistDashboard = () => {
                         <div className="min-w-0">
                           <p className="font-medium text-foreground truncate">{session.clientId?.name || 'Client'}</p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(session.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })} · {session.startTime}
+                            {formatDateIst(session.date, { weekday: 'short', month: 'short', day: 'numeric' })} · {session.startTime} IST
                           </p>
                         </div>
                         {/* Front: only price + recurring */}
@@ -391,7 +393,7 @@ const TherapistDashboard = () => {
                                 open: true,
                                 sessionId: session._id,
                                 clientName: session.clientId?.name,
-                                sessionDate: new Date(session.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }),
+                                sessionDate: formatDateIst(session.date, { weekday: 'short', month: 'short', day: 'numeric' }),
                                 sessionTime: session.startTime,
                                 paymentStatus: session.paymentStatus,
                               })} className="text-destructive">
@@ -444,7 +446,7 @@ const TherapistDashboard = () => {
                         <div>
                           <p className="font-medium text-foreground">{session.clientId?.name || 'Client'}</p>
                           <p className="text-sm text-muted-foreground">
-                            {new Date(session.date).toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                            {formatDateIst(session.date)}
                             {' '}at {session.startTime} • {session.duration} min
                           </p>
                         </div>
@@ -588,51 +590,9 @@ const TherapistDashboard = () => {
               </Card>
             </TabsContent>
 
-            {/* ========== INTRO CALLS TAB ========== */}
+            {/* ========== CALLS & INTERVIEWS TAB ========== */}
             <TabsContent value="intro-calls">
-              <Card className="p-6">
-                <h2 className="text-xl font-semibold text-foreground mb-4">Intro Call Requests</h2>
-                {introCalls.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-12">No intro call requests yet</p>
-                ) : (
-                  <div className="space-y-4">
-                    {introCalls.map(call => (
-                      <div key={call._id} className="flex items-start justify-between p-4 border rounded-lg">
-                        <div>
-                          <p className="font-medium text-foreground">{call.clientName}</p>
-                          <p className="text-sm text-muted-foreground">{call.email} • {call.phone}</p>
-                          <p className="text-sm text-muted-foreground mt-1"><strong>Reason:</strong> {call.reasonForTherapy}</p>
-                          <p className="text-sm text-muted-foreground"><strong>Looking for:</strong> {call.whatLookingFor}</p>
-                          <p className="text-sm text-muted-foreground"><strong>Preferred:</strong> {new Date(call.preferredDateTime).toLocaleString('en-IN')}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <Badge className={call.status === 'pending' ? 'bg-warm/10 text-warm' : call.status === 'approved' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
-                            {call.status}
-                          </Badge>
-                          {call.status === 'pending' && (
-                            <div className="flex gap-2">
-                              <Button size="sm" onClick={async () => {
-                                await api.updateIntroCallStatus(call._id, 'approved');
-                                toast({ title: "Approved", description: "Client has been notified" });
-                                loadDashboard();
-                              }}>
-                                <CheckCircle className="w-4 h-4 mr-1" /> Accept
-                              </Button>
-                              <Button size="sm" variant="destructive" onClick={async () => {
-                                await api.updateIntroCallStatus(call._id, 'rejected');
-                                toast({ title: "Rejected" });
-                                loadDashboard();
-                              }}>
-                                <XCircle className="w-4 h-4 mr-1" /> Decline
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
+              <CallsInterviewsTab />
             </TabsContent>
 
             {/* ========== APPROVALS TAB ========== */}

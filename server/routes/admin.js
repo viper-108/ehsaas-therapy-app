@@ -1163,6 +1163,58 @@ router.put('/interviews/:id', protect, adminOnly, async (req, res) => {
   }
 });
 
+// PUT /api/admin/interviews/:id/reschedule-decision
+// Admin accepts or rejects a therapist-proposed reschedule. Accepting moves
+// the proposed date/time onto scheduledDate/Time and clears the proposal
+// fields. Rejecting just clears the proposal so admin can keep the original.
+router.put('/interviews/:id/reschedule-decision', protect, adminOnly, async (req, res) => {
+  try {
+    const { accept, adminNote } = req.body || {};
+    const InterviewSchedule = (await import('../models/InterviewSchedule.js')).default;
+    const interview = await InterviewSchedule.findById(req.params.id);
+    if (!interview) return res.status(404).json({ message: 'Not found' });
+    if (!interview.rescheduleRequestedAt) {
+      return res.status(400).json({ message: 'No reschedule request pending on this interview' });
+    }
+
+    if (accept && interview.rescheduleProposedDate) {
+      interview.scheduledDate = interview.rescheduleProposedDate;
+      interview.scheduledTime = interview.rescheduleProposedTime;
+    }
+    interview.rescheduleRequestedAt = null;
+    interview.rescheduleProposedDate = null;
+    interview.rescheduleProposedTime = '';
+    interview.rescheduleReason = '';
+    await interview.save();
+
+    // Notify therapist
+    try {
+      const Therapist = (await import('../models/Therapist.js')).default;
+      const Notification = (await import('../models/Notification.js')).default;
+      const { sendEmail } = await import('../utils/email.js');
+      const { formatDateTimeIst } = await import('../utils/dateIst.js');
+      const t = await Therapist.findById(interview.therapistId).select('name email');
+      const status = accept ? 'accepted' : 'rejected';
+      const finalDt = accept
+        ? formatDateTimeIst(interview.scheduledDate)
+        : formatDateTimeIst(interview.scheduledDate);
+      const subject = `Interview reschedule ${status}`;
+      const body = accept
+        ? `Your proposed interview time has been accepted. Final time: ${finalDt}.`
+        : `Your proposed interview time was not accepted. The original time stands: ${finalDt}.${adminNote ? ` Admin note: ${adminNote}` : ''}`;
+      Notification.notify(interview.therapistId, 'therapist', `interview_reschedule_${status}`,
+        subject, body, '/therapist-dashboard?tab=interviews'
+      ).catch(() => {});
+      if (t?.email) sendEmail(t.email, subject, `<p>Hi ${t?.name || 'Therapist'},</p><p>${body}</p>`).catch(() => {});
+    } catch (e) { console.error('Notify therapist (reschedule decision) failed:', e.message); }
+
+    res.json(interview);
+  } catch (error) {
+    console.error('Interview reschedule decision error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // ==================== ADMIN CHAT VISIBILITY ====================
 
 // GET /api/admin/messages/conversations — see ALL conversations on the platform

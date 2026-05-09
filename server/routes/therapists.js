@@ -180,6 +180,12 @@ router.get('/:id/available-slots', async (req, res) => {
       ? dayAvailability.chunks
       : [{ startTime: dayAvailability.startTime || '09:00', endTime: dayAvailability.endTime || '18:00' }];
 
+    // IST-aware past-slot filter. If the requested date is today (in IST),
+    // any slot whose hour is at or before the current IST hour:minute is
+    // already gone — clients shouldn't be able to book a 9 AM slot at 2 PM.
+    const { isSlotPastIst } = await import('../utils/dateIst.js');
+    const dateStr = String(date).split('T')[0]; // accept "YYYY-MM-DD" or full ISO
+
     const slots = [];
     const seen = new Set();
     for (const range of ranges) {
@@ -189,6 +195,7 @@ router.get('/:id/available-slots', async (req, res) => {
       for (let hour = sH; hour < eH; hour++) {
         const timeStr = `${hour.toString().padStart(2, '0')}:00`;
         if (seen.has(timeStr) || bookedTimes.includes(timeStr)) continue;
+        if (isSlotPastIst(dateStr, timeStr)) continue;
         seen.add(timeStr);
         slots.push({ time: timeStr, available: true });
       }
@@ -962,6 +969,65 @@ router.get('/dashboard/interviews', protect, therapistOnly, async (req, res) => 
       .sort({ scheduledDate: -1 });
     res.json(interviews);
   } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/therapists/dashboard/interviews/:id/request-reschedule
+// Therapist proposes a new date/time for their admin-scheduled interview.
+// The change isn't applied until an admin accepts it (admins manage the
+// interview meeting link too, so they need to confirm).
+router.put('/dashboard/interviews/:id/request-reschedule', protect, therapistOnly, async (req, res) => {
+  try {
+    const { proposedDate, proposedTime, reason } = req.body || {};
+    if (!proposedDate || !proposedTime) {
+      return res.status(400).json({ message: 'proposedDate and proposedTime are required' });
+    }
+    const newDt = new Date(proposedDate);
+    if (Number.isNaN(newDt.getTime())) return res.status(400).json({ message: 'Invalid date' });
+    if (newDt.getTime() < Date.now() - 24 * 60 * 60 * 1000) {
+      return res.status(400).json({ message: 'Proposed date must be in the future' });
+    }
+
+    const InterviewSchedule = (await import('../models/InterviewSchedule.js')).default;
+    const interview = await InterviewSchedule.findOne({ _id: req.params.id, therapistId: req.userId });
+    if (!interview) return res.status(404).json({ message: 'Interview not found' });
+    if (interview.status !== 'scheduled') {
+      return res.status(400).json({ message: `Cannot reschedule a ${interview.status} interview` });
+    }
+
+    interview.rescheduleRequestedAt = new Date();
+    interview.rescheduleProposedDate = newDt;
+    interview.rescheduleProposedTime = String(proposedTime);
+    interview.rescheduleReason = String(reason || '').slice(0, 500);
+    await interview.save();
+
+    // Notify admins via the platform Notification + email
+    try {
+      const Notification = (await import('../models/Notification.js')).default;
+      const Therapist = (await import('../models/Therapist.js')).default;
+      const therapist = await Therapist.findById(req.userId).select('name');
+      const { formatDateTimeIst } = await import('../utils/dateIst.js');
+      const newDtIst = formatDateTimeIst(newDt);
+      // Best-effort admin notification
+      const Admin = (await import('../models/Admin.js')).default;
+      const { sendEmail } = await import('../utils/email.js');
+      const admins = await Admin.find().select('_id email name');
+      const subject = 'Interview reschedule requested';
+      const body = `${therapist?.name || 'A therapist'} proposed a new interview time: ${newDtIst}.${reason ? `<br/><br/><strong>Reason:</strong> ${reason}` : ''}`;
+      for (const adm of admins) {
+        Notification.notify(adm._id, 'admin', 'interview_reschedule_requested',
+          subject, body, '/admin-dashboard?tab=therapists'
+        ).catch(() => {});
+        if (adm.email) {
+          sendEmail(adm.email, subject, `<p>Hi ${adm.name || 'Admin'},</p><p>${body}</p>`).catch(() => {});
+        }
+      }
+    } catch (e) { console.error('Notify admins (interview reschedule) failed:', e.message); }
+
+    res.json(interview);
+  } catch (error) {
+    console.error('Interview reschedule request error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

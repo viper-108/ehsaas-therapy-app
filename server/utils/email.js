@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'shukla.amitedcjss@gmail.com,Pdsethia17@gmail.com').split(',').map(e => e.trim());
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'therapy.ehsaas@gmail.com,shukla.amitedcjss@gmail.com,Pdsethia17@gmail.com').split(',').map(e => e.trim());
 const FROM_NAME = process.env.EMAIL_FROM_NAME || 'Ehsaas Therapy Centre';
 
 // === RESEND (preferred — reliable on Railway) ===

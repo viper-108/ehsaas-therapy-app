@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { formatDateIst } from "@/lib/dateIst";
 import {
   Calendar, Clock, Search, Star, Languages, LogOut, ChevronRight,
   Filter, XCircle, MessageCircle, Repeat, Library
@@ -368,7 +369,7 @@ const ClientDashboard = () => {
                           <div>
                             <p className="font-medium text-foreground">{session.therapistId?.name || 'Therapist'}</p>
                             <p className="text-sm text-muted-foreground">
-                              {new Date(session.date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                              {formatDateIst(session.date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                             </p>
                             <p className="text-sm text-muted-foreground">{session.startTime} - {session.endTime} ({session.duration} min)</p>
                           </div>
@@ -453,7 +454,7 @@ const ClientDashboard = () => {
                           <div>
                             <p className="font-medium text-foreground">{session.therapistId?.name || 'Therapist'}</p>
                             <p className="text-sm text-muted-foreground">
-                              {new Date(session.date).toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                              {formatDateIst(session.date)}
                               {' '}at {session.startTime} • {session.duration} min
                             </p>
                           </div>
