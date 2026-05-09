@@ -64,11 +64,17 @@ router.get('/', async (req, res) => {
       }
       delete obj.pricingMin; // never expose minimum to public/clients
       delete obj.servicesOffered; // never expose original therapist asks
-      // Public listing: only include services therapist has accepted (the source of truth)
+      // Public listing: only include services therapist has accepted (the
+      // source of truth). Keep therapistAccepted: true on the mapped object
+      // so frontend gates that check approvedServices.some(s => s.type ===
+      // 'individual' && s.therapistAccepted) still work correctly (the field
+      // would otherwise be dropped to undefined and the gate would always
+      // reject — the original bug behind the "individual therapy not
+      // offered" false positives on therapists who actually offer it).
       if (Array.isArray(obj.approvedServices)) {
         obj.approvedServices = obj.approvedServices
           .filter(s => s.therapistAccepted)
-          .map(s => ({ type: s.type, minPrice: s.minPrice, maxPrice: s.maxPrice }));
+          .map(s => ({ type: s.type, minPrice: s.minPrice, maxPrice: s.maxPrice, therapistAccepted: true }));
       }
       // slidingScaleAvailable IS exposed (clients should know they can request lower price)
       const todayBooked = bookedMap.get(String(t._id)) || 0;
@@ -105,7 +111,7 @@ router.get('/:id', async (req, res) => {
     if (Array.isArray(obj.approvedServices)) {
       obj.approvedServices = obj.approvedServices
         .filter(s => s.therapistAccepted)
-        .map(s => ({ type: s.type, minPrice: s.minPrice, maxPrice: s.maxPrice }));
+        .map(s => ({ type: s.type, minPrice: s.minPrice, maxPrice: s.maxPrice, therapistAccepted: true }));
     }
     res.json(obj);
   } catch (error) {
