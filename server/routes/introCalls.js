@@ -48,7 +48,7 @@ router.post('/', protect, clientOnly, async (req, res) => {
           <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Email</td><td style="padding:8px; border:1px solid #ddd;">${email}</td></tr>
           <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Reason for Therapy</td><td style="padding:8px; border:1px solid #ddd;">${reasonForTherapy}</td></tr>
           <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">What They're Looking For</td><td style="padding:8px; border:1px solid #ddd;">${whatLookingFor}</td></tr>
-          <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Preferred Date/Time</td><td style="padding:8px; border:1px solid #ddd;">${new Date(preferredDateTime).toLocaleString('en-IN')}</td></tr>
+          <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Preferred Date/Time</td><td style="padding:8px; border:1px solid #ddd;">${new Date(preferredDateTime).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</td></tr>
         </table>
         <p>Please log in to your dashboard to accept or decline this request.</p>
       </div>`;

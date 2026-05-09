@@ -134,8 +134,8 @@ router.post('/', protect, clientOnly, async (req, res) => {
             <p>Your therapy session has been confirmed.</p>
             <table style="width:100%; border-collapse:collapse; margin:15px 0;">
               <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Therapist</td><td style="padding:8px; border:1px solid #ddd;">${fullTherapist.name}</td></tr>
-              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Date</td><td style="padding:8px; border:1px solid #ddd;">${new Date(date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td></tr>
-              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Time</td><td style="padding:8px; border:1px solid #ddd;">${startTime} - ${endTime}</td></tr>
+              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Date</td><td style="padding:8px; border:1px solid #ddd;">${new Date(date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' })}</td></tr>
+              <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Time</td><td style="padding:8px; border:1px solid #ddd;">${startTime} - ${endTime} <strong>IST</strong></td></tr>
               <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Duration</td><td style="padding:8px; border:1px solid #ddd;">${duration} minutes</td></tr>
               <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Amount</td><td style="padding:8px; border:1px solid #ddd;">₹${amount}</td></tr>
             </table>

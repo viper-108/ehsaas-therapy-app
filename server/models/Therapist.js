@@ -157,6 +157,7 @@ const therapistSchema = new mongoose.Schema({
     default: 'not_started'
   },
   rejectionReason: { type: String, default: '' },
+  rejectedAt: { type: Date, default: null },
   // Interview / application coordination by admin
   interviewLink: { type: String, default: '' },
   interviewScheduledAt: { type: Date, default: null },

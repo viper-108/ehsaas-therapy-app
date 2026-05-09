@@ -39,6 +39,16 @@ router.post('/enable', protect, async (req, res) => {
     const therapist = await Therapist.findById(therapistId);
     if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
 
+    // Lock price negotiation pre-approval. Until admin has approved the
+    // therapist (post-interview) the pricing window doesn't open — neither
+    // therapist nor admin can invite a client into negotiation. Once
+    // approved, this gate is automatically lifted.
+    if (!therapist.isApproved || therapist.onboardingStatus !== 'approved') {
+      return res.status(400).json({
+        message: 'Price negotiation is unavailable until this therapist has completed admin approval (post-interview).',
+      });
+    }
+
     const pricing = therapist.pricing instanceof Map ? Object.fromEntries(therapist.pricing) : (therapist.pricing || {});
     const pricingMin = therapist.pricingMin instanceof Map ? Object.fromEntries(therapist.pricingMin) : (therapist.pricingMin || {});
     const maxPrice = pricing[String(duration)];

@@ -307,6 +307,19 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  async getRejectedTherapists() {
+    const res = await fetch(`${API_BASE}/admin/rejected-therapists`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+
+  // Therapist resubmits a previously-rejected profile for review
+  async reapplyAsTherapist() {
+    const res = await fetch(`${API_BASE}/therapists/dashboard/reapply`, {
+      method: 'POST', headers: this.getHeaders(),
+    });
+    return this.handleResponse(res);
+  }
+
   async getAllTherapistsAdmin() {
     const res = await fetch(`${API_BASE}/admin/all-therapists`, { headers: this.getHeaders() });
     return this.handleResponse(res);

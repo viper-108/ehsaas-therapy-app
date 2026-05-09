@@ -37,6 +37,23 @@ router.get('/pending-therapists', protect, adminOnly, async (req, res) => {
   }
 });
 
+// GET /api/admin/rejected-therapists — list of therapists whose application
+// was declined, with reason + when. Lets admin keep their profiles on file
+// and reach out later if a position opens up (matches the rejection email
+// copy: "we are saving your profile and will connect when there's an
+// opening").
+router.get('/rejected-therapists', protect, adminOnly, async (req, res) => {
+  try {
+    const therapists = await Therapist.find({ onboardingStatus: 'rejected' })
+      .select('-password')
+      .sort({ rejectedAt: -1, updatedAt: -1 });
+    res.json(therapists.map(convertPricing));
+  } catch (error) {
+    console.error('Get rejected therapists error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // GET /api/admin/all-therapists
 router.get('/all-therapists', protect, adminOnly, async (req, res) => {
   try {
@@ -94,6 +111,7 @@ router.put('/therapists/:id/reject', protect, adminOnly, async (req, res) => {
         isApproved: false,
         onboardingStatus: 'rejected',
         rejectionReason: reason || 'Application not approved at this time.',
+        rejectedAt: new Date(),
       },
       { new: true }
     ).select('-password');
@@ -561,7 +579,7 @@ router.put('/therapists/:id/interview', protect, adminOnly, async (req, res) => 
     try {
       const { sendEmail } = await import('../utils/email.js');
       const dateStr = interviewScheduledAt
-        ? new Date(interviewScheduledAt).toLocaleString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        ? new Date(interviewScheduledAt).toLocaleString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) + ' IST'
         : '';
       const html = `
         <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -699,14 +717,29 @@ router.put('/therapists/:id/pricing', protect, adminOnly, async (req, res) => {
 
     try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'pricing_updated', 'Therapist', therapist._id, { name: therapist.name, pricing: cleanMax, pricingMin: cleanMin }); } catch {}
 
-    // Notify therapist
+    // Notify therapist (in-app + plain text email).
+    // The email is intentionally plain text — no fancy CTA button —
+    // because pricing revisions need the therapist to actually open the
+    // dashboard, review, and accept/reject each service. A one-click link
+    // can be misread as "approval already granted".
     try {
       const Notification = (await import('../models/Notification.js')).default;
       Notification.notify(therapist._id, 'therapist', 'pricing_updated',
         'Your pricing has been updated by admin',
-        'Your session pricing was updated by Ehsaas administration. Check your profile.',
-        '/therapist-dashboard?tab=earnings'
+        'Your session pricing was updated by Ehsaas administration. Please log in to your dashboard to review and accept the new pricing for each service.',
+        '/therapist-dashboard?tab=approvals'
       ).catch(() => {});
+
+      const { sendEmail } = await import('../utils/email.js');
+      const plain = `Hi ${therapist.name || 'Therapist'},\n\nThe Ehsaas administration has revised your session pricing. Please log in to your dashboard and review the new pricing for each of your services. You'll find the updates under the "Approvals" tab — accept the ones you're comfortable with, or reject any that don't work for you.\n\nDashboard: log in via the Ehsaas Therapy Centre site.\n\n— Ehsaas Therapy Centre Team`;
+      // sendEmail expects an HTML body; we wrap the plain text in a <pre>
+      // so line breaks render correctly while keeping the content text-only
+      // (no styled CTA button).
+      const htmlSafe = plain
+        .split('\n')
+        .map(line => line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'))
+        .join('<br/>');
+      sendEmail(therapist.email, 'Your Ehsaas pricing has been revised', `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">${htmlSafe}</div>`).catch(() => {});
     } catch {}
 
     res.json(convertPricing(therapist));
@@ -1116,8 +1149,8 @@ router.post('/interviews', protect, adminOnly, async (req, res) => {
           <h2 style="color: #2563eb;">Interview Scheduled 📅</h2>
           <p>Your Ehsaas onboarding interview has been scheduled.</p>
           <table style="width:100%; border-collapse:collapse; margin:15px 0;">
-            <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Date</td><td style="padding:8px; border:1px solid #ddd;">${new Date(scheduledDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td></tr>
-            <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Time</td><td style="padding:8px; border:1px solid #ddd;">${scheduledTime}</td></tr>
+            <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Date</td><td style="padding:8px; border:1px solid #ddd;">${new Date(scheduledDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' })}</td></tr>
+            <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Time</td><td style="padding:8px; border:1px solid #ddd;">${scheduledTime} <strong>IST</strong></td></tr>
             <tr><td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Meeting Link</td><td style="padding:8px; border:1px solid #ddd;"><a href="${meetingLink}">${meetingLink}</a></td></tr>
           </table>
           <p>A calendar invite is attached. Please add it to your calendar.</p>
@@ -1152,11 +1185,28 @@ router.get('/interviews', protect, adminOnly, async (req, res) => {
 });
 
 // PUT /api/admin/interviews/:id
+// 12-hour minimum-notice rule applies when admin is rescheduling too —
+// last-minute changes need to go through chat, not a silent backend move.
 router.put('/interviews/:id', protect, adminOnly, async (req, res) => {
   try {
     const InterviewSchedule = (await import('../models/InterviewSchedule.js')).default;
+    const existing = await InterviewSchedule.findById(req.params.id);
+    if (!existing) return res.status(404).json({ message: 'Not found' });
+
+    const isMovingDate = req.body && (req.body.scheduledDate || req.body.scheduledTime);
+    if (isMovingDate && existing.scheduledDate) {
+      const start = new Date(existing.scheduledDate);
+      const [hh, mm] = String(existing.scheduledTime || '00:00').split(':').map(Number);
+      start.setHours(hh || 0, mm || 0, 0, 0);
+      const hoursUntil = (start.getTime() - Date.now()) / (1000 * 60 * 60);
+      if (hoursUntil < 12) {
+        return res.status(400).json({
+          message: 'Interview start is within 12 hours. Please message the therapist in chat instead of moving the slot.',
+        });
+      }
+    }
+
     const interview = await InterviewSchedule.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!interview) return res.status(404).json({ message: 'Not found' });
     res.json(interview);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });

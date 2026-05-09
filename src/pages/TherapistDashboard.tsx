@@ -215,6 +215,47 @@ const TherapistDashboard = () => {
             </Button>
           </div>
 
+          {/* Rejected-application banner: shown on the dashboard for any
+              therapist whose application was declined. Lets them edit
+              profile, reapply, or browse training/supervision so they can
+              strengthen the next application. */}
+          {(user as any)?.onboardingStatus === 'rejected' && (
+            <Card className="mb-6 p-4 border-destructive/40 bg-destructive/5">
+              <div className="flex items-start gap-3 flex-wrap">
+                <div className="flex-1 min-w-[260px]">
+                  <p className="font-semibold text-destructive">Application not approved</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    We're not hiring at the moment. Your profile is saved and we'll reach out if a position opens up.
+                  </p>
+                  {(user as any)?.rejectionReason && (
+                    <p className="text-xs text-muted-foreground mt-2"><strong>Reviewer note:</strong> {(user as any).rejectionReason}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    You can update your profile and resubmit. Joining a training program or supervision can also help strengthen a future application.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        await api.reapplyAsTherapist();
+                        toast({ title: "Application resubmitted", description: "Admin will review again shortly." });
+                        setTimeout(() => window.location.reload(), 800);
+                      } catch (e: any) {
+                        toast({ title: "Could not resubmit", description: e.message || 'Try again later', variant: "destructive" });
+                      }
+                    }}
+                  >
+                    Reapply now
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => navigate('/trainings')}>Browse Training</Button>
+                  <Button size="sm" variant="outline" onClick={() => navigate('/supervision')}>Browse Supervision</Button>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {(() => {
             const pendingIntroCalls = introCalls.filter(c => c.status === 'pending').length;
             const sidebarItems: SidebarItem[] = [

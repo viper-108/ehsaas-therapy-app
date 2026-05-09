@@ -987,6 +987,49 @@ router.get('/dashboard/interviews', protect, therapistOnly, async (req, res) => 
   }
 });
 
+// POST /api/therapists/dashboard/reapply
+// Lets a previously-rejected therapist resubmit their profile for review.
+// Wipes the rejection reason + flips onboardingStatus back to
+// pending_approval so they show up in the admin queue again. Profile
+// edits the therapist made while rejected are kept.
+router.post('/dashboard/reapply', protect, therapistOnly, async (req, res) => {
+  try {
+    const therapist = await Therapist.findById(req.userId);
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    if (therapist.onboardingStatus !== 'rejected') {
+      return res.status(400).json({ message: 'Only rejected applications can be re-submitted.' });
+    }
+
+    therapist.onboardingStatus = 'pending_approval';
+    therapist.rejectionReason = '';
+    therapist.rejectedAt = null;
+    await therapist.save();
+
+    // Notify all admins
+    try {
+      const Admin = (await import('../models/Admin.js')).default;
+      const Notification = (await import('../models/Notification.js')).default;
+      const { sendEmail } = await import('../utils/email.js');
+      const admins = await Admin.find().select('_id email name');
+      const subject = 'Therapist re-application';
+      const body = `${therapist.name} has resubmitted their profile for review.`;
+      for (const adm of admins) {
+        Notification.notify(adm._id, 'admin', 'therapist_reapplied',
+          subject, body, '/admin-dashboard?tab=pending'
+        ).catch(() => {});
+        if (adm.email) {
+          sendEmail(adm.email, subject, `<p>Hi ${adm.name || 'Admin'},</p><p>${body}</p>`).catch(() => {});
+        }
+      }
+    } catch (e) { console.error('Notify admins (reapply) failed:', e.message); }
+
+    res.json({ ok: true, onboardingStatus: therapist.onboardingStatus });
+  } catch (e) {
+    console.error('Reapply error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // PUT /api/therapists/dashboard/interviews/:id/request-reschedule
 // Therapist proposes a new date/time for their admin-scheduled interview.
 // The change isn't applied until an admin accepts it (admins manage the
@@ -1008,6 +1051,21 @@ router.put('/dashboard/interviews/:id/request-reschedule', protect, therapistOnl
     if (!interview) return res.status(404).json({ message: 'Interview not found' });
     if (interview.status !== 'scheduled') {
       return res.status(400).json({ message: `Cannot reschedule a ${interview.status} interview` });
+    }
+
+    // 12-hour minimum notice before the *currently-scheduled* interview
+    // start. Inside that window the therapist must message admin in chat
+    // instead — keeps last-minute reshuffles off the queue.
+    if (interview.scheduledDate) {
+      const start = new Date(interview.scheduledDate);
+      const [hh, mm] = String(interview.scheduledTime || '00:00').split(':').map(Number);
+      start.setHours(hh || 0, mm || 0, 0, 0);
+      const hoursUntil = (start.getTime() - Date.now()) / (1000 * 60 * 60);
+      if (hoursUntil < 12) {
+        return res.status(400).json({
+          message: 'Reschedule requests must be at least 12 hours before the scheduled interview. Please message admin in chat for last-minute changes.',
+        });
+      }
     }
 
     interview.rescheduleRequestedAt = new Date();

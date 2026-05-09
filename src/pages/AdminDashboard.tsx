@@ -69,6 +69,12 @@ const AdminDashboard = () => {
   const [pendingSupervisionGroups, setPendingSupervisionGroups] = useState<any[]>([]);
   const [pendingTrainings, setPendingTrainings] = useState<any[]>([]);
   const [allTherapists, setAllTherapists] = useState<any[]>([]);
+  const [rejectedTherapists, setRejectedTherapists] = useState<any[]>([]);
+  // Filter for the unified Pending Approvals tab — narrows the long list
+  // to just the category admin is reviewing right now.
+  const [approvalCategory, setApprovalCategory] = useState<
+    'all' | 'new-therapist' | 'profile-changes' | 'couples' | 'sliding-scale' | 'supervision' | 'groups'
+  >('all');
   const [allClients, setAllClients] = useState<any[]>([]);
   const [allSessions, setAllSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,7 +151,7 @@ const AdminDashboard = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData, serviceChangeData, pendingWorkshopsData, pSup, pSupe, pSupGroups, pTrainings] = await Promise.all([
+      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData, serviceChangeData, pendingWorkshopsData, pSup, pSupe, pSupGroups, pTrainings, rejectedData] = await Promise.all([
         api.getAdminStats(),
         api.getPendingTherapists(),
         api.getAllTherapistsAdmin(),
@@ -162,6 +168,7 @@ const AdminDashboard = () => {
         api.listPendingSupervisees().catch(() => []),
         api.listPendingSupervisionGroups().catch(() => []),
         api.listPendingTrainings().catch(() => []),
+        api.getRejectedTherapists().catch(() => []),
       ]);
       setStats(statsData);
       setPending(pendingData);
@@ -179,6 +186,7 @@ const AdminDashboard = () => {
       setPendingSupervisees(pSupe);
       setPendingSupervisionGroups(pSupGroups);
       setPendingTrainings(pTrainings);
+      setRejectedTherapists(Array.isArray(rejectedData) ? rejectedData : []);
     } catch (error) {
       console.error('Admin dashboard load error:', error);
     } finally {
@@ -268,6 +276,7 @@ const AdminDashboard = () => {
               const sidebarItems: SidebarItem[] = [
                 { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length + pendingCouples.length + serviceChangeRequests.length + pendingWorkshops.length + pendingSupervisors.length + pendingSupervisees.length + pendingSupervisionGroups.length + pendingTrainings.length) || null, group: 'Approvals' },
                 { value: 'reviews', label: 'Reviews', icon: Star, group: 'Approvals' },
+                { value: 'rejected', label: 'Rejected Therapists', icon: UserX, badge: rejectedTherapists.length || null, group: 'People' },
                 { value: 'therapists', label: 'Therapists', icon: UserCheck, group: 'People' },
                 { value: 'clients', label: 'Clients', icon: Users, group: 'People' },
                 { value: 'sessions', label: 'Sessions', icon: Calendar, group: 'Activity' },
@@ -286,10 +295,34 @@ const AdminDashboard = () => {
 
               {/* ========== PENDING APPROVALS (UNIFIED) ========== */}
               <TabsContent value="pending">
-                <h2 className="text-xl font-semibold text-foreground mb-4">Pending Approvals</h2>
-                {pending.length === 0 ? (
+                <h2 className="text-xl font-semibold text-foreground mb-2">Pending Approvals</h2>
+
+                {/* Category filter — narrows the unified Pending list to a
+                    single workflow at a time so admin can focus. */}
+                <div className="flex flex-wrap gap-2 mb-5">
+                  {([
+                    { value: 'all',              label: 'All' },
+                    { value: 'new-therapist',    label: `New therapists (${pending.length})` },
+                    { value: 'profile-changes',  label: `Profile changes (${serviceChangeRequests.length})` },
+                    { value: 'couples',          label: `Couples (${pendingCouples.length})` },
+                    { value: 'sliding-scale',    label: `Sliding-scale (${pendingNegotiations.length})` },
+                    { value: 'supervision',      label: `Supervision (${pendingSupervisors.length + pendingSupervisees.length + pendingSupervisionGroups.length})` },
+                    { value: 'groups',           label: `Groups & Workshops (${pendingGroups.length + pendingWorkshops.length + pendingTrainings.length})` },
+                  ] as const).map(opt => (
+                    <Badge
+                      key={opt.value}
+                      variant={approvalCategory === opt.value ? 'default' : 'outline'}
+                      className="cursor-pointer"
+                      onClick={() => setApprovalCategory(opt.value as any)}
+                    >
+                      {opt.label}
+                    </Badge>
+                  ))}
+                </div>
+
+                {(approvalCategory === 'all' || approvalCategory === 'new-therapist') && pending.length === 0 ? (
                   null
-                ) : (
+                ) : (approvalCategory === 'all' || approvalCategory === 'new-therapist') && (
                   <div className="space-y-6">
                     <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                       <UserCheck className="w-4 h-4 text-primary" /> Pending Therapist Applications ({pending.length})
@@ -460,7 +493,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* ===== PENDING REVIEWS ===== */}
-                {pendingReviews.length > 0 && (
+                {approvalCategory === 'all' && pendingReviews.length > 0 && (
                   <div className="mt-10">
                     <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                       <Star className="w-4 h-4 text-yellow-500" /> Pending Reviews ({pendingReviews.length})
@@ -507,7 +540,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* ===== PENDING PRICE NEGOTIATIONS ===== */}
-                {pendingNegotiations.length > 0 && (
+                {(approvalCategory === 'all' || approvalCategory === 'sliding-scale') && pendingNegotiations.length > 0 && (
                   <div className="mt-10">
                     <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                       <IndianRupee className="w-4 h-4 text-primary" /> Pending Price Negotiations ({pendingNegotiations.length})
@@ -555,7 +588,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* ===== PENDING GROUP THERAPY REQUESTS ===== */}
-                {pendingGroups.length > 0 && (
+                {(approvalCategory === 'all' || approvalCategory === 'groups') && pendingGroups.length > 0 && (
                   <div className="mt-10">
                     <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                       <Users className="w-4 h-4 text-primary" /> Pending Group Therapy Requests ({pendingGroups.length})
@@ -601,7 +634,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* ===== PENDING COUPLES PROFILES ===== */}
-                {pendingCouples.length > 0 && (
+                {(approvalCategory === 'all' || approvalCategory === 'couples') && pendingCouples.length > 0 && (
                   <div className="mt-10">
                     <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                       <Heart className="w-4 h-4 text-pink-500" /> Pending Couples Profiles ({pendingCouples.length})
@@ -656,7 +689,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* ===== SERVICE CHANGE REQUESTS ===== */}
-                {serviceChangeRequests.length > 0 && (
+                {(approvalCategory === 'all' || approvalCategory === 'profile-changes') && serviceChangeRequests.length > 0 && (
                   <div className="mt-10">
                     <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                       <Briefcase className="w-4 h-4 text-primary" /> Service Change Requests ({serviceChangeRequests.length})
@@ -719,7 +752,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* ===== PENDING WORKSHOPS ===== */}
-                {pendingWorkshops.length > 0 && (
+                {(approvalCategory === 'all' || approvalCategory === 'groups') && pendingWorkshops.length > 0 && (
                   <div className="mt-10">
                     <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                       <BookOpen className="w-4 h-4 text-primary" /> Pending Workshop Requests ({pendingWorkshops.length})
@@ -765,7 +798,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* ===== PENDING SUPERVISOR APPLICATIONS ===== */}
-                {pendingSupervisors.length > 0 && (
+                {(approvalCategory === 'all' || approvalCategory === 'supervision') && pendingSupervisors.length > 0 && (
                   <div className="mt-10">
                     <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                       <GraduationCap className="w-4 h-4 text-primary" /> Pending Supervisor Applications ({pendingSupervisors.length})
@@ -812,7 +845,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* ===== PENDING SUPERVISEE APPLICATIONS ===== */}
-                {pendingSupervisees.length > 0 && (
+                {(approvalCategory === 'all' || approvalCategory === 'supervision') && pendingSupervisees.length > 0 && (
                   <div className="mt-10">
                     <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                       <GraduationCap className="w-4 h-4 text-primary" /> Pending Supervisee Applications ({pendingSupervisees.length})
@@ -857,7 +890,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* ===== PENDING SUPERVISION GROUPS ===== */}
-                {pendingSupervisionGroups.length > 0 && (
+                {(approvalCategory === 'all' || approvalCategory === 'supervision') && pendingSupervisionGroups.length > 0 && (
                   <div className="mt-10">
                     <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                       <GraduationCap className="w-4 h-4 text-primary" /> Pending Supervision Groups ({pendingSupervisionGroups.length})
@@ -898,7 +931,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* ===== PENDING TRAINING PROGRAMS ===== */}
-                {pendingTrainings.length > 0 && (
+                {(approvalCategory === 'all' || approvalCategory === 'groups') && pendingTrainings.length > 0 && (
                   <div className="mt-10">
                     <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                       <GraduationCap className="w-4 h-4 text-primary" /> Pending Training Programs ({pendingTrainings.length})
@@ -1071,6 +1104,45 @@ const AdminDashboard = () => {
                     </Card>
                   ))}
                 </div>
+              </TabsContent>
+
+              {/* ========== REJECTED THERAPISTS ========== */}
+              <TabsContent value="rejected">
+                <h2 className="text-xl font-semibold text-foreground mb-1">Rejected Therapists ({rejectedTherapists.length})</h2>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Profiles we passed on, kept on file. If a position opens up that fits, reach out via email or chat.
+                </p>
+                {rejectedTherapists.length === 0 ? (
+                  <Card className="p-12 text-center"><p className="text-muted-foreground">No rejected therapist profiles.</p></Card>
+                ) : (
+                  <div className="space-y-3">
+                    {rejectedTherapists.map((t: any) => (
+                      <Card key={t._id} className="p-4">
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-semibold text-foreground">{t.name}</p>
+                              <Badge variant="outline" className="text-xs">{t.title || 'Therapist'}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">{t.email} · {t.phone || 'no phone'}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{t.experience || 0} years experience · {(t.specializations || []).slice(0, 4).join(', ')}</p>
+                            {t.rejectionReason && (
+                              <div className="mt-2 p-2 bg-destructive/5 border border-destructive/20 rounded text-xs">
+                                <strong>Rejection reason:</strong> {t.rejectionReason}
+                              </div>
+                            )}
+                            {t.rejectedAt && (
+                              <p className="text-[11px] text-muted-foreground mt-1">Rejected on {new Date(t.rejectedAt).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
+                            )}
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => setDetailModal({ open: true, type: 'therapist', data: t, loading: false })}>
+                            View Details
+                          </Button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
 
               {/* ========== ALL CLIENTS ========== */}
