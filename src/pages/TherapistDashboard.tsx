@@ -215,46 +215,80 @@ const TherapistDashboard = () => {
             </Button>
           </div>
 
-          {/* Rejected-application banner: shown on the dashboard for any
-              therapist whose application was declined. Lets them edit
-              profile, reapply, or browse training/supervision so they can
-              strengthen the next application. */}
-          {(user as any)?.onboardingStatus === 'rejected' && (
-            <Card className="mb-6 p-4 border-destructive/40 bg-destructive/5">
-              <div className="flex items-start gap-3 flex-wrap">
-                <div className="flex-1 min-w-[260px]">
-                  <p className="font-semibold text-destructive">Application not approved</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    We're not hiring at the moment. Your profile is saved and we'll reach out if a position opens up.
-                  </p>
-                  {(user as any)?.rejectionReason && (
-                    <p className="text-xs text-muted-foreground mt-2"><strong>Reviewer note:</strong> {(user as any).rejectionReason}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-2">
-                    You can update your profile and resubmit. Joining a training program or supervision can also help strengthen a future application.
-                  </p>
+          {/* Application-state banners. Two distinct states:
+              - rejected: never-approved profile. Reapply allowed immediately.
+              - revoked: previously-approved therapist whose access was
+                pulled by admin. 30-day cooldown from revokedAt before
+                they can reapply. */}
+          {(() => {
+            const status = (user as any)?.onboardingStatus;
+            if (status !== 'rejected' && status !== 'revoked') return null;
+
+            const isRevoked = status === 'revoked';
+            const revokedAt = (user as any)?.revokedAt ? new Date((user as any).revokedAt) : null;
+            const eligibleAt = revokedAt ? new Date(revokedAt.getTime() + 30 * 24 * 60 * 60 * 1000) : null;
+            const daysLeft = eligibleAt ? Math.max(0, Math.ceil((eligibleAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
+            const canReapplyNow = !isRevoked || (eligibleAt && Date.now() >= eligibleAt.getTime());
+
+            const fmtIst = (d: Date) => d.toLocaleDateString('en-IN', {
+              weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata',
+            });
+
+            return (
+              <Card className="mb-6 p-4 border-destructive/40 bg-destructive/5">
+                <div className="flex items-start gap-3 flex-wrap">
+                  <div className="flex-1 min-w-[260px]">
+                    <p className="font-semibold text-destructive">
+                      {isRevoked ? 'Profile revoked' : 'Application not approved'}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {isRevoked
+                        ? <>Your profile access was revoked by admin{revokedAt ? <> on <strong>{fmtIst(revokedAt)}</strong></> : ''}.</>
+                        : <>We're not hiring at the moment. Your profile is saved and we'll reach out if a position opens up.</>}
+                    </p>
+                    {(user as any)?.rejectionReason && (
+                      <p className="text-xs text-muted-foreground mt-2"><strong>Reviewer note:</strong> {(user as any).rejectionReason}</p>
+                    )}
+                    {isRevoked && !canReapplyNow && eligibleAt && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        You'll be able to reapply <strong>after the 30-day cooldown</strong>, on <strong>{fmtIst(eligibleAt)}</strong> ({daysLeft} day{daysLeft === 1 ? '' : 's'} remaining). Meanwhile, training and supervision can strengthen your future application.
+                      </p>
+                    )}
+                    {isRevoked && canReapplyNow && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Your 30-day cooldown is over — you can resubmit your profile for admin review now.
+                      </p>
+                    )}
+                    {!isRevoked && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        You can update your profile and resubmit. Joining a training program or supervision can also help strengthen a future application.
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Button
+                      size="sm"
+                      disabled={!canReapplyNow}
+                      onClick={async () => {
+                        try {
+                          await api.reapplyAsTherapist();
+                          toast({ title: "Application resubmitted", description: "Admin will review again shortly." });
+                          setTimeout(() => window.location.reload(), 800);
+                        } catch (e: any) {
+                          toast({ title: "Could not resubmit", description: e.message || 'Try again later', variant: "destructive" });
+                        }
+                      }}
+                      title={!canReapplyNow ? `Available on ${eligibleAt ? fmtIst(eligibleAt) : '—'}` : undefined}
+                    >
+                      {canReapplyNow ? 'Reapply now' : `Reapply in ${daysLeft}d`}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => navigate('/trainings')}>Browse Training</Button>
+                    <Button size="sm" variant="outline" onClick={() => navigate('/supervision')}>Browse Supervision</Button>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Button
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        await api.reapplyAsTherapist();
-                        toast({ title: "Application resubmitted", description: "Admin will review again shortly." });
-                        setTimeout(() => window.location.reload(), 800);
-                      } catch (e: any) {
-                        toast({ title: "Could not resubmit", description: e.message || 'Try again later', variant: "destructive" });
-                      }
-                    }}
-                  >
-                    Reapply now
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => navigate('/trainings')}>Browse Training</Button>
-                  <Button size="sm" variant="outline" onClick={() => navigate('/supervision')}>Browse Supervision</Button>
-                </div>
-              </div>
-            </Card>
-          )}
+              </Card>
+            );
+          })()}
 
           {(() => {
             const pendingIntroCalls = introCalls.filter(c => c.status === 'pending').length;
@@ -371,7 +405,17 @@ const TherapistDashboard = () => {
                         {upcomingSessions.slice(0, 5).map(session => (
                           <div key={session._id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
                             <div>
-                              <p className="font-medium text-foreground">{session.clientId?.name || 'Client'}</p>
+                              <p className="font-medium text-foreground">
+                                {session.clientId?._id ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setClientHistoryModal({ clientId: session.clientId._id, clientName: session.clientId.name || 'Client' })}
+                                    className="text-primary hover:underline"
+                                  >
+                                    {session.clientId?.name || 'Client'}
+                                  </button>
+                                ) : (session.clientId?.name || 'Client')}
+                              </p>
                               <p className="text-sm text-muted-foreground">
                                 {formatDateIst(session.date)} at {session.startTime} IST • {session.duration} min
                               </p>
@@ -408,7 +452,17 @@ const TherapistDashboard = () => {
                     {filtered.map(session => (
                       <div key={session._id} className="flex items-center justify-between p-4 border rounded-lg gap-3">
                         <div className="min-w-0">
-                          <p className="font-medium text-foreground truncate">{session.clientId?.name || 'Client'}</p>
+                          <p className="font-medium text-foreground truncate">
+                            {session.clientId?._id ? (
+                              <button
+                                type="button"
+                                onClick={() => setClientHistoryModal({ clientId: session.clientId._id, clientName: session.clientId.name || 'Client' })}
+                                className="text-primary hover:underline"
+                              >
+                                {session.clientId?.name || 'Client'}
+                              </button>
+                            ) : (session.clientId?.name || 'Client')}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {formatDateIst(session.date, { weekday: 'short', month: 'short', day: 'numeric' })} · {session.startTime} IST
                           </p>
@@ -485,7 +539,17 @@ const TherapistDashboard = () => {
                     {filtered.map(session => (
                       <div key={session._id} className="flex items-center justify-between p-4 bg-muted/20 rounded-lg">
                         <div>
-                          <p className="font-medium text-foreground">{session.clientId?.name || 'Client'}</p>
+                          <p className="font-medium text-foreground">
+                            {session.clientId?._id ? (
+                              <button
+                                type="button"
+                                onClick={() => setClientHistoryModal({ clientId: session.clientId._id, clientName: session.clientId.name || 'Client' })}
+                                className="text-primary hover:underline"
+                              >
+                                {session.clientId?.name || 'Client'}
+                              </button>
+                            ) : (session.clientId?.name || 'Client')}
+                          </p>
                           <p className="text-sm text-muted-foreground">
                             {formatDateIst(session.date)}
                             {' '}at {session.startTime} • {session.duration} min

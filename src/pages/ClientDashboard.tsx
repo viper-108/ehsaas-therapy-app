@@ -367,7 +367,13 @@ const ClientDashboard = () => {
                             )}
                           </div>
                           <div>
-                            <p className="font-medium text-foreground">{session.therapistId?.name || 'Therapist'}</p>
+                            <p className="font-medium text-foreground">
+                              {session.therapistId?._id ? (
+                                <Link to={`/psychologist/${session.therapistId._id}`} className="text-primary hover:underline">
+                                  {session.therapistId?.name || 'Therapist'}
+                                </Link>
+                              ) : (session.therapistId?.name || 'Therapist')}
+                            </p>
                             <p className="text-sm text-muted-foreground">
                               {formatDateIst(session.date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                             </p>
@@ -452,7 +458,13 @@ const ClientDashboard = () => {
                             )}
                           </div>
                           <div>
-                            <p className="font-medium text-foreground">{session.therapistId?.name || 'Therapist'}</p>
+                            <p className="font-medium text-foreground">
+                              {session.therapistId?._id ? (
+                                <Link to={`/psychologist/${session.therapistId._id}`} className="text-primary hover:underline">
+                                  {session.therapistId?.name || 'Therapist'}
+                                </Link>
+                              ) : (session.therapistId?.name || 'Therapist')}
+                            </p>
                             <p className="text-sm text-muted-foreground">
                               {formatDateIst(session.date)}
                               {' '}at {session.startTime} • {session.duration} min

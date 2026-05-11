@@ -996,13 +996,28 @@ router.post('/dashboard/reapply', protect, therapistOnly, async (req, res) => {
   try {
     const therapist = await Therapist.findById(req.userId);
     if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
-    if (therapist.onboardingStatus !== 'rejected') {
-      return res.status(400).json({ message: 'Only rejected applications can be re-submitted.' });
+    if (!['rejected', 'revoked'].includes(therapist.onboardingStatus)) {
+      return res.status(400).json({ message: 'Only rejected or revoked applications can be re-submitted.' });
+    }
+
+    // Revoked therapists must wait 30 days from the revocation date before
+    // they can resubmit. Rejected therapists can resubmit immediately.
+    if (therapist.onboardingStatus === 'revoked' && therapist.revokedAt) {
+      const earliest = new Date(therapist.revokedAt);
+      earliest.setDate(earliest.getDate() + 30);
+      if (Date.now() < earliest.getTime()) {
+        const daysLeft = Math.ceil((earliest.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        return res.status(400).json({
+          message: `You can reapply after the 30-day cooldown. ${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining (eligible from ${earliest.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}).`,
+          reapplyEligibleAt: earliest.toISOString(),
+        });
+      }
     }
 
     therapist.onboardingStatus = 'pending_approval';
     therapist.rejectionReason = '';
     therapist.rejectedAt = null;
+    therapist.revokedAt = null;
     await therapist.save();
 
     // Notify all admins

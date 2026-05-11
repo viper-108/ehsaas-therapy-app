@@ -152,12 +152,21 @@ const therapistSchema = new mongoose.Schema({
   isOnboarded: { type: Boolean, default: false },
   onboardingStatus: {
     type: String,
-    // Application lifecycle: not_started -> pending_approval -> interview_scheduled -> in_process -> approved | rejected
-    enum: ['not_started', 'pending_approval', 'interview_scheduled', 'in_process', 'approved', 'rejected'],
+    // Application lifecycle:
+    //   not_started -> pending_approval -> interview_scheduled -> in_process -> approved | rejected
+    // `revoked` is a separate terminal-ish state set when admin revokes an
+    // already-approved therapist. Distinguishing it from 'rejected' lets
+    // the dashboard show the right banner + enforce a 30-day reapply
+    // cooldown (revokedAt + 30d must be in the past before they can
+    // submit /reapply again).
+    enum: ['not_started', 'pending_approval', 'interview_scheduled', 'in_process', 'approved', 'rejected', 'revoked'],
     default: 'not_started'
   },
   rejectionReason: { type: String, default: '' },
   rejectedAt: { type: Date, default: null },
+  // Set when admin clicks "Revoke approval" on a previously-approved
+  // therapist. Used by the 30-day reapply lock.
+  revokedAt: { type: Date, default: null },
   // Interview / application coordination by admin
   interviewLink: { type: String, default: '' },
   interviewScheduledAt: { type: Date, default: null },

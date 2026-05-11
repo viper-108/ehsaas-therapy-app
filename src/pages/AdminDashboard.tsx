@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Users, UserCheck, UserX, Clock, Calendar, DollarSign, BarChart3,
   CheckCircle, XCircle, LogOut, ChevronRight, Shield, Loader2, Star, TrendingUp,
@@ -53,9 +53,20 @@ const sessionStatusBadge = (status: string) => {
 const AdminDashboard = () => {
   const { user, role, logout, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const confirm = useConfirm();
-  const [activeTab, setActiveTab] = useState('pending');
+  // Initial tab honours ?tab=… in the URL so that a notification linking to
+  // /admin-dashboard?tab=therapists actually lands on the Therapists tab
+  // instead of always opening Pending Approvals.
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'pending');
+
+  // React to URL changes too (e.g. clicking a different notification while
+  // the page is already open).
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) setActiveTab(tab);
+  }, [searchParams]);
   const [stats, setStats] = useState<any>(null);
   const [pending, setPending] = useState<any[]>([]);
   const [pendingReviews, setPendingReviews] = useState<any[]>([]);
@@ -1106,41 +1117,62 @@ const AdminDashboard = () => {
                 </div>
               </TabsContent>
 
-              {/* ========== REJECTED THERAPISTS ========== */}
+              {/* ========== REJECTED + REVOKED THERAPISTS ========== */}
               <TabsContent value="rejected">
-                <h2 className="text-xl font-semibold text-foreground mb-1">Rejected Therapists ({rejectedTherapists.length})</h2>
+                <h2 className="text-xl font-semibold text-foreground mb-1">Rejected & Revoked Therapists ({rejectedTherapists.length})</h2>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Profiles we passed on, kept on file. If a position opens up that fits, reach out via email or chat.
+                  Profiles we passed on (rejected) or pulled (revoked), kept on file. Revoked therapists have a 30-day reapply cooldown enforced by the server.
                 </p>
                 {rejectedTherapists.length === 0 ? (
                   <Card className="p-12 text-center"><p className="text-muted-foreground">No rejected therapist profiles.</p></Card>
                 ) : (
                   <div className="space-y-3">
-                    {rejectedTherapists.map((t: any) => (
-                      <Card key={t._id} className="p-4">
-                        <div className="flex items-start justify-between gap-3 flex-wrap">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-semibold text-foreground">{t.name}</p>
-                              <Badge variant="outline" className="text-xs">{t.title || 'Therapist'}</Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">{t.email} · {t.phone || 'no phone'}</p>
-                            <p className="text-xs text-muted-foreground mt-1">{t.experience || 0} years experience · {(t.specializations || []).slice(0, 4).join(', ')}</p>
-                            {t.rejectionReason && (
-                              <div className="mt-2 p-2 bg-destructive/5 border border-destructive/20 rounded text-xs">
-                                <strong>Rejection reason:</strong> {t.rejectionReason}
+                    {rejectedTherapists.map((t: any) => {
+                      const isRevoked = t.onboardingStatus === 'revoked';
+                      const stamp = isRevoked ? t.revokedAt : t.rejectedAt;
+                      const eligible = isRevoked && t.revokedAt
+                        ? new Date(new Date(t.revokedAt).getTime() + 30 * 24 * 60 * 60 * 1000)
+                        : null;
+                      const daysLeft = eligible ? Math.max(0, Math.ceil((eligible.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
+                      return (
+                        <Card key={t._id} className="p-4">
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-semibold text-foreground">{t.name}</p>
+                                <Badge variant="outline" className="text-xs">{t.title || 'Therapist'}</Badge>
+                                <Badge className={isRevoked ? 'bg-amber-500/10 text-amber-700' : 'bg-destructive/10 text-destructive'}>
+                                  {isRevoked ? 'Revoked' : 'Rejected'}
+                                </Badge>
                               </div>
-                            )}
-                            {t.rejectedAt && (
-                              <p className="text-[11px] text-muted-foreground mt-1">Rejected on {new Date(t.rejectedAt).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
-                            )}
+                              <p className="text-xs text-muted-foreground mt-1">{t.email} · {t.phone || 'no phone'}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{t.experience || 0} years experience · {(t.specializations || []).slice(0, 4).join(', ')}</p>
+                              {t.rejectionReason && (
+                                <div className="mt-2 p-2 bg-destructive/5 border border-destructive/20 rounded text-xs">
+                                  <strong>{isRevoked ? 'Revocation reason:' : 'Rejection reason:'}</strong> {t.rejectionReason}
+                                </div>
+                              )}
+                              {stamp && (
+                                <p className="text-[11px] text-muted-foreground mt-1">
+                                  {isRevoked ? 'Revoked' : 'Rejected'} on {new Date(stamp).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
+                                </p>
+                              )}
+                              {isRevoked && eligible && daysLeft > 0 && (
+                                <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">
+                                  Reapply unlocks in {daysLeft} day{daysLeft === 1 ? '' : 's'} (on {eligible.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}).
+                                </p>
+                              )}
+                              {isRevoked && eligible && daysLeft === 0 && (
+                                <p className="text-[11px] text-green-700 dark:text-green-300 mt-1">30-day cooldown complete — eligible to reapply.</p>
+                              )}
+                            </div>
+                            <Button size="sm" variant="outline" onClick={() => setDetailModal({ open: true, type: 'therapist', data: t, loading: false })}>
+                              View Details
+                            </Button>
                           </div>
-                          <Button size="sm" variant="outline" onClick={() => setDetailModal({ open: true, type: 'therapist', data: t, loading: false })}>
-                            View Details
-                          </Button>
-                        </div>
-                      </Card>
-                    ))}
+                        </Card>
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>
@@ -1213,7 +1245,11 @@ const AdminDashboard = () => {
 
               {/* ========== ALL SESSIONS ========== */}
               <TabsContent value="sessions">
-                <SessionsListWithFilters sessions={allSessions} role="admin" />
+                <SessionsListWithFilters
+                  sessions={allSessions}
+                  role="admin"
+                  onClientClick={(id) => openClientDetail(id)}
+                />
               </TabsContent>
 
               {/* ========== STATISTICS ========== */}

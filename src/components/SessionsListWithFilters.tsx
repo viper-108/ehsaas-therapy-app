@@ -6,12 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Filter, X, Calendar as CalendarIcon, SlidersHorizontal } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface SessionsListWithFiltersProps {
   sessions: any[];
   role: 'admin' | 'therapist' | 'client';
   /** Optional render override for each session row (e.g. add action buttons) */
   renderSession?: (s: any) => React.ReactNode;
+  /** Click handler for a client name. If provided, the client name in the
+   *  default renderer becomes a button. If not provided, the name renders
+   *  as plain text (used when the role wouldn't have access to a client
+   *  detail view, e.g. signed-out previews). */
+  onClientClick?: (clientId: string, clientName: string) => void;
 }
 
 const sessionStatusBadge = (status: string) => {
@@ -25,7 +31,39 @@ const sessionStatusBadge = (status: string) => {
   return <Badge variant="secondary" className={v.className}>{v.label}</Badge>;
 };
 
-export function SessionsListWithFilters({ sessions, role, renderSession }: SessionsListWithFiltersProps) {
+export function SessionsListWithFilters({ sessions, role, renderSession, onClientClick }: SessionsListWithFiltersProps) {
+  // Helpers to render the therapist + client names as clickable elements.
+  // Therapist always links to /psychologist/<id> (public profile). Client
+  // is only clickable if the caller supplies an onClientClick handler — no
+  // public client profile route exists.
+  const TherapistName = ({ s }: { s: any }) => {
+    const id = s.therapistId?._id || s.therapistId;
+    const name = s.therapistId?.name || 'Unknown Therapist';
+    if (!id) return <span>{name}</span>;
+    return (
+      <Link
+        to={`/psychologist/${id}`}
+        onClick={(e) => e.stopPropagation()}
+        className="text-primary hover:underline"
+      >
+        {name}
+      </Link>
+    );
+  };
+  const ClientName = ({ s }: { s: any }) => {
+    const id = s.clientId?._id || s.clientId;
+    const name = s.clientId?.name || 'Unknown Client';
+    if (!onClientClick || !id) return <span>{name}</span>;
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onClientClick(String(id), name); }}
+        className="text-primary hover:underline"
+      >
+        {name}
+      </button>
+    );
+  };
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [therapistFilter, setTherapistFilter] = useState("all");
@@ -180,9 +218,9 @@ export function SessionsListWithFilters({ sessions, role, renderSession }: Sessi
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <p className="font-medium text-foreground">
-                    {role === 'client' ? s.therapistId?.name || 'Unknown Therapist'
-                     : role === 'therapist' ? s.clientId?.name || 'Unknown Client'
-                     : `${s.clientId?.name || 'Unknown Client'} → ${s.therapistId?.name || 'Unknown Therapist'}`}
+                    {role === 'client' ? <TherapistName s={s} />
+                     : role === 'therapist' ? <ClientName s={s} />
+                     : <><ClientName s={s} /> → <TherapistName s={s} /></>}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {new Date(s.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}

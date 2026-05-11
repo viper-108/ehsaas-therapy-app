@@ -44,9 +44,12 @@ router.get('/pending-therapists', protect, adminOnly, async (req, res) => {
 // opening").
 router.get('/rejected-therapists', protect, adminOnly, async (req, res) => {
   try {
-    const therapists = await Therapist.find({ onboardingStatus: 'rejected' })
+    // Includes both 'rejected' (never approved) and 'revoked' (previously
+    // approved, access pulled). The frontend differentiates by checking
+    // onboardingStatus on each row.
+    const therapists = await Therapist.find({ onboardingStatus: { $in: ['rejected', 'revoked'] } })
       .select('-password')
-      .sort({ rejectedAt: -1, updatedAt: -1 });
+      .sort({ rejectedAt: -1, revokedAt: -1, updatedAt: -1 });
     res.json(therapists.map(convertPricing));
   } catch (error) {
     console.error('Get rejected therapists error:', error);
@@ -359,8 +362,12 @@ router.put('/therapists/:id/revoke-approval', protect, adminOnly, async (req, re
       req.params.id,
       {
         isApproved: false,
-        onboardingStatus: 'pending_approval',
+        // Use the dedicated 'revoked' status (not 'pending_approval') so
+        // the therapist sees the right banner and the 30-day reapply
+        // cooldown is enforced.
+        onboardingStatus: 'revoked',
         rejectionReason: reason || 'Approval revoked by admin.',
+        revokedAt: new Date(),
       },
       { new: true }
     ).select('-password');
