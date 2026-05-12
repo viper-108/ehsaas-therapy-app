@@ -648,41 +648,55 @@ router.put('/therapists/:id/interview', protect, adminOnly, async (req, res) => 
       }
     }
 
-    // Email therapist + admin with the interview details. For
-    // interview_scheduled we also attach an ICS so both parties can add
-    // the slot to their calendar in one click.
+    // Email therapist FIRST, in its own try block — any failure building
+    // the optional ICS attachment or looking up admin emails must NOT
+    // block the therapist's notification. (Previously everything was in
+    // one big try, so an exception in the ICS branch silently aborted
+    // the therapist email too.)
+    const dateStr = interviewScheduledAt
+      ? new Date(interviewScheduledAt).toLocaleString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) + ' IST'
+      : '';
+    const therapistHtml = `
+      <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #D97706;">${validStatus === 'interview_scheduled' ? 'Your interview is scheduled!' : 'Your application is now in process'}</h2>
+        <p>Hi ${therapist.name || 'there'},</p>
+        ${validStatus === 'interview_scheduled'
+          ? `<p>Thank you for applying to Ehsaas Therapy Centre. We'd like to invite you for an interview.</p>
+            ${dateStr ? `<p><strong>Scheduled for:</strong> ${dateStr}</p>` : ''}
+            ${interviewLink ? `<p><strong>Join link:</strong> <a href="${interviewLink}">${interviewLink}</a></p>` : ''}
+            ${interviewNotes ? `<p><strong>Notes:</strong> ${interviewNotes}</p>` : ''}`
+          : `<p>Your application is currently being reviewed by our team. We'll get back to you soon.</p>
+            ${interviewNotes ? `<p><strong>Notes from team:</strong> ${interviewNotes}</p>` : ''}`}
+        <p>You can check the status of your application anytime by logging into your dashboard.</p>
+        <p>Warm regards,<br/>The Ehsaas Team</p>
+      </div>`;
+    const subject = validStatus === 'interview_scheduled'
+      ? 'Interview scheduled — Ehsaas Therapy Centre'
+      : 'Application in process — Ehsaas';
+
     try {
       const { sendEmail } = await import('../utils/email.js');
-      const dateStr = interviewScheduledAt
-        ? new Date(interviewScheduledAt).toLocaleString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) + ' IST'
-        : '';
+      if (therapist.email) {
+        sendEmail(therapist.email, subject, therapistHtml).catch(err => {
+          console.error('[INTERVIEW EMAIL → therapist] send failed:', err?.message || err);
+        });
+      } else {
+        console.warn('[INTERVIEW EMAIL] Therapist', therapist._id, 'has no email on record — skipping notification.');
+      }
+    } catch (e) { console.error('[INTERVIEW EMAIL → therapist] setup error:', e.message); }
 
-      // Therapist-facing copy
-      const therapistHtml = `
-        <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #D97706;">${validStatus === 'interview_scheduled' ? 'Your interview is scheduled!' : 'Your application is now in process'}</h2>
-          <p>Hi ${therapist.name || 'there'},</p>
-          ${validStatus === 'interview_scheduled'
-            ? `<p>Thank you for applying to Ehsaas Therapy Centre. We'd like to invite you for an interview.</p>
-              ${dateStr ? `<p><strong>Scheduled for:</strong> ${dateStr}</p>` : ''}
-              ${interviewLink ? `<p><strong>Join link:</strong> <a href="${interviewLink}">${interviewLink}</a></p>` : ''}
-              ${interviewNotes ? `<p><strong>Notes:</strong> ${interviewNotes}</p>` : ''}`
-            : `<p>Your application is currently being reviewed by our team. We'll get back to you soon.</p>
-              ${interviewNotes ? `<p><strong>Notes from team:</strong> ${interviewNotes}</p>` : ''}`}
-          <p>You can check the status of your application anytime by logging into your dashboard.</p>
-          <p>Warm regards,<br/>The Ehsaas Team</p>
-        </div>`;
-
-      let attachments = [];
-      if (validStatus === 'interview_scheduled' && interviewScheduledAt) {
+    // Separate block: build the ICS once, then email it as an attachment
+    // to admin(s) AND fire a SECOND email to the therapist with the ICS.
+    // Splitting makes a failure here visible without sabotaging the
+    // confirmation the therapist already received above.
+    if (validStatus === 'interview_scheduled' && interviewScheduledAt) {
+      try {
+        const { sendEmail } = await import('../utils/email.js');
         const { generateICS } = await import('../utils/calendar.js');
         const Admin = (await import('../models/Admin.js')).default;
         const admins = await Admin.find().select('email name');
-        const adminAttendees = admins.map(a => ({ email: a.email, name: a.name || 'Ehsaas Admin' }));
+        const adminAttendees = admins.map(a => ({ email: a.email, name: a.name || 'Ehsaas Admin' })).filter(a => a.email);
 
-        // ICS expects startDate/startTime/endTime. Compute end-time as
-        // start + 60 minutes (interviews default to an hour). Both
-        // start and end are IST clock times.
         const sched = new Date(interviewScheduledAt);
         const istHm = (d) => {
           const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
@@ -698,11 +712,19 @@ router.put('/therapists/:id/interview', protect, adminOnly, async (req, res) => 
           endTime,
           location: interviewLink || '',
           organizerEmail: process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'sessions.ehsaas@gmail.com',
-          attendees: [{ email: therapist.email, name: therapist.name }, ...adminAttendees],
+          attendees: [{ email: therapist.email, name: therapist.name }, ...adminAttendees].filter(a => a.email),
         });
-        attachments = [{ filename: 'interview.ics', content: ics, contentType: 'text/calendar' }];
+        const attachments = [{ filename: 'interview.ics', content: ics, contentType: 'text/calendar' }];
 
-        // Admin-facing copy (mirrors therapist's but rewritten for admin)
+        // Calendar invite for therapist (separate from the main email
+        // above so it goes through even if the ICS attachment causes
+        // SMTP rejection on the main email for any reason).
+        if (therapist.email) {
+          sendEmail(therapist.email, 'Calendar invite — your Ehsaas interview', therapistHtml, attachments)
+            .catch(err => console.error('[INTERVIEW ICS → therapist] send failed:', err?.message || err));
+        }
+
+        // Admin-facing email + ICS
         const adminHtml = `
           <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #2563eb;">Interview scheduled with ${therapist.name || 'therapist'}</h2>
@@ -713,18 +735,12 @@ router.put('/therapists/:id/interview', protect, adminOnly, async (req, res) => 
             <p style="color:#666;font-size:12px;">— Ehsaas admin notifications</p>
           </div>`;
         for (const a of admins) {
-          if (a.email) sendEmail(a.email, `Interview scheduled — ${therapist.name}`, adminHtml, attachments).catch(() => {});
+          if (!a.email) continue;
+          sendEmail(a.email, `Interview scheduled — ${therapist.name}`, adminHtml, attachments)
+            .catch(err => console.error(`[INTERVIEW EMAIL → admin ${a.email}] send failed:`, err?.message || err));
         }
-      }
-
-      // Therapist email (with ICS for the scheduled case)
-      sendEmail(
-        therapist.email,
-        validStatus === 'interview_scheduled' ? 'Interview scheduled — Ehsaas Therapy Centre' : 'Application in process — Ehsaas',
-        therapistHtml,
-        attachments,
-      ).catch(() => {});
-    } catch (e) { console.error('[INTERVIEW EMAIL]', e.message); }
+      } catch (e) { console.error('[INTERVIEW ICS / admin notify] failed:', e.message); }
+    }
 
     try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, `therapist_${validStatus}`, 'Therapist', therapist._id, { name: therapist.name, interviewLink }); } catch {}
 
