@@ -582,6 +582,51 @@ router.put('/therapists/:id/interview', protect, adminOnly, async (req, res) => 
     const therapist = await Therapist.findByIdAndUpdate(req.params.id, update, { new: true }).select('-password');
     if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
 
+    // Keep the InterviewSchedule collection in sync with this convenience
+    // endpoint. Without this, the admin's "Schedule Interview" modal would
+    // set the therapist's interview fields but never create an
+    // InterviewSchedule record — and the Approve / Reject / Cancel
+    // decision buttons (which look up the active row) would never appear.
+    if (validStatus === 'interview_scheduled' && interviewScheduledAt) {
+      try {
+        const InterviewSchedule = (await import('../models/InterviewSchedule.js')).default;
+        // Pull HH:MM out of the IST-local datetime-local string. The admin
+        // input is a "YYYY-MM-DDTHH:MM" local string (no timezone), which
+        // is exactly what the InterviewSchedule.scheduledTime field stores.
+        const iso = String(interviewScheduledAt);
+        const localTime = iso.includes('T') ? iso.split('T')[1].slice(0, 5) : '10:00';
+        const sched = new Date(interviewScheduledAt);
+
+        const existing = await InterviewSchedule.findOne({
+          therapistId: req.params.id,
+          status: 'scheduled',
+        }).sort({ createdAt: -1 });
+
+        if (existing) {
+          existing.scheduledDate = sched;
+          existing.scheduledTime = localTime;
+          existing.meetingLink = interviewLink || existing.meetingLink || '';
+          existing.notes = interviewNotes || '';
+          // Clear any prior decision metadata in case admin re-uses this slot
+          existing.decidedAt = null;
+          existing.decisionNote = '';
+          await existing.save();
+        } else {
+          await InterviewSchedule.create({
+            therapistId: req.params.id,
+            adminId: req.userId,
+            scheduledDate: sched,
+            scheduledTime: localTime,
+            meetingLink: interviewLink || 'TBD',
+            notes: interviewNotes || '',
+            status: 'scheduled',
+          });
+        }
+      } catch (e) {
+        console.error('[INTERVIEW SYNC]', e.message);
+      }
+    }
+
     // Send email to therapist with interview link
     try {
       const { sendEmail } = await import('../utils/email.js');
