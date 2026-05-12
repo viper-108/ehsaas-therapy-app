@@ -321,18 +321,26 @@ export const TherapistOnboarding = () => {
   }
 
   // ===== ONBOARDING FORM =====
-  const handleProfileSave = async () => {
+  // Returns true on a successful save, false otherwise. handleSubmit calls
+  // this with quiet=true so the final "Submitted" toast is the only message
+  // the user sees when they go straight from filling the form to submitting.
+  const handleProfileSave = async (opts?: { quiet?: boolean }): Promise<boolean> => {
+    const quiet = !!opts?.quiet;
+    const fail = (title: string, description?: string) => {
+      toast({ title, description, variant: "destructive" });
+      return false;
+    };
     // Every visible profile field is mandatory. Toast the first missing one.
-    if (!form.title.trim()) return toast({ title: "Title required", variant: "destructive" });
-    if (!form.experience || isNaN(Number(form.experience))) return toast({ title: "Valid experience years required", variant: "destructive" });
-    if (!form.phone.trim()) return toast({ title: "Phone required", variant: "destructive" });
-    if (!form.highestEducation.trim()) return toast({ title: "Highest education required", variant: "destructive" });
-    if (!form.educationBackground.trim()) return toast({ title: "Education background required", variant: "destructive" });
-    if (!form.bio.trim()) return toast({ title: "Bio required", variant: "destructive" });
+    if (!form.title.trim()) return fail("Title required");
+    if (!form.experience || isNaN(Number(form.experience))) return fail("Valid experience years required");
+    if (!form.phone.trim()) return fail("Phone required");
+    if (!form.highestEducation.trim()) return fail("Highest education required");
+    if (!form.educationBackground.trim()) return fail("Education background required");
+    if (!form.bio.trim()) return fail("Bio required");
     const specs = form.specializations.split(',').map(s => s.trim()).filter(Boolean);
-    if (specs.length === 0) return toast({ title: "At least one specialization is required", variant: "destructive" });
+    if (specs.length === 0) return fail("At least one specialization is required");
     const langs = form.languages.split(',').map(s => s.trim()).filter(Boolean);
-    if (langs.length === 0) return toast({ title: "At least one language is required", variant: "destructive" });
+    if (langs.length === 0) return fail("At least one language is required");
 
     // Per-service-per-duration pricing. Each entry carries an aggregate
     // band (minPrice/maxPrice) for legacy callers + a durationPricing
@@ -388,8 +396,8 @@ export const TherapistOnboarding = () => {
         });
       }
     }
-    if (svcInvalid) return toast({ title: "Invalid pricing", description: svcInvalid, variant: "destructive" });
-    if (servicesArr.length === 0) return toast({ title: "Select at least one service type you offer", variant: "destructive" });
+    if (svcInvalid) return fail("Invalid pricing", svcInvalid);
+    if (servicesArr.length === 0) return fail("Select at least one service type you offer");
 
     // Top-level pricing map — built from the individual service's
     // durationPricing if present, else from the first selected service's
@@ -418,9 +426,11 @@ export const TherapistOnboarding = () => {
       // Save services-offered
       await api.setMyServicesOffered(servicesArr);
       if (data) updateUser({ ...data, servicesOffered: servicesArr });
-      toast({ title: "Profile saved", description: "Now upload your resume and accept the terms to submit." });
+      if (!quiet) toast({ title: "Profile saved", description: "Now upload your resume and accept the terms to submit." });
+      return true;
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
+      return false;
     } finally { setProfileSaving(false); }
   };
 
@@ -457,12 +467,42 @@ export const TherapistOnboarding = () => {
   })();
   const profileComplete = missingProfileFields.length === 0;
 
+  // True when the in-memory form has changes the user hasn't pushed to the
+  // server yet. The "Submit for Approval" endpoint validates the SAVED
+  // record, so unsaved profile changes always caused a confusing error
+  // ("Please complete the following: Bio, Specializations, Languages…")
+  // even though those fields were visibly filled in the UI.
+  const userSpecs = ((user as any)?.specializations || []).join(', ');
+  const userLangs = ((user as any)?.languages || []).join(', ');
+  const profileDirty = !!user && (
+    form.title.trim()              !== ((user as any)?.title || '').trim() ||
+    String(form.experience)        !== String((user as any)?.experience ?? '') ||
+    form.phone.trim()              !== ((user as any)?.phone || '').trim() ||
+    form.highestEducation.trim()   !== ((user as any)?.highestEducation || '').trim() ||
+    form.educationBackground.trim()!== ((user as any)?.educationBackground || '').trim() ||
+    form.bio.trim()                !== ((user as any)?.bio || '').trim() ||
+    form.specializations.trim()    !== userSpecs.trim() ||
+    form.languages.trim()          !== userLangs.trim()
+  );
+
   const canSubmit = profileComplete && !!resumeUrl && accepted && !submitting;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
+      // Auto-save the profile first if there are unsaved changes. The
+      // server's complete-onboarding endpoint validates the saved record,
+      // not the in-memory form, so without this an unsaved Bio /
+      // Specializations / Languages would fail submission even though
+      // they're visibly filled in the form. If the save itself fails
+      // (validation / network), the helper has already toasted the reason
+      // — short-circuit here so we don't fire a second confusing error
+      // from /complete-onboarding.
+      if (profileDirty) {
+        const ok = await handleProfileSave({ quiet: true });
+        if (!ok) return;
+      }
       const data = await api.completeOnboarding();
       updateUser(data.user);
       setCompleted(true);
@@ -828,6 +868,11 @@ export const TherapistOnboarding = () => {
                     )}
                     {profileComplete && !resumeUrl && '☝ Upload your resume to continue.'}
                     {profileComplete && resumeUrl && !accepted && '☝ Accept the terms to enable submit.'}
+                  </p>
+                )}
+                {canSubmit && profileDirty && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300 text-center mt-2">
+                    You have unsaved profile changes — clicking <strong>Submit for Approval</strong> will save them automatically.
                   </p>
                 )}
               </div>
