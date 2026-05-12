@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Users, UserCheck, UserX, Clock, Calendar, DollarSign, BarChart3,
   CheckCircle, XCircle, LogOut, ChevronRight, Shield, Loader2, Star, TrendingUp,
-  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight, FileText, Download, Heart, Briefcase, BookOpen, GraduationCap
+  Trash2, Percent, Flag, AlertTriangle, IndianRupee, CalendarDays, MoreVertical, ArrowRight, FileText, Download, Heart, Briefcase, BookOpen, GraduationCap, MessageCircle
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator
@@ -26,6 +26,8 @@ import { DashboardSidebar, SidebarItem } from "@/components/DashboardSidebar";
 import { PriceNegotiationsPanel } from "@/components/PriceNegotiationsPanel";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ServicesFinalizeForm } from "@/components/ServicesFinalizeForm";
+import { ConversationList } from "@/components/ConversationList";
+import { ChatWindow } from "@/components/ChatWindow";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
@@ -86,6 +88,10 @@ const AdminDashboard = () => {
   // ('past' === soft-deleted, hidden from public/bookings).
   const [therapistsAccountFilter, setTherapistsAccountFilter] = useState<'all' | 'active' | 'past'>('all');
   const [clientsAccountFilter, setClientsAccountFilter] = useState<'all' | 'active' | 'past'>('all');
+  // Admin chat panel state. Admin can message anyone (clients + therapists
+  // at any stage — including those still in onboarding/interview).
+  const [chatConvKey, setChatConvKey] = useState('');
+  const [chatOtherUser, setChatOtherUser] = useState<any>(null);
   // All InterviewSchedule rows. Keyed by therapistId so we can look up the
   // active interview from a therapist card and surface the right
   // approve/reject/cancel actions.
@@ -304,6 +310,7 @@ const AdminDashboard = () => {
                 { value: 'rejected', label: 'Rejected Therapists', icon: UserX, badge: rejectedTherapists.length || null, group: 'People' },
                 { value: 'therapists', label: 'Therapists', icon: UserCheck, group: 'People' },
                 { value: 'clients', label: 'Clients', icon: Users, group: 'People' },
+                { value: 'messages', label: 'Messages', icon: MessageCircle, group: 'People' },
                 { value: 'sessions', label: 'Sessions', icon: Calendar, group: 'Activity' },
                 { value: 'monthly', label: 'Earnings', icon: CalendarDays, group: 'Activity' },
                 { value: 'stats', label: 'Statistics', icon: BarChart3, group: 'Insights' },
@@ -550,6 +557,21 @@ const AdminDashboard = () => {
                         <div className="flex gap-2 flex-wrap">
                           <Button onClick={() => handleApprove(therapist._id)} className="flex-1 min-w-[120px]">
                             <CheckCircle className="w-4 h-4 mr-2" /> Approve
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="flex-1 min-w-[120px]"
+                            onClick={() => {
+                              // Jump to Messages tab with this therapist pre-
+                              // selected. Conversation key is "smaller_larger"
+                              // sort of the two ObjectIds (server convention).
+                              const ids = [String(user?._id), String(therapist._id)].sort();
+                              setChatConvKey(ids.join('_'));
+                              setChatOtherUser({ _id: therapist._id, name: therapist.name, title: therapist.title, role: 'therapist' });
+                              setActiveTab('messages');
+                            }}
+                          >
+                            <MessageCircle className="w-4 h-4 mr-2" /> Message
                           </Button>
                           <Button
                             variant="outline"
@@ -1380,6 +1402,33 @@ const AdminDashboard = () => {
                     </>
                   );
                 })()}
+              </TabsContent>
+
+              {/* ========== MESSAGES ========== */}
+              {/* Admin can message any therapist (including those still in
+                  onboarding / interview) and any client at any time. The
+                  Pending Approvals card also has a "Message" shortcut that
+                  jumps straight to a conversation here. */}
+              <TabsContent value="messages">
+                <Card className="p-0 overflow-hidden" style={{ height: '600px' }}>
+                  <div className="flex h-full">
+                    <div className={`w-full md:w-80 border-r overflow-y-auto p-3 ${chatConvKey ? 'hidden md:block' : ''}`}>
+                      <h3 className="font-semibold text-foreground mb-1 px-1">Messages</h3>
+                      <p className="text-xs text-muted-foreground mb-3 px-1">Reach out to any therapist or client — including pending interviews.</p>
+                      <ConversationList
+                        onSelectConversation={(key, other) => { setChatConvKey(key); setChatOtherUser(other); }}
+                        selectedKey={chatConvKey}
+                      />
+                    </div>
+                    <div className={`flex-1 ${!chatConvKey ? 'hidden md:flex' : 'flex'}`}>
+                      <ChatWindow
+                        conversationKey={chatConvKey}
+                        otherUser={chatOtherUser}
+                        onBack={() => { setChatConvKey(''); setChatOtherUser(null); }}
+                      />
+                    </div>
+                  </div>
+                </Card>
               </TabsContent>
 
               {/* ========== ALL SESSIONS ========== */}

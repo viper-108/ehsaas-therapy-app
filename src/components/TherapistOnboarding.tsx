@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { CheckCircle, Clock, FileText, Loader2, Upload, User, Briefcase, Languages, IndianRupee, Check, ChevronsUpDown, X } from "lucide-react";
+import { CheckCircle, Clock, FileText, Loader2, Upload, User, Briefcase, Languages, IndianRupee, Check, ChevronsUpDown, X, MessageCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import Navigation from "@/components/Navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { ChatWindow } from "@/components/ChatWindow";
 
 const TERMS_AND_CONDITIONS = `
 EHSAAS THERAPY CENTRE — THERAPIST TERMS & CONDITIONS
@@ -55,6 +56,26 @@ export const TherapistOnboarding = () => {
   const { user, updateUser } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Admin chat panel — lets a therapist whose application is pending /
+  // interview-scheduled / in-process reach admin directly, since they
+  // don't get to the regular Messages tab until they're fully approved.
+  const [adminContact, setAdminContact] = useState<{ _id: string; name: string } | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  useEffect(() => {
+    // Fetch the first admin from /messages/contacts (works for any
+    // authenticated user, including pending therapists).
+    if (!user || !user._id) return;
+    if (adminContact) return;
+    api.getContacts?.('all').then((list: any[]) => {
+      const admin = (list || []).find(c => c.role === 'admin');
+      if (admin) setAdminContact({ _id: admin._id, name: admin.name || 'Ehsaas Admin' });
+    }).catch(() => {});
+  }, [user, adminContact]);
+
+  const conversationKey = adminContact && user?._id
+    ? [String(user._id), String(adminContact._id)].sort().join('_')
+    : '';
 
   // Profile form state — pre-populate from existing user data
   // pricing30/50 = max price (shown to clients); min30/50 = lowest price you'll accept (admin only)
@@ -182,7 +203,7 @@ export const TherapistOnboarding = () => {
     return (
       <div className="min-h-screen bg-background">
         <Navigation />
-        <div className="flex items-center justify-center py-20 px-4">
+        <div className="flex flex-col items-center justify-center py-12 px-4 gap-6">
           <Card className="max-w-lg w-full p-8 text-center">
             <div className={`w-16 h-16 ${statusUi.bg} rounded-full flex items-center justify-center mx-auto mb-4`}>
               <StatusIcon className={`w-8 h-8 ${statusUi.iconColor}`} />
@@ -190,6 +211,43 @@ export const TherapistOnboarding = () => {
             <h2 className="text-2xl font-bold text-foreground mb-3">{statusUi.title}</h2>
             <div className="text-muted-foreground mb-6">{statusUi.description}</div>
             <Badge className={`${statusUi.bg} ${statusUi.iconColor} text-sm`}>Status: {statusUi.badge}</Badge>
+          </Card>
+
+          {/* Message Admin — pending / interview / in-process therapists
+              can reach admin directly from this screen. Server's
+              /messages contacts endpoint already exposes admin to any
+              authenticated user, so the chat works regardless of
+              approval state. */}
+          <Card className="max-w-lg w-full p-5">
+            <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+              <div>
+                <h3 className="font-semibold text-foreground flex items-center gap-2">
+                  <MessageCircle className="w-5 h-5 text-primary" />
+                  Need to reach Ehsaas admin?
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ask questions about your application, request an interview reschedule, or share updates.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setChatOpen(o => !o)}
+                disabled={!adminContact}
+                title={!adminContact ? 'Connecting…' : undefined}
+              >
+                {chatOpen ? 'Hide chat' : 'Message Admin'}
+              </Button>
+            </div>
+
+            {chatOpen && adminContact && (
+              <div className="border rounded-lg overflow-hidden" style={{ height: '420px' }}>
+                <ChatWindow
+                  conversationKey={conversationKey}
+                  otherUser={{ _id: adminContact._id, name: adminContact.name, role: 'admin' }}
+                  onBack={() => setChatOpen(false)}
+                />
+              </div>
+            )}
           </Card>
         </div>
       </div>
