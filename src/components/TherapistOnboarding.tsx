@@ -212,7 +212,11 @@ export const TherapistOnboarding = () => {
         description: (
           <>
             Our team has scheduled an interview with you.
-            {user.interviewScheduledAt && <p className="mt-3 font-medium text-foreground">📅 {new Date(user.interviewScheduledAt).toLocaleString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>}
+            {user.interviewScheduledAt && (
+              <p className="mt-3 font-medium text-foreground">
+                📅 {new Date(user.interviewScheduledAt).toLocaleString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST
+              </p>
+            )}
             {user.interviewLink && (
               <p className="mt-4">
                 <a href={user.interviewLink} target="_blank" rel="noopener noreferrer"

@@ -66,3 +66,33 @@ export const isSlotPastIst = (date: string, time: string): boolean => {
   if (date < today) return true;
   return time <= currentHHMMIst();
 };
+
+/**
+ * Convert any Date / ISO string into a "datetime-local" value
+ * (YYYY-MM-DDTHH:MM) formatted in IST. Use as the `value` of
+ * <input type="datetime-local"> so admin always sees IST regardless
+ * of their browser timezone.
+ */
+export const toIstDatetimeLocal = (input: Date | string | number | null | undefined): string => {
+  const d = safeDate(input);
+  if (!d) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find(p => p.type === t)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+};
+
+/**
+ * Reverse of toIstDatetimeLocal. Treats `YYYY-MM-DDTHH:MM` as IST-local
+ * and returns a proper UTC ISO string for storage. Without this, the
+ * default `new Date(s)` interprets the value in the *browser's*
+ * timezone — so an admin on a UTC-locked browser would store 14:00 UTC
+ * when they meant 14:00 IST.
+ */
+export const istDatetimeLocalToIso = (s: string): string => {
+  if (!s) return '';
+  return new Date(`${s}:00+05:30`).toISOString();
+};

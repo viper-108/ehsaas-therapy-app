@@ -605,12 +605,18 @@ router.put('/therapists/:id/interview', protect, adminOnly, async (req, res) => 
     if (validStatus === 'interview_scheduled' && interviewScheduledAt) {
       try {
         const InterviewSchedule = (await import('../models/InterviewSchedule.js')).default;
-        // Pull HH:MM out of the IST-local datetime-local string. The admin
-        // input is a "YYYY-MM-DDTHH:MM" local string (no timezone), which
-        // is exactly what the InterviewSchedule.scheduledTime field stores.
-        const iso = String(interviewScheduledAt);
-        const localTime = iso.includes('T') ? iso.split('T')[1].slice(0, 5) : '10:00';
+        // The frontend now sends a proper UTC ISO string built from the
+        // admin's IST input (so the wall-clock time admin typed is
+        // preserved across timezones). Derive the IST HH:MM by formatting
+        // the ISO in Asia/Kolkata — this is what InterviewSchedule
+        // .scheduledTime stores and what gets shown back to therapists.
         const sched = new Date(interviewScheduledAt);
+        const istParts = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+        }).formatToParts(sched);
+        const getPart = (t) => istParts.find(p => p.type === t)?.value || '';
+        const localTime = `${getPart('hour')}:${getPart('minute')}`;
 
         const existing = await InterviewSchedule.findOne({
           therapistId: req.params.id,
@@ -642,13 +648,17 @@ router.put('/therapists/:id/interview', protect, adminOnly, async (req, res) => 
       }
     }
 
-    // Send email to therapist with interview link
+    // Email therapist + admin with the interview details. For
+    // interview_scheduled we also attach an ICS so both parties can add
+    // the slot to their calendar in one click.
     try {
       const { sendEmail } = await import('../utils/email.js');
       const dateStr = interviewScheduledAt
         ? new Date(interviewScheduledAt).toLocaleString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) + ' IST'
         : '';
-      const html = `
+
+      // Therapist-facing copy
+      const therapistHtml = `
         <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #D97706;">${validStatus === 'interview_scheduled' ? 'Your interview is scheduled!' : 'Your application is now in process'}</h2>
           <p>Hi ${therapist.name || 'there'},</p>
@@ -662,7 +672,58 @@ router.put('/therapists/:id/interview', protect, adminOnly, async (req, res) => 
           <p>You can check the status of your application anytime by logging into your dashboard.</p>
           <p>Warm regards,<br/>The Ehsaas Team</p>
         </div>`;
-      sendEmail(therapist.email, validStatus === 'interview_scheduled' ? 'Interview scheduled — Ehsaas Therapy Centre' : 'Application in process — Ehsaas', html).catch(() => {});
+
+      let attachments = [];
+      if (validStatus === 'interview_scheduled' && interviewScheduledAt) {
+        const { generateICS } = await import('../utils/calendar.js');
+        const Admin = (await import('../models/Admin.js')).default;
+        const admins = await Admin.find().select('email name');
+        const adminAttendees = admins.map(a => ({ email: a.email, name: a.name || 'Ehsaas Admin' }));
+
+        // ICS expects startDate/startTime/endTime. Compute end-time as
+        // start + 60 minutes (interviews default to an hour). Both
+        // start and end are IST clock times.
+        const sched = new Date(interviewScheduledAt);
+        const istHm = (d) => {
+          const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
+          return `${parts.find(p => p.type === 'hour')?.value || '00'}:${parts.find(p => p.type === 'minute')?.value || '00'}`;
+        };
+        const startTime = istHm(sched);
+        const endTime = istHm(new Date(sched.getTime() + 60 * 60 * 1000));
+        const ics = generateICS({
+          title: `Ehsaas Interview — ${therapist.name || ''}`.trim(),
+          description: `${interviewNotes || 'Onboarding interview with Ehsaas Therapy Centre.'}\nJoin: ${interviewLink || 'TBD'}`,
+          startDate: sched,
+          startTime,
+          endTime,
+          location: interviewLink || '',
+          organizerEmail: process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'sessions.ehsaas@gmail.com',
+          attendees: [{ email: therapist.email, name: therapist.name }, ...adminAttendees],
+        });
+        attachments = [{ filename: 'interview.ics', content: ics, contentType: 'text/calendar' }];
+
+        // Admin-facing copy (mirrors therapist's but rewritten for admin)
+        const adminHtml = `
+          <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2563eb;">Interview scheduled with ${therapist.name || 'therapist'}</h2>
+            ${dateStr ? `<p><strong>When:</strong> ${dateStr}</p>` : ''}
+            ${interviewLink ? `<p><strong>Join link:</strong> <a href="${interviewLink}">${interviewLink}</a></p>` : ''}
+            ${interviewNotes ? `<p><strong>Notes shared with therapist:</strong> ${interviewNotes}</p>` : ''}
+            <p>An ICS file is attached so you can add this to your calendar with one click.</p>
+            <p style="color:#666;font-size:12px;">— Ehsaas admin notifications</p>
+          </div>`;
+        for (const a of admins) {
+          if (a.email) sendEmail(a.email, `Interview scheduled — ${therapist.name}`, adminHtml, attachments).catch(() => {});
+        }
+      }
+
+      // Therapist email (with ICS for the scheduled case)
+      sendEmail(
+        therapist.email,
+        validStatus === 'interview_scheduled' ? 'Interview scheduled — Ehsaas Therapy Centre' : 'Application in process — Ehsaas',
+        therapistHtml,
+        attachments,
+      ).catch(() => {});
     } catch (e) { console.error('[INTERVIEW EMAIL]', e.message); }
 
     try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, `therapist_${validStatus}`, 'Therapist', therapist._id, { name: therapist.name, interviewLink }); } catch {}

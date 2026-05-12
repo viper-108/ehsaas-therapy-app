@@ -28,6 +28,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { ServicesFinalizeForm } from "@/components/ServicesFinalizeForm";
 import { ConversationList } from "@/components/ConversationList";
 import { ChatWindow } from "@/components/ChatWindow";
+import { toIstDatetimeLocal, istDatetimeLocalToIso, formatDateTimeIst } from "@/lib/dateIst";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
@@ -310,6 +311,7 @@ const AdminDashboard = () => {
                 { value: 'therapists', label: 'Therapists', icon: UserCheck, group: 'People' },
                 { value: 'clients', label: 'Clients', icon: Users, group: 'People' },
                 { value: 'messages', label: 'Messages', icon: MessageCircle, group: 'People' },
+                { value: 'interviews', label: 'Interviews', icon: Calendar, badge: (interviews.filter((iv: any) => iv.status === 'scheduled').length) || null, group: 'Activity' },
                 { value: 'sessions', label: 'Sessions', icon: Calendar, group: 'Activity' },
                 { value: 'monthly', label: 'Earnings', icon: CalendarDays, group: 'Activity' },
                 { value: 'stats', label: 'Statistics', icon: BarChart3, group: 'Insights' },
@@ -1446,6 +1448,135 @@ const AdminDashboard = () => {
                 </Card>
               </TabsContent>
 
+              {/* ========== INTERVIEWS ========== */}
+              {/* Admin's interview calendar — every scheduled / past
+                  interview with the therapist name, IST start time, a
+                  Join button, and a "Download .ics" so admin can add it
+                  to their own calendar even after the original email is
+                  archived. */}
+              <TabsContent value="interviews">
+                {(() => {
+                  const upcoming = interviews.filter((iv: any) => iv.status === 'scheduled')
+                    .sort((a: any, b: any) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
+                  const past = interviews.filter((iv: any) => iv.status !== 'scheduled')
+                    .sort((a: any, b: any) => new Date(b.decidedAt || b.updatedAt).getTime() - new Date(a.decidedAt || a.updatedAt).getTime());
+
+                  const statusBadgeIv = (s: string) => {
+                    switch (s) {
+                      case 'scheduled': return <Badge className="bg-primary/10 text-primary">Scheduled</Badge>;
+                      case 'completed': return <Badge className="bg-success/10 text-success">Approved</Badge>;
+                      case 'rejected':  return <Badge className="bg-destructive/10 text-destructive">Rejected</Badge>;
+                      case 'cancelled': return <Badge className="bg-amber-500/10 text-amber-700">Cancelled</Badge>;
+                      default: return <Badge variant="outline">{s}</Badge>;
+                    }
+                  };
+
+                  // Build a minimal RFC-5545 ICS in IST so admin can save it
+                  // to their calendar from this tab even if the original
+                  // scheduling email is gone.
+                  const downloadIcs = (iv: any) => {
+                    const sched = new Date(iv.scheduledDate);
+                    // Compute end = start + 60min using UTC ms math (timezone-safe)
+                    const end = new Date(sched.getTime() + 60 * 60 * 1000);
+                    const pad = (n: number) => String(n).padStart(2, '0');
+                    const istFmt = (d: Date) => {
+                      // Floating IST datetime stamp: YYYYMMDDTHHMMSS
+                      const parts = new Intl.DateTimeFormat('en-GB', {
+                        timeZone: 'Asia/Kolkata',
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+                      }).formatToParts(d);
+                      const g = (t: string) => parts.find(p => p.type === t)?.value || '';
+                      return `${g('year')}${g('month')}${g('day')}T${g('hour')}${g('minute')}${g('second')}`;
+                    };
+                    const therapistName = iv.therapistId?.name || 'Therapist';
+                    const summary = `Ehsaas Interview — ${therapistName}`;
+                    const description = `${iv.notes || 'Onboarding interview with Ehsaas Therapy Centre.'}\\nJoin: ${iv.meetingLink || 'TBD'}`;
+                    const ics = [
+                      'BEGIN:VCALENDAR',
+                      'VERSION:2.0',
+                      'PRODID:-//Ehsaas Therapy Centre//Admin//EN',
+                      'BEGIN:VEVENT',
+                      `UID:interview-${iv._id}@ehsaastherapycentre.com`,
+                      `DTSTAMP:${istFmt(new Date())}`,
+                      `DTSTART;TZID=Asia/Kolkata:${istFmt(sched)}`,
+                      `DTEND;TZID=Asia/Kolkata:${istFmt(end)}`,
+                      `SUMMARY:${summary}`,
+                      `DESCRIPTION:${description}`,
+                      `LOCATION:${iv.meetingLink || ''}`,
+                      'END:VEVENT',
+                      'END:VCALENDAR',
+                    ].join('\r\n');
+                    const blob = new Blob([ics], { type: 'text/calendar' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `interview-${therapistName.replace(/\s+/g, '-').toLowerCase()}.ics`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  };
+
+                  const renderRow = (iv: any) => (
+                    <Card key={iv._id} className="p-4">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <p className="font-semibold text-foreground">{iv.therapistId?.name || 'Therapist'}</p>
+                            <span className="text-xs text-muted-foreground">·</span>
+                            <span className="text-xs text-muted-foreground">{iv.therapistId?.email || ''}</span>
+                            {statusBadgeIv(iv.status)}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {formatDateTimeIst(iv.scheduledDate)}
+                          </p>
+                          {iv.meetingLink && (
+                            <p className="text-xs text-muted-foreground mt-1 break-all">Link: <a className="text-primary underline" href={iv.meetingLink} target="_blank" rel="noopener noreferrer">{iv.meetingLink}</a></p>
+                          )}
+                          {iv.notes && <p className="text-xs text-muted-foreground mt-1"><em>{iv.notes}</em></p>}
+                          {iv.decisionNote && iv.status !== 'scheduled' && (
+                            <p className="text-xs text-muted-foreground mt-1"><strong>Decision:</strong> {iv.decisionNote}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          {iv.status === 'scheduled' && iv.meetingLink && (
+                            <Button asChild size="sm">
+                              <a href={iv.meetingLink} target="_blank" rel="noopener noreferrer">Join interview</a>
+                            </Button>
+                          )}
+                          {iv.status === 'scheduled' && (
+                            <Button size="sm" variant="outline" onClick={() => downloadIcs(iv)}>
+                              <CalendarDays className="w-4 h-4 mr-1" /> Add to calendar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  );
+
+                  return (
+                    <div className="space-y-6">
+                      <div>
+                        <h2 className="text-xl font-semibold text-foreground mb-1">Upcoming Interviews ({upcoming.length})</h2>
+                        <p className="text-xs text-muted-foreground mb-3">All times in IST. Join from your browser or download the .ics to add to your calendar.</p>
+                        {upcoming.length === 0 ? (
+                          <Card className="p-8 text-center"><p className="text-sm text-muted-foreground">No upcoming interviews. Schedule one from Pending Approvals.</p></Card>
+                        ) : (
+                          <div className="space-y-2">{upcoming.map(renderRow)}</div>
+                        )}
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold text-foreground mb-1">Past Interviews ({past.length})</h2>
+                        {past.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">No past interviews yet.</p>
+                        ) : (
+                          <div className="space-y-2">{past.map(renderRow)}</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </TabsContent>
+
               {/* ========== ALL SESSIONS ========== */}
               <TabsContent value="sessions">
                 <SessionsListWithFilters
@@ -1802,10 +1933,14 @@ const AdminDashboard = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Date & Time</label>
+                  <label className="text-sm font-medium">Date & Time <span className="text-xs text-muted-foreground font-normal">(IST)</span></label>
                   <Input
                     type="datetime-local"
-                    value={interviewModal.scheduledAt ? new Date(interviewModal.scheduledAt).toISOString().slice(0,16) : ''}
+                    // Show / capture the value in IST regardless of the
+                    // admin's browser timezone. Stored as a plain
+                    // "YYYY-MM-DDTHH:MM" string for the lifetime of the
+                    // modal; converted to a proper UTC ISO at submit time.
+                    value={toIstDatetimeLocal(interviewModal.scheduledAt)}
                     onChange={e => setInterviewModal(p => ({ ...p, scheduledAt: e.target.value }))}
                   />
                 </div>
@@ -1829,10 +1964,17 @@ const AdminDashboard = () => {
                 onClick={async () => {
                   setInterviewSubmitting(true);
                   try {
+                    // Submit-time conversion: the modal's local-state
+                    // scheduledAt is either a raw datetime-local string
+                    // (user just typed it) or a stored ISO (loaded from
+                    // the server). Normalise both into "YYYY-MM-DDTHH:MM"
+                    // in IST, then convert IST → UTC ISO for storage.
+                    const istLocal = toIstDatetimeLocal(interviewModal.scheduledAt) || interviewModal.scheduledAt;
+                    const interviewScheduledAt = istLocal ? istDatetimeLocalToIso(istLocal) : undefined;
                     await api.setTherapistInterview(interviewModal.therapistId, {
                       status: interviewModal.status,
                       interviewLink: interviewModal.link || undefined,
-                      interviewScheduledAt: interviewModal.scheduledAt || undefined,
+                      interviewScheduledAt,
                       interviewNotes: interviewModal.notes || undefined,
                     });
                     toast({ title: "Updated", description: `Therapist notified by email.` });
