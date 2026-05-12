@@ -120,7 +120,6 @@ const AdminDashboard = () => {
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [commissionModal, setCommissionModal] = useState<{ open: boolean; therapist: any | null; value: string }>({ open: false, therapist: null, value: '' });
   const [pricingModal, setPricingModal] = useState<{ open: boolean; therapist: any | null; max30: string; max50: string; min30: string; min50: string }>({ open: false, therapist: null, max30: '', max50: '', min30: '', min50: '' });
-  const [pricingSaving, setPricingSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; therapist: any | null }>({ open: false, therapist: null });
 
   const loadMonthlyAnalytics = async () => {
@@ -145,7 +144,7 @@ const AdminDashboard = () => {
       await api.deleteTherapist(deleteConfirm.therapist._id);
       toast({ title: "Deleted", description: `${deleteConfirm.therapist.name} was removed` });
       setDeleteConfirm({ open: false, therapist: null });
-      loadDashboard();
+      loadAll();
     } catch (e: any) {
       toast({ title: "Error", description: e.message || "Failed to delete", variant: "destructive" });
     }
@@ -162,7 +161,7 @@ const AdminDashboard = () => {
       await api.setTherapistCommission(commissionModal.therapist._id, pct);
       toast({ title: "Updated", description: `Commission set to ${pct}%` });
       setCommissionModal({ open: false, therapist: null, value: '' });
-      loadDashboard();
+      loadAll();
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     }
@@ -1194,7 +1193,7 @@ const AdminDashboard = () => {
                                       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('ehsaas_token')}` }
                                     });
                                     toast({ title: "Restored", description: `${t.name} is active again` });
-                                    loadDashboard();
+                                    loadAll();
                                   } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
                                 }}>
                                   Restore
@@ -1223,17 +1222,14 @@ const AdminDashboard = () => {
                                   <DropdownMenuItem onClick={() => setCommissionModal({ open: true, therapist: t, value: String(t.commissionPercent ?? 60) })}>
                                     <Percent className="w-3 h-3 mr-2" /> Set Commission ({t.commissionPercent ?? 60}%)
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => {
-                                    const p = t.pricing || {};
-                                    const pm = t.pricingMin || {};
-                                    setPricingModal({
-                                      open: true, therapist: t,
-                                      max30: p['30'] != null ? String(p['30']) : '',
-                                      max50: p['50'] != null ? String(p['50']) : '',
-                                      min30: pm['30'] != null ? String(pm['30']) : '',
-                                      min50: pm['50'] != null ? String(pm['50']) : '',
-                                    });
-                                  }}>
+                                  <DropdownMenuItem onClick={() => setPricingModal({
+                                    // Open the full services-and-pricing modal
+                                    // (same form View Profile uses) so admin
+                                    // sets each service's per-duration band
+                                    // from the 3-dot menu too.
+                                    open: true, therapist: t,
+                                    max30: '', max50: '', min30: '', min50: '',
+                                  })}>
                                     <IndianRupee className="w-3 h-3 mr-2" /> Set Pricing (Min/Max)
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={async () => {
@@ -1241,7 +1237,7 @@ const AdminDashboard = () => {
                                     try {
                                       await api.setTherapistType(t._id, next);
                                       toast({ title: "Updated", description: `Set to ${next}` });
-                                      loadDashboard();
+                                      loadAll();
                                     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
                                   }}>
                                     {t.therapistType === 'psychiatrist' ? 'Mark as Psychologist' : 'Mark as Psychiatrist'}
@@ -1924,7 +1920,7 @@ const AdminDashboard = () => {
                     });
                     toast({ title: "Transferred", description: `${transferModal.clientName} moved successfully. Both therapists & client have been emailed.` });
                     setTransferModal(p => ({ ...p, open: false }));
-                    loadDashboard();
+                    loadAll();
                   } catch (e: any) {
                     toast({ title: "Error", description: e.message, variant: "destructive" });
                   } finally { setTransferSubmitting(false); }
@@ -2166,57 +2162,28 @@ const AdminDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Pricing Modal */}
+      {/* Set Pricing Modal — uses the same ServicesFinalizeForm View Profile
+          uses, so admin sees the full per-service per-duration breakdown
+          (individual 30+50, couples & supervision 50+90, family/group
+          single band). Min appears before Max in every row. */}
       <Dialog open={pricingModal.open} onOpenChange={(open) => { if (!open) setPricingModal({ open: false, therapist: null, max30: '', max50: '', min30: '', min50: '' }); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Set Pricing for {pricingModal.therapist?.name}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Set the official Min and Max prices for this therapist after their interview. Clients see only the Max price; Min is used for sliding-scale negotiations.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium block mb-1">30-min Max ₹</label>
-                <Input type="number" placeholder="900" value={pricingModal.max30} onChange={e => setPricingModal(p => ({ ...p, max30: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs font-medium block mb-1">30-min Min ₹</label>
-                <Input type="number" placeholder="600" value={pricingModal.min30} onChange={e => setPricingModal(p => ({ ...p, min30: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs font-medium block mb-1">50-min Max ₹</label>
-                <Input type="number" placeholder="1500" value={pricingModal.max50} onChange={e => setPricingModal(p => ({ ...p, max50: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs font-medium block mb-1">50-min Min ₹</label>
-                <Input type="number" placeholder="1000" value={pricingModal.min50} onChange={e => setPricingModal(p => ({ ...p, min50: e.target.value }))} />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">Min price is required for sliding-scale negotiations. Leave blank if you don't want to allow negotiation for that duration.</p>
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setPricingModal({ open: false, therapist: null, max30: '', max50: '', min30: '', min50: '' })}>Cancel</Button>
-              <Button className="flex-1" disabled={pricingSaving} onClick={async () => {
-                if (!pricingModal.therapist) return;
-                const pricing: any = {};
-                const pricingMin: any = {};
-                if (pricingModal.max30) pricing['30'] = Number(pricingModal.max30);
-                if (pricingModal.max50) pricing['50'] = Number(pricingModal.max50);
-                if (pricingModal.min30) pricingMin['30'] = Number(pricingModal.min30);
-                if (pricingModal.min50) pricingMin['50'] = Number(pricingModal.min50);
-                setPricingSaving(true);
-                try {
-                  await api.setTherapistPricing(pricingModal.therapist._id, { pricing, pricingMin });
-                  toast({ title: "Pricing updated", description: `${pricingModal.therapist.name} has been notified.` });
-                  setPricingModal({ open: false, therapist: null, max30: '', max50: '', min30: '', min50: '' });
-                  loadDashboard();
-                } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
-                finally { setPricingSaving(false); }
-              }}>
-                {pricingSaving ? 'Saving...' : 'Save'}
-              </Button>
-            </div>
+          {pricingModal.therapist && (
+            <ServicesFinalizeForm
+              therapistId={pricingModal.therapist._id}
+              servicesOffered={pricingModal.therapist.servicesOffered || []}
+              approvedServices={pricingModal.therapist.approvedServices || []}
+              onSaved={() => {
+                setPricingModal({ open: false, therapist: null, max30: '', max50: '', min30: '', min50: '' });
+                loadAll();
+              }}
+            />
+          )}
+          <div className="flex justify-end pt-2">
+            <Button variant="outline" onClick={() => setPricingModal({ open: false, therapist: null, max30: '', max50: '', min30: '', min50: '' })}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>

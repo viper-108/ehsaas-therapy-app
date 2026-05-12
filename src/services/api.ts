@@ -388,7 +388,12 @@ class ApiService {
     return this.handleResponse(res);
   }
 
-  async setApprovedServicesForTherapist(therapistId: string, services: { type: string; minPrice: number; maxPrice: number }[]) {
+  async setApprovedServicesForTherapist(therapistId: string, services: {
+    type: string;
+    minPrice: number;
+    maxPrice: number;
+    durationPricing?: { duration: number; minPrice: number; maxPrice: number }[];
+  }[]) {
     const res = await fetch(`${API_BASE}/admin/therapists/${therapistId}/services`, {
       method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ services })
     });

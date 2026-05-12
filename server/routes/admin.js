@@ -138,8 +138,11 @@ router.put('/therapists/:id/reject', protect, adminOnly, async (req, res) => {
 
 // =============== SERVICE APPROVALS (per-service min/max post-interview) ===============
 // PUT /api/admin/therapists/:id/services
-// Body: { services: [{ type, minPrice, maxPrice }] }
-// Replaces approvedServices with the admin-final list. Notifies therapist by email + in-app.
+// Body: { services: [{ type, minPrice, maxPrice, durationPricing? }] }
+// Replaces approvedServices with the admin-final list. durationPricing is
+// the per-session-length breakdown (individual: 30+50, couple+supervision:
+// 50+90; family/group use only the top-level minPrice/maxPrice band).
+// Notifies therapist by email + in-app.
 router.put('/therapists/:id/services', protect, adminOnly, async (req, res) => {
   try {
     const { services } = req.body || {};
@@ -148,15 +151,27 @@ router.put('/therapists/:id/services', protect, adminOnly, async (req, res) => {
     const validTypes = ['individual', 'couple', 'group', 'family', 'supervision'];
     const cleaned = services
       .filter(s => s && validTypes.includes(s.type))
-      .map(s => ({
-        type: s.type,
-        minPrice: Math.max(0, Number(s.minPrice) || 0),
-        maxPrice: Math.max(0, Number(s.maxPrice) || 0),
-        // Carry over therapist-accepted state if same type already approved
-        therapistAccepted: false,
-        therapistRejected: false,
-        approvedByAdminAt: new Date(),
-      }))
+      .map(s => {
+        const dp = Array.isArray(s.durationPricing)
+          ? s.durationPricing
+              .map(x => ({
+                duration: Math.max(1, Number(x?.duration) || 0),
+                minPrice: Math.max(0, Number(x?.minPrice) || 0),
+                maxPrice: Math.max(0, Number(x?.maxPrice) || 0),
+              }))
+              .filter(x => x.duration > 0 && x.maxPrice > 0 && x.minPrice <= x.maxPrice)
+          : [];
+        return {
+          type: s.type,
+          minPrice: Math.max(0, Number(s.minPrice) || 0),
+          maxPrice: Math.max(0, Number(s.maxPrice) || 0),
+          durationPricing: dp,
+          // Carry over therapist-accepted state if same type already approved
+          therapistAccepted: false,
+          therapistRejected: false,
+          approvedByAdminAt: new Date(),
+        };
+      })
       .filter(s => s.maxPrice > 0 && s.minPrice <= s.maxPrice);
 
     const therapist = await Therapist.findById(req.params.id);
