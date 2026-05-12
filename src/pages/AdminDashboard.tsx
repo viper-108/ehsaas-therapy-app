@@ -81,6 +81,11 @@ const AdminDashboard = () => {
   const [pendingTrainings, setPendingTrainings] = useState<any[]>([]);
   const [allTherapists, setAllTherapists] = useState<any[]>([]);
   const [rejectedTherapists, setRejectedTherapists] = useState<any[]>([]);
+  // Account-status filters for the All Therapists / All Clients tabs.
+  // Mongo's accountStatus enum on both models is 'active' | 'past'
+  // ('past' === soft-deleted, hidden from public/bookings).
+  const [therapistsAccountFilter, setTherapistsAccountFilter] = useState<'all' | 'active' | 'past'>('all');
+  const [clientsAccountFilter, setClientsAccountFilter] = useState<'all' | 'active' | 'past'>('all');
   // All InterviewSchedule rows. Keyed by therapistId so we can look up the
   // active interview from a therapist card and surface the right
   // approve/reject/cancel actions.
@@ -408,7 +413,7 @@ const AdminDashboard = () => {
                         )}
 
                         {/* Services the therapist asked for (admin sees their original asks) */}
-                        {Array.isArray(therapist.servicesOffered) && therapist.servicesOffered.length > 0 && (
+                        {Array.isArray(therapist.servicesOffered) && therapist.servicesOffered.length > 0 ? (
                           <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
                             <p className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
                               <Briefcase className="w-4 h-4 text-blue-700 dark:text-blue-300" />
@@ -424,6 +429,20 @@ const AdminDashboard = () => {
                             </div>
                             <p className="text-[11px] text-muted-foreground mt-2 italic">
                               Use the therapist's detail page to finalize per-service prices after interview.
+                            </p>
+                          </div>
+                        ) : (
+                          // Therapist did not pick any services / pricing during
+                          // onboarding. Flag this clearly so admin knows to ask
+                          // for it during the interview rather than assuming a
+                          // default.
+                          <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                            <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 flex items-center gap-1.5">
+                              <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+                              Therapist hasn't selected any price range yet
+                            </p>
+                            <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                              No services or pricing were submitted during onboarding. Ask during the interview, then set prices from the therapist's detail page after approval.
                             </p>
                           </div>
                         )}
@@ -1057,9 +1076,37 @@ const AdminDashboard = () => {
 
               {/* ========== ALL THERAPISTS ========== */}
               <TabsContent value="therapists">
-                <h2 className="text-xl font-semibold text-foreground mb-4">All Therapists ({allTherapists.length})</h2>
-                <div className="space-y-3">
-                  {allTherapists.map(t => (
+                {(() => {
+                  // Apply the account-status filter. accountStatus on the
+                  // Therapist model is 'active' | 'past' (past === soft-deleted).
+                  const filteredTherapists = allTherapists.filter(t =>
+                    therapistsAccountFilter === 'all' || (t.accountStatus || 'active') === therapistsAccountFilter
+                  );
+                  const activeCount = allTherapists.filter(t => (t.accountStatus || 'active') === 'active').length;
+                  const pastCount = allTherapists.filter(t => t.accountStatus === 'past').length;
+                  return (
+                    <>
+                      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                        <h2 className="text-xl font-semibold text-foreground">All Therapists ({filteredTherapists.length})</h2>
+                        <div className="flex flex-wrap gap-2">
+                          {([
+                            { value: 'all', label: `All (${allTherapists.length})` },
+                            { value: 'active', label: `Active (${activeCount})` },
+                            { value: 'past', label: `Past (${pastCount})` },
+                          ] as const).map(opt => (
+                            <Badge
+                              key={opt.value}
+                              variant={therapistsAccountFilter === opt.value ? 'default' : 'outline'}
+                              className="cursor-pointer"
+                              onClick={() => setTherapistsAccountFilter(opt.value)}
+                            >
+                              {opt.label}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {filteredTherapists.map(t => (
                     <Card key={t._id} className="p-4 hover:shadow-md transition-shadow">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer" onClick={() => openTherapistDetail(t._id)}>
@@ -1170,7 +1217,10 @@ const AdminDashboard = () => {
                       </div>
                     </Card>
                   ))}
-                </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </TabsContent>
 
               {/* ========== REJECTED + REVOKED THERAPISTS ========== */}
@@ -1235,14 +1285,44 @@ const AdminDashboard = () => {
 
               {/* ========== ALL CLIENTS ========== */}
               <TabsContent value="clients">
-                <h2 className="text-xl font-semibold text-foreground mb-4">All Clients ({allClients.length})</h2>
-                {allClients.length === 0 ? (
-                  <Card className="p-12 text-center">
-                    <p className="text-muted-foreground">No clients registered yet.</p>
-                  </Card>
-                ) : (
-                  <div className="space-y-3">
-                    {allClients.map((c: any) => {
+                {(() => {
+                  // accountStatus on Client model: 'active' | 'past' (past =
+                  // soft-deleted account, hidden from new bookings).
+                  const filteredClients = allClients.filter((c: any) =>
+                    clientsAccountFilter === 'all' || (c.accountStatus || 'active') === clientsAccountFilter
+                  );
+                  const activeCount = allClients.filter((c: any) => (c.accountStatus || 'active') === 'active').length;
+                  const pastCount = allClients.filter((c: any) => c.accountStatus === 'past').length;
+                  return (
+                    <>
+                      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                        <h2 className="text-xl font-semibold text-foreground">All Clients ({filteredClients.length})</h2>
+                        <div className="flex flex-wrap gap-2">
+                          {([
+                            { value: 'all', label: `All (${allClients.length})` },
+                            { value: 'active', label: `Active (${activeCount})` },
+                            { value: 'past', label: `Past (${pastCount})` },
+                          ] as const).map(opt => (
+                            <Badge
+                              key={opt.value}
+                              variant={clientsAccountFilter === opt.value ? 'default' : 'outline'}
+                              className="cursor-pointer"
+                              onClick={() => setClientsAccountFilter(opt.value)}
+                            >
+                              {opt.label}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      {filteredClients.length === 0 ? (
+                        <Card className="p-12 text-center">
+                          <p className="text-muted-foreground">
+                            {clientsAccountFilter === 'all' ? 'No clients registered yet.' : `No ${clientsAccountFilter} clients.`}
+                          </p>
+                        </Card>
+                      ) : (
+                        <div className="space-y-3">
+                          {filteredClients.map((c: any) => {
                       const flagged = c.flags?.highCancellations || c.flags?.highNoShows || c.flags?.frequentTherapistChanges;
                       return (
                       <Card key={c._id} className="p-4 hover:shadow-md transition-shadow">
@@ -1295,8 +1375,11 @@ const AdminDashboard = () => {
                       </Card>
                       );
                     })}
-                  </div>
-                )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </TabsContent>
 
               {/* ========== ALL SESSIONS ========== */}

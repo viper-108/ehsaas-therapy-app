@@ -100,15 +100,19 @@ export const sendEmail = async (to, subject, html, attachments = []) => {
   return { success: true, mock: true };
 };
 
-// Notify admins about a new therapist onboarding request
+// Notify admins about a new therapist onboarding request.
+// Includes a clear "Therapist hasn't selected any price range yet" status
+// message when servicesOffered is empty (admin should ask during interview).
 export const sendOnboardingNotification = async (therapist) => {
-  const pricing = therapist.pricing instanceof Map
-    ? Object.fromEntries(therapist.pricing)
-    : therapist.pricing || {};
-
-  const pricingHtml = Object.entries(pricing)
-    .map(([d, p]) => `<li>₹${p} / ${d} minutes</li>`)
-    .join('');
+  const services = Array.isArray(therapist.servicesOffered) ? therapist.servicesOffered : [];
+  const servicesHtml = services.length
+    ? `<p><strong>Services & pricing therapist asked for:</strong></p><ul>${services
+        .map(s => `<li>${s.type === 'couple' ? 'Couples' : (s.type || 'service').charAt(0).toUpperCase() + (s.type || '').slice(1)} Therapy — ₹${s.minPrice ?? 0} to ₹${s.maxPrice ?? 0}</li>`)
+        .join('')}</ul>`
+    : `<div style="background:#fffbeb;border-left:4px solid #d97706;padding:12px 16px;margin:16px 0;border-radius:4px;">
+         <strong>Status:</strong> Therapist hasn't selected any price range yet.
+         <p style="margin:6px 0 0 0;color:#92400e;font-size:13px;">No services or pricing were submitted during onboarding. Ask during the interview, then set per-service prices from the admin dashboard after approval.</p>
+       </div>`;
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -120,11 +124,13 @@ export const sendOnboardingNotification = async (therapist) => {
         <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Phone</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${therapist.phone || 'Not provided'}</td></tr>
         <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Title</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${therapist.title}</td></tr>
         <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Experience</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${therapist.experience} years</td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Highest Education</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${therapist.highestEducation || 'Not provided'}</td></tr>
         <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Specializations</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${(therapist.specializations || []).join(', ')}</td></tr>
         <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Languages</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${(therapist.languages || []).join(', ')}</td></tr>
       </table>
+      ${therapist.educationBackground ? `<p><strong>Education background:</strong> ${therapist.educationBackground}</p>` : ''}
       ${therapist.bio ? `<p><strong>Bio:</strong> ${therapist.bio}</p>` : ''}
-      ${pricingHtml ? `<p><strong>Pricing:</strong></p><ul>${pricingHtml}</ul>` : ''}
+      ${servicesHtml}
       <p style="margin-top: 20px; color: #666;">Please log in to the admin dashboard to review and approve/reject this application.</p>
     </div>
   `;

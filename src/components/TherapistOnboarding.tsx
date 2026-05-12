@@ -219,20 +219,23 @@ export const TherapistOnboarding = () => {
 
   // ===== ONBOARDING FORM =====
   const handleProfileSave = async () => {
+    // Every visible profile field is mandatory. Toast the first missing one.
     if (!form.title.trim()) return toast({ title: "Title required", variant: "destructive" });
     if (!form.experience || isNaN(Number(form.experience))) return toast({ title: "Valid experience years required", variant: "destructive" });
+    if (!form.phone.trim()) return toast({ title: "Phone required", variant: "destructive" });
+    if (!form.highestEducation.trim()) return toast({ title: "Highest education required", variant: "destructive" });
+    if (!form.educationBackground.trim()) return toast({ title: "Education background required", variant: "destructive" });
     if (!form.bio.trim()) return toast({ title: "Bio required", variant: "destructive" });
     const specs = form.specializations.split(',').map(s => s.trim()).filter(Boolean);
     if (specs.length === 0) return toast({ title: "At least one specialization is required", variant: "destructive" });
     const langs = form.languages.split(',').map(s => s.trim()).filter(Boolean);
     if (langs.length === 0) return toast({ title: "At least one language is required", variant: "destructive" });
 
-    // Pricing is now optional preference (admin finalizes after interview)
-    const pricing: any = {};
-    if (form.pricing30 && !isNaN(Number(form.pricing30))) pricing['30'] = Number(form.pricing30);
-    if (form.pricing50 && !isNaN(Number(form.pricing50))) pricing['50'] = Number(form.pricing50);
-
-    // Build services array — only include checked services with valid pricing
+    // Per-service pricing (services array) is the only pricing channel now.
+    // The old top-level "Default Hourly Pricing" block was removed — admin
+    // sees per-service ranges. Server still expects a top-level pricing map
+    // for legacy callers, so derive a single 50-min default from the chosen
+    // services (uses 'individual' if present, else the first selected one).
     const servicesArr: { type: string; minPrice: number; maxPrice: number }[] = [];
     let svcInvalid = '';
     SERVICE_TYPES.forEach(t => {
@@ -245,6 +248,9 @@ export const TherapistOnboarding = () => {
     });
     if (svcInvalid) return toast({ title: "Invalid pricing", description: svcInvalid, variant: "destructive" });
     if (servicesArr.length === 0) return toast({ title: "Select at least one service type you offer", variant: "destructive" });
+
+    const indiv = servicesArr.find(s => s.type === 'individual') || servicesArr[0];
+    const pricing: any = indiv?.maxPrice ? { '50': indiv.maxPrice } : {};
 
     setProfileSaving(true);
     try {
@@ -397,35 +403,35 @@ export const TherapistOnboarding = () => {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label>Title <span className="text-destructive">*</span></Label>
-                <Input placeholder="e.g. Clinical Psychologist" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
+                <Input required placeholder="e.g. Clinical Psychologist" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
               </div>
               <div>
                 <Label>Years of Experience <span className="text-destructive">*</span></Label>
-                <Input type="number" placeholder="e.g. 5" value={form.experience} onChange={e => setForm(p => ({ ...p, experience: e.target.value }))} />
+                <Input required type="number" placeholder="e.g. 5" value={form.experience} onChange={e => setForm(p => ({ ...p, experience: e.target.value }))} />
               </div>
               <div>
-                <Label>Phone</Label>
-                <Input type="tel" placeholder="+91-XXXXXXXXXX" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+                <Label>Phone <span className="text-destructive">*</span></Label>
+                <Input required type="tel" placeholder="+91-XXXXXXXXXX" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
               </div>
               <div>
-                <Label>Highest Education</Label>
-                <Input placeholder="e.g. M.Phil Clinical Psychology" value={form.highestEducation} onChange={e => setForm(p => ({ ...p, highestEducation: e.target.value }))} />
+                <Label>Highest Education <span className="text-destructive">*</span></Label>
+                <Input required placeholder="e.g. M.Phil Clinical Psychology" value={form.highestEducation} onChange={e => setForm(p => ({ ...p, highestEducation: e.target.value }))} />
               </div>
               <div className="md:col-span-2">
                 <Label>Specializations (comma separated) <span className="text-destructive">*</span></Label>
-                <Input placeholder="e.g. Anxiety, Depression, Trauma" value={form.specializations} onChange={e => setForm(p => ({ ...p, specializations: e.target.value }))} />
+                <Input required placeholder="e.g. Anxiety, Depression, Trauma" value={form.specializations} onChange={e => setForm(p => ({ ...p, specializations: e.target.value }))} />
               </div>
               <div className="md:col-span-2">
                 <Label>Languages (comma separated) <span className="text-destructive">*</span></Label>
-                <Input placeholder="e.g. English, Hindi, Marathi" value={form.languages} onChange={e => setForm(p => ({ ...p, languages: e.target.value }))} />
+                <Input required placeholder="e.g. English, Hindi, Marathi" value={form.languages} onChange={e => setForm(p => ({ ...p, languages: e.target.value }))} />
               </div>
               <div className="md:col-span-2">
-                <Label>Education Background</Label>
-                <Textarea placeholder="Briefly describe your degree(s), certifications, and training" rows={2} value={form.educationBackground} onChange={e => setForm(p => ({ ...p, educationBackground: e.target.value }))} />
+                <Label>Education Background <span className="text-destructive">*</span></Label>
+                <Textarea required placeholder="Briefly describe your degree(s), certifications, and training" rows={2} value={form.educationBackground} onChange={e => setForm(p => ({ ...p, educationBackground: e.target.value }))} />
               </div>
               <div className="md:col-span-2">
                 <Label>Bio <span className="text-destructive">*</span></Label>
-                <Textarea placeholder="Tell prospective clients about your approach, experience, and what they can expect" rows={4} value={form.bio} onChange={e => setForm(p => ({ ...p, bio: e.target.value }))} />
+                <Textarea required placeholder="Tell prospective clients about your approach, experience, and what they can expect" rows={4} value={form.bio} onChange={e => setForm(p => ({ ...p, bio: e.target.value }))} />
               </div>
               <div className="md:col-span-2">
                 <div className="bg-muted/30 rounded-lg p-4 border border-border">
@@ -528,26 +534,8 @@ export const TherapistOnboarding = () => {
                 </div>
               </div>
 
-              <div className="md:col-span-2">
-                <div className="bg-muted/30 rounded-lg p-4 border border-border">
-                  <p className="text-sm font-semibold text-foreground mb-1">💰 Default Hourly Pricing (optional)</p>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Used for individual sessions only. Final pricing per service is set above + finalized by admin after interview.
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs">30-min preferred ₹</Label>
-                      <Input type="number" placeholder="900" value={form.pricing30} onChange={e => setForm(p => ({ ...p, pricing30: e.target.value }))} />
-                    </div>
-                    <div>
-                      <Label className="text-xs">50-min preferred ₹</Label>
-                      <Input type="number" placeholder="1500" value={form.pricing50} onChange={e => setForm(p => ({ ...p, pricing50: e.target.value }))} />
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-3">Services and pricing are finalized by Ehsaas admin after your interview.</p>
+            <p className="text-xs text-muted-foreground mt-3">Services and per-service pricing above are finalized by Ehsaas admin after your interview.</p>
 
             <Button onClick={handleProfileSave} disabled={profileSaving} className="mt-4 w-full md:w-auto">
               {profileSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : 'Save Profile'}
