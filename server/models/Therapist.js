@@ -208,6 +208,34 @@ const therapistSchema = new mongoose.Schema({
   educationBackground: { type: String, default: '' },
   courses: [{ type: String }],
   highestEducation: { type: String, default: '' },
+  // Personal — captured at onboarding, editable later. Pronouns is a fixed
+  // enum (free-text "other" handled in UI via the Other option). Hours-
+  // per-week is a coarse band, not exact hours, so it stays a string.
+  pronouns: {
+    type: String,
+    enum: ['', 'she/her', 'he/him', 'they/them', 'she/they', 'he/they', 'other', 'prefer-not-to-say'],
+    default: '',
+  },
+  hoursPerWeek: {
+    type: String,
+    enum: ['', '0-5', '6-10', '11-20', '21-30', '30+'],
+    default: '',
+  },
+  // Pending profile edits — when an APPROVED therapist edits their
+  // profile, the proposed values land here and admin must accept/reject
+  // before they go live on the public-facing record. While pending the
+  // therapist sees a "pending admin review" banner; when accepted, the
+  // values are flushed onto the main fields. Set on therapists who are
+  // not yet approved is unused (their edits go straight onto the
+  // top-level fields during onboarding).
+  pendingProfileChanges: {
+    type: {
+      changes: { type: mongoose.Schema.Types.Mixed, default: {} },
+      submittedAt: { type: Date, default: null },
+      adminNote: { type: String, default: '' },
+    },
+    default: () => ({}),
+  },
   verificationStatus: { type: String, enum: ['unverified', 'pending', 'verified'], default: 'unverified' },
   bankDetails: {
     accountNumber: { type: String, default: '' },

@@ -1180,6 +1180,24 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  // Profile-edit approval workflow (approved therapists' edits → admin queue)
+  async getPendingProfileChanges() {
+    const res = await fetch(`${API_BASE}/admin/pending-profile-changes`, { headers: this.getHeaders() });
+    return this.handleResponse(res);
+  }
+  async acceptProfileChanges(therapistId: string) {
+    const res = await fetch(`${API_BASE}/admin/therapists/${therapistId}/profile-changes/accept`, {
+      method: 'PUT', headers: this.getHeaders(),
+    });
+    return this.handleResponse(res);
+  }
+  async rejectProfileChanges(therapistId: string, reason?: string) {
+    const res = await fetch(`${API_BASE}/admin/therapists/${therapistId}/profile-changes/reject`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason }),
+    });
+    return this.handleResponse(res);
+  }
+
   // Admin reschedules a previously-cancelled interview (sets new date/time
   // and link, flips the slot back to 'scheduled' and the therapist to
   // 'interview_scheduled').

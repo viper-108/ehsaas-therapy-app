@@ -212,6 +212,100 @@ router.put('/therapists/:id/cancel-interview', protect, adminOnly, async (req, r
   }
 });
 
+// =============== PROFILE-EDIT APPROVALS (post-approval therapist edits) ===============
+// Approved therapists can't directly overwrite their public-facing
+// profile fields any more — those edits land in pendingProfileChanges
+// and admin approves or rejects them here.
+
+// GET /api/admin/pending-profile-changes — list therapists with edits awaiting review
+router.get('/pending-profile-changes', protect, adminOnly, async (req, res) => {
+  try {
+    const list = await Therapist.find({
+      'pendingProfileChanges.submittedAt': { $ne: null },
+    })
+      .select('name email title image pendingProfileChanges')
+      .sort({ 'pendingProfileChanges.submittedAt': -1 });
+    res.json(list);
+  } catch (e) {
+    console.error('List pending profile changes error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/admin/therapists/:id/profile-changes/accept — flush pending changes onto top-level
+router.put('/therapists/:id/profile-changes/accept', protect, adminOnly, async (req, res) => {
+  try {
+    const therapist = await Therapist.findById(req.params.id);
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    const changes = therapist.pendingProfileChanges?.changes || {};
+    if (!Object.keys(changes).length) return res.status(400).json({ message: 'No pending changes to accept' });
+
+    Object.assign(therapist, changes);
+    therapist.pendingProfileChanges = { changes: {}, submittedAt: null, adminNote: '' };
+    await therapist.save();
+
+    try {
+      const Notification = (await import('../models/Notification.js')).default;
+      const { sendEmail } = await import('../utils/email.js');
+      Notification.notify(therapist._id, 'therapist', 'profile_change_accepted',
+        'Your profile changes are live',
+        'Admin approved your latest profile edits. They are now visible on your public profile.',
+        '/therapist-dashboard?tab=profile'
+      ).catch(() => {});
+      if (therapist.email) {
+        sendEmail(therapist.email, 'Profile changes approved — Ehsaas',
+          `<p>Hi ${therapist.name || 'Therapist'},</p><p>Admin has approved your recent profile edits. Your updated profile is now live for clients to see.</p>`
+        ).catch(() => {});
+      }
+    } catch (e) { console.error('[PROFILE-CHANGE ACCEPT notify]', e.message); }
+
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'profile_change_accepted', 'Therapist', therapist._id, { fields: Object.keys(changes) }); } catch {}
+
+    const obj = therapist.toObject();
+    if (obj.pricing instanceof Map) obj.pricing = Object.fromEntries(obj.pricing);
+    res.json(obj);
+  } catch (e) {
+    console.error('Accept profile changes error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/admin/therapists/:id/profile-changes/reject — clear pending changes with a note
+router.put('/therapists/:id/profile-changes/reject', protect, adminOnly, async (req, res) => {
+  try {
+    const { reason } = req.body || {};
+    const therapist = await Therapist.findById(req.params.id);
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+    if (!therapist.pendingProfileChanges?.submittedAt) return res.status(400).json({ message: 'No pending changes to reject' });
+
+    therapist.pendingProfileChanges = { changes: {}, submittedAt: null, adminNote: '' };
+    await therapist.save();
+
+    try {
+      const Notification = (await import('../models/Notification.js')).default;
+      const { sendEmail } = await import('../utils/email.js');
+      const body = reason
+        ? `Admin did not approve your latest profile edits. Reason: ${reason}. You can update again and resubmit.`
+        : `Admin did not approve your latest profile edits. You can update again and resubmit.`;
+      Notification.notify(therapist._id, 'therapist', 'profile_change_rejected',
+        'Profile edits not approved', body, '/therapist-dashboard?tab=profile'
+      ).catch(() => {});
+      if (therapist.email) {
+        sendEmail(therapist.email, 'Profile edits not approved — Ehsaas',
+          `<p>Hi ${therapist.name || 'Therapist'},</p><p>${body}</p>`
+        ).catch(() => {});
+      }
+    } catch (e) { console.error('[PROFILE-CHANGE REJECT notify]', e.message); }
+
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'profile_change_rejected', 'Therapist', therapist._id, { reason }); } catch {}
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Reject profile changes error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // =============== SERVICE APPROVALS (per-service min/max post-interview) ===============
 // PUT /api/admin/therapists/:id/services
 // Body: { services: [{ type, minPrice, maxPrice, durationPricing? }] }
@@ -1528,8 +1622,8 @@ const decideInterview = async (req, res, action) => {
       therapist.isApproved = false;
       therapist.rejectionReason = reason || 'Application not approved after interview.';
       therapist.rejectedAt = now;
-      subject = 'Ehsaas — application update';
-      body = `We're not moving forward with your application at this time. ${reason ? `Reviewer note: ${reason}` : 'Your profile is saved with us — if a future opening matches, we will reach out.'}`;
+      subject = 'Ehsaas — interview outcome';
+      body = `Thank you for taking the time to interview with us. We're not moving forward with your application this round.${reason ? ` Interview feedback from the panel: ${reason}` : ''} Your profile is saved with us — if a future opening matches, we will reach out. In the meantime you can volunteer to conduct workshops with us.`;
       notifType = 'therapist_rejected';
     } else if (action === 'cancel') {
       interview.status = 'cancelled';

@@ -222,6 +222,24 @@ const TherapistDashboard = () => {
             </Button>
           </div>
 
+          {/* Pending-profile-edits banner: an approved therapist who
+              just edited their public profile fields. Changes don't go
+              live until admin accepts them; this banner makes that
+              wait visible. */}
+          {(user as any)?.pendingProfileChanges?.submittedAt && (
+            <Card className="mb-6 p-4 border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+              <p className="font-semibold text-amber-900 dark:text-amber-100">Profile edits pending admin review</p>
+              <p className="text-sm text-amber-800 dark:text-amber-200 mt-1">
+                Your latest profile updates are awaiting admin approval before they go live for clients. Submitted on {new Date((user as any).pendingProfileChanges.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST.
+              </p>
+              {Object.keys(((user as any).pendingProfileChanges.changes) || {}).length > 0 && (
+                <p className="text-xs text-amber-800 dark:text-amber-200 mt-2">
+                  Fields under review: <strong>{Object.keys((user as any).pendingProfileChanges.changes).join(', ')}</strong>
+                </p>
+              )}
+            </Card>
+          )}
+
           {/* Application-state banners. Two distinct states:
               - rejected: never-approved profile. Reapply allowed immediately.
               - revoked: previously-approved therapist whose access was

@@ -197,23 +197,25 @@ export const sendApprovalEmail = async (therapist) => {
 };
 
 // Notify therapist that we're not moving forward with their profile right
-// now. Per Ehsaas's preferred wording: we're not hiring at the moment, the
-// profile is saved, and we'll reach out if a position opens up. The
-// (optional) reason shows up below as a quoted block.
+// now. Per Ehsaas's preferred wording (rejection BEFORE interview): we're
+// not hiring at the moment, the profile is saved, and we'd love them to
+// volunteer for workshops while waiting. Rejections AFTER an interview
+// carry admin's feedback in the `reason` arg and the email surfaces that
+// inline as interview feedback.
 export const sendRejectionEmail = async (therapist, reason) => {
+  const hasFeedback = !!(reason && reason.trim());
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <h2 style="color: #dc2626;">Profile Update — ${therapist.name}</h2>
       <p>Thank you for your interest in joining Ehsaas Therapy Centre.</p>
       <p>
-        We are not hiring at the moment. Your profile has been saved with us, and
-        if an opening matches your experience in the future we will reach out to
-        you directly.
+        We are currently not hiring but we are saving your profile for a future
+        round of hiring. Until then you can volunteer to conduct workshops with us.
       </p>
-      ${reason ? `<div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 16px 0; border-radius: 4px;"><strong>Note from the review:</strong> ${reason}</div>` : ''}
+      ${hasFeedback ? `<div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 16px 0; border-radius: 4px;"><strong>Feedback from the review:</strong> ${reason}</div>` : ''}
       <p>
-        In the meantime, you can keep your profile up to date from the dashboard,
-        and consider our supervision or training programs to grow your practice.
+        You can keep your profile up to date from the dashboard and consider our
+        supervision or training programs to grow your practice.
       </p>
       <p>If you have any questions, please reach out to <a href="mailto:therapy.ehsaas@gmail.com">therapy.ehsaas@gmail.com</a>.</p>
       <br/>

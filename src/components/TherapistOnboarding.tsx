@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Navigation from "@/components/Navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
@@ -96,6 +97,8 @@ export const TherapistOnboarding = () => {
     languages: '',
     educationBackground: '',
     highestEducation: '',
+    pronouns: '',
+    hoursPerWeek: '',
     pricing30: '',
     pricing50: '',
     pricingMin30: '',
@@ -191,6 +194,8 @@ export const TherapistOnboarding = () => {
         languages: (user.languages || []).join(', '),
         educationBackground: user.educationBackground || '',
         highestEducation: user.highestEducation || '',
+        pronouns: user.pronouns || '',
+        hoursPerWeek: user.hoursPerWeek || '',
         pricing30: pricing['30'] != null ? String(pricing['30']) : '',
         pricing50: pricing['50'] != null ? String(pricing['50']) : '',
         pricingMin30: pricingMin['30'] != null ? String(pricingMin['30']) : '',
@@ -338,6 +343,10 @@ export const TherapistOnboarding = () => {
     if (!form.title.trim()) return fail("Title required");
     if (!form.experience || isNaN(Number(form.experience))) return fail("Valid experience years required");
     if (!form.phone.trim()) return fail("Phone required");
+    // Phone must be digits + the standard ITU set of separators.
+    if (!/^[0-9+\-\s()]+$/.test(form.phone.trim())) return fail("Phone number can't contain letters", "Use digits and optionally + - ( ) and spaces.");
+    if (!form.pronouns) return fail("Pronouns required");
+    if (!form.hoursPerWeek) return fail("Hours per week required");
     if (!form.highestEducation.trim()) return fail("Highest education required");
     if (!form.educationBackground.trim()) return fail("Education background required");
     if (!form.bio.trim()) return fail("Bio required");
@@ -425,6 +434,8 @@ export const TherapistOnboarding = () => {
         languages: langs,
         educationBackground: form.educationBackground.trim(),
         highestEducation: form.highestEducation.trim(),
+        pronouns: form.pronouns,
+        hoursPerWeek: form.hoursPerWeek,
         pricing,
       });
       // Save services-offered
@@ -462,6 +473,8 @@ export const TherapistOnboarding = () => {
     if (!form.title.trim()) missing.push('Title');
     if (!form.experience || isNaN(Number(form.experience))) missing.push('Years of experience');
     if (!form.phone.trim()) missing.push('Phone');
+    if (!form.pronouns) missing.push('Pronouns');
+    if (!form.hoursPerWeek) missing.push('Hours per week');
     if (!form.highestEducation.trim()) missing.push('Highest education');
     if (!form.educationBackground.trim()) missing.push('Education background');
     if (!form.bio.trim()) missing.push('Bio');
@@ -482,6 +495,8 @@ export const TherapistOnboarding = () => {
     form.title.trim()              !== ((user as any)?.title || '').trim() ||
     String(form.experience)        !== String((user as any)?.experience ?? '') ||
     form.phone.trim()              !== ((user as any)?.phone || '').trim() ||
+    form.pronouns                  !== ((user as any)?.pronouns || '') ||
+    form.hoursPerWeek              !== ((user as any)?.hoursPerWeek || '') ||
     form.highestEducation.trim()   !== ((user as any)?.highestEducation || '').trim() ||
     form.educationBackground.trim()!== ((user as any)?.educationBackground || '').trim() ||
     form.bio.trim()                !== ((user as any)?.bio || '').trim() ||
@@ -619,11 +634,48 @@ export const TherapistOnboarding = () => {
               </div>
               <div>
                 <Label>Phone <span className="text-destructive">*</span></Label>
-                <Input required type="tel" placeholder="+91-XXXXXXXXXX" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+                <Input
+                  required
+                  type="tel"
+                  inputMode="tel"
+                  // Filter on every keystroke so alphabets can't even be
+                  // entered. Allowed chars: digits, +, -, spaces, parens.
+                  placeholder="+91-XXXXXXXXXX"
+                  value={form.phone}
+                  onChange={e => setForm(p => ({ ...p, phone: e.target.value.replace(/[^0-9+\-\s()]/g, '') }))}
+                />
               </div>
               <div>
                 <Label>Highest Education <span className="text-destructive">*</span></Label>
                 <Input required placeholder="e.g. M.Phil Clinical Psychology" value={form.highestEducation} onChange={e => setForm(p => ({ ...p, highestEducation: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Pronouns <span className="text-destructive">*</span></Label>
+                <Select value={form.pronouns} onValueChange={(v) => setForm(p => ({ ...p, pronouns: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="she/her">she/her</SelectItem>
+                    <SelectItem value="he/him">he/him</SelectItem>
+                    <SelectItem value="they/them">they/them</SelectItem>
+                    <SelectItem value="she/they">she/they</SelectItem>
+                    <SelectItem value="he/they">he/they</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Hours per week available for Ehsaas <span className="text-destructive">*</span></Label>
+                <Select value={form.hoursPerWeek} onValueChange={(v) => setForm(p => ({ ...p, hoursPerWeek: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select range" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0-5">0–5 hours/week</SelectItem>
+                    <SelectItem value="6-10">6–10 hours/week</SelectItem>
+                    <SelectItem value="11-20">11–20 hours/week</SelectItem>
+                    <SelectItem value="21-30">21–30 hours/week</SelectItem>
+                    <SelectItem value="30+">30+ hours/week</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="md:col-span-2">
                 <Label>Specializations (comma separated) <span className="text-destructive">*</span></Label>

@@ -470,27 +470,107 @@ router.get('/dashboard/profile', protect, therapistOnly, async (req, res) => {
 });
 
 // PUT /api/therapists/dashboard/profile
+//
+// Two modes:
+//
+// 1) PRE-ONBOARDING (therapist still filling out their initial profile —
+//    isOnboarded === false): all listed fields are applied directly to
+//    the document. This is the path the onboarding form uses.
+//
+// 2) POST-APPROVAL edits: an approved therapist editing their profile
+//    can no longer overwrite the public-facing fields directly. Instead
+//    the proposed values land in `pendingProfileChanges.changes` and
+//    admin reviews them on the Approvals tab. Operational fields that
+//    don't affect what clients see (calendlyLink, maxSessionsPerDay,
+//    image upload via separate avatar endpoint, slidingScaleAvailable)
+//    are still applied directly because they don't change the public
+//    profile content.
 router.put('/dashboard/profile', protect, therapistOnly, async (req, res) => {
   try {
-    // NOTE: 'pricing' and 'pricingMin' are admin-controlled (set after interview).
-    // We accept them ONLY when the therapist isn't yet onboarded (initial preference);
-    // post-onboarding edits to pricing must come from admin via PUT /admin/therapists/:id/pricing.
-    const baseAllowed = ['name', 'title', 'phone', 'specializations', 'experience', 'bio', 'languages', 'calendlyLink', 'image', 'maxSessionsPerDay', 'educationBackground', 'courses', 'highestEducation', 'slidingScaleAvailable'];
+    // Public-facing fields — admin must approve before they go live for
+    // an already-approved therapist.
+    const publicFields = ['name', 'title', 'phone', 'specializations', 'experience', 'bio', 'languages', 'educationBackground', 'courses', 'highestEducation', 'pronouns', 'hoursPerWeek'];
+    // Operational fields — applied directly even post-approval.
+    const operationalFields = ['calendlyLink', 'image', 'maxSessionsPerDay', 'slidingScaleAvailable'];
+
     const isPreOnboarding = !req.user?.isOnboarded;
-    const allowed = isPreOnboarding ? [...baseAllowed, 'pricing', 'pricingMin'] : baseAllowed;
-    const updates = {};
-    for (const key of allowed) {
-      if (req.body[key] !== undefined) {
-        updates[key] = req.body[key];
+    const isApproved = !!req.user?.isApproved;
+
+    // Always apply operational fields directly.
+    const directUpdates = {};
+    for (const key of operationalFields) {
+      if (req.body[key] !== undefined) directUpdates[key] = req.body[key];
+    }
+
+    // Validate phone if present — server-side guard against alphabets.
+    if (req.body.phone != null && !/^[0-9+\-\s()]*$/.test(String(req.body.phone))) {
+      return res.status(400).json({ message: "Phone can only contain digits, +, -, spaces and parentheses." });
+    }
+
+    if (isPreOnboarding || !isApproved) {
+      // Onboarding / rejected / pending — apply public fields directly too
+      for (const key of publicFields) {
+        if (req.body[key] !== undefined) directUpdates[key] = req.body[key];
+      }
+      if (isPreOnboarding && req.body.pricing !== undefined) directUpdates.pricing = req.body.pricing;
+      if (isPreOnboarding && req.body.pricingMin !== undefined) directUpdates.pricingMin = req.body.pricingMin;
+      // Clear any stale pending change after a successful direct save.
+      directUpdates.pendingProfileChanges = { changes: {}, submittedAt: null, adminNote: '' };
+
+      const therapist = await Therapist.findByIdAndUpdate(req.userId, directUpdates, { new: true }).select('-password');
+      const obj = therapist.toObject();
+      if (obj.pricing instanceof Map) obj.pricing = Object.fromEntries(obj.pricing);
+      if (obj.pricingMin instanceof Map) obj.pricingMin = Object.fromEntries(obj.pricingMin);
+      return res.json(obj);
+    }
+
+    // Approved therapist — public-facing edits queue for admin approval.
+    const pendingChanges = {};
+    for (const key of publicFields) {
+      if (req.body[key] !== undefined && JSON.stringify(req.body[key]) !== JSON.stringify(req.user[key])) {
+        pendingChanges[key] = req.body[key];
       }
     }
 
-    const therapist = await Therapist.findByIdAndUpdate(req.userId, updates, { new: true }).select('-password');
+    if (Object.keys(pendingChanges).length > 0) {
+      directUpdates.pendingProfileChanges = {
+        changes: pendingChanges,
+        submittedAt: new Date(),
+        adminNote: '',
+      };
+    }
+
+    const therapist = await Therapist.findByIdAndUpdate(req.userId, directUpdates, { new: true }).select('-password');
+
+    // Notify admins (in-app + email)
+    if (Object.keys(pendingChanges).length > 0) {
+      try {
+        const Admin = (await import('../models/Admin.js')).default;
+        const Notification = (await import('../models/Notification.js')).default;
+        const { sendEmail } = await import('../utils/email.js');
+        const admins = await Admin.find().select('email name');
+        const fields = Object.keys(pendingChanges).join(', ');
+        for (const a of admins) {
+          Notification.notify(a._id, 'admin', 'therapist_profile_change',
+            `Profile edit awaiting review`,
+            `${therapist.name} updated: ${fields}. Review on the Approvals tab.`,
+            '/admin-dashboard?tab=pending'
+          ).catch(() => {});
+          if (a.email) {
+            sendEmail(a.email, `Profile edit pending — ${therapist.name}`,
+              `<p>Hi ${a.name || 'Admin'},</p><p><strong>${therapist.name}</strong> has updated their profile and is awaiting approval. Fields changed: <strong>${fields}</strong>.</p><p>Review in the admin dashboard → Approvals tab.</p>`
+            ).catch(() => {});
+          }
+        }
+      } catch (e) { console.error('[PROFILE-CHANGE NOTIFY]', e.message); }
+    }
+
     const obj = therapist.toObject();
     if (obj.pricing instanceof Map) obj.pricing = Object.fromEntries(obj.pricing);
     if (obj.pricingMin instanceof Map) obj.pricingMin = Object.fromEntries(obj.pricingMin);
     res.json(obj);
   } catch (error) {
+    console.error('Update therapist profile error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

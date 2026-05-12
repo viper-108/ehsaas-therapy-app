@@ -97,6 +97,9 @@ const AdminDashboard = () => {
   // active interview from a therapist card and surface the right
   // approve/reject/cancel actions.
   const [interviews, setInterviews] = useState<any[]>([]);
+  // Profile-edit approvals queue (approved therapists who updated their
+  // public-facing profile fields; admin must accept/reject each diff).
+  const [pendingProfileChanges, setPendingProfileChanges] = useState<any[]>([]);
   const [interviewDecisionModal, setInterviewDecisionModal] = useState<{
     open: boolean; interviewId: string; therapistName: string; action: 'approve' | 'reject' | 'cancel' | null; reason: string;
   }>({ open: false, interviewId: '', therapistName: '', action: null, reason: '' });
@@ -180,7 +183,7 @@ const AdminDashboard = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData, serviceChangeData, pendingWorkshopsData, pSup, pSupe, pSupGroups, pTrainings, rejectedData, interviewsData] = await Promise.all([
+      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData, serviceChangeData, pendingWorkshopsData, pSup, pSupe, pSupGroups, pTrainings, rejectedData, interviewsData, pendingProfileChangesData] = await Promise.all([
         api.getAdminStats(),
         api.getPendingTherapists(),
         api.getAllTherapistsAdmin(),
@@ -199,6 +202,7 @@ const AdminDashboard = () => {
         api.listPendingTrainings().catch(() => []),
         api.getRejectedTherapists().catch(() => []),
         api.getInterviews().catch(() => []),
+        api.getPendingProfileChanges().catch(() => []),
       ]);
       setStats(statsData);
       setPending(pendingData);
@@ -218,6 +222,7 @@ const AdminDashboard = () => {
       setPendingTrainings(pTrainings);
       setRejectedTherapists(Array.isArray(rejectedData) ? rejectedData : []);
       setInterviews(Array.isArray(interviewsData) ? interviewsData : []);
+      setPendingProfileChanges(Array.isArray(pendingProfileChangesData) ? pendingProfileChangesData : []);
     } catch (error) {
       console.error('Admin dashboard load error:', error);
     } finally {
@@ -305,7 +310,7 @@ const AdminDashboard = () => {
           ) : (
             (() => {
               const sidebarItems: SidebarItem[] = [
-                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length + pendingCouples.length + serviceChangeRequests.length + pendingWorkshops.length + pendingSupervisors.length + pendingSupervisees.length + pendingSupervisionGroups.length + pendingTrainings.length) || null, group: 'Approvals' },
+                { value: 'pending', label: 'Pending Approvals', icon: Clock, badge: (pending.length + pendingReviews.length + pendingNegotiations.length + pendingGroups.length + pendingCouples.length + serviceChangeRequests.length + pendingWorkshops.length + pendingSupervisors.length + pendingSupervisees.length + pendingSupervisionGroups.length + pendingTrainings.length + pendingProfileChanges.length) || null, group: 'Approvals' },
                 { value: 'reviews', label: 'Reviews', icon: Star, group: 'Approvals' },
                 { value: 'rejected', label: 'Rejected Therapists', icon: UserX, badge: rejectedTherapists.length || null, group: 'People' },
                 { value: 'therapists', label: 'Therapists', icon: UserCheck, group: 'People' },
@@ -336,7 +341,7 @@ const AdminDashboard = () => {
                   {([
                     { value: 'all',              label: 'All' },
                     { value: 'new-therapist',    label: `New therapists (${pending.length})` },
-                    { value: 'profile-changes',  label: `Profile changes (${serviceChangeRequests.length})` },
+                    { value: 'profile-changes',  label: `Profile changes (${serviceChangeRequests.length + pendingProfileChanges.length})` },
                     { value: 'couples',          label: `Couples (${pendingCouples.length})` },
                     { value: 'sliding-scale',    label: `Sliding-scale (${pendingNegotiations.length})` },
                     { value: 'supervision',      label: `Supervision (${pendingSupervisors.length + pendingSupervisees.length + pendingSupervisionGroups.length})` },
@@ -844,6 +849,59 @@ const AdminDashboard = () => {
                                   View Details
                                 </Button>
                               </div>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ===== PROFILE-EDIT APPROVALS =====
+                    Approved therapists' edits to public-facing profile
+                    fields land here for admin to accept or reject. */}
+                {(approvalCategory === 'all' || approvalCategory === 'profile-changes') && pendingProfileChanges.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <UserCheck className="w-4 h-4 text-primary" /> Profile Edits ({pendingProfileChanges.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {pendingProfileChanges.map((t: any) => {
+                        const changes = t.pendingProfileChanges?.changes || {};
+                        const submittedAt = t.pendingProfileChanges?.submittedAt;
+                        return (
+                          <Card key={t._id} className="p-4">
+                            <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+                              <div>
+                                <p className="font-semibold text-foreground">{t.name}</p>
+                                <p className="text-xs text-muted-foreground">{t.email} · {t.title || 'Therapist'}</p>
+                                {submittedAt && <p className="text-[11px] text-muted-foreground mt-1">Submitted {new Date(submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST</p>}
+                              </div>
+                            </div>
+                            <div className="space-y-1 text-sm bg-muted/30 rounded p-2 mb-3">
+                              {Object.entries(changes).map(([key, val]) => (
+                                <div key={key} className="flex gap-2 flex-wrap text-xs">
+                                  <span className="font-medium text-muted-foreground capitalize w-32">{key.replace(/([A-Z])/g, ' $1').toLowerCase()}:</span>
+                                  <span className="flex-1 text-foreground break-words">{Array.isArray(val) ? (val as any[]).join(', ') : String(val)}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button size="sm" onClick={async () => {
+                                try {
+                                  await api.acceptProfileChanges(t._id);
+                                  toast({ title: 'Approved', description: `${t.name}'s profile updates are now live.` });
+                                  loadAll();
+                                } catch (e: any) { toast({ title: 'Failed', description: e.message, variant: 'destructive' }); }
+                              }}>Accept changes</Button>
+                              <Button size="sm" variant="destructive" onClick={async () => {
+                                const reason = window.prompt('Reason for rejecting these changes (shown to therapist, optional):') || '';
+                                try {
+                                  await api.rejectProfileChanges(t._id, reason);
+                                  toast({ title: 'Rejected', description: `${t.name} has been notified.` });
+                                  loadAll();
+                                } catch (e: any) { toast({ title: 'Failed', description: e.message, variant: 'destructive' }); }
+                              }}>Reject changes</Button>
                             </div>
                           </Card>
                         );
@@ -1507,9 +1565,37 @@ const AdminDashboard = () => {
                     }
                   };
 
+                  // Build a Google Calendar "render" URL that creates an
+                  // event in IST with the same start/end/details. Opens in
+                  // a new tab so admin can confirm with one click.
+                  const googleCalendarUrl = (iv: any) => {
+                    const sched = new Date(iv.scheduledDate);
+                    const end = new Date(sched.getTime() + 60 * 60 * 1000);
+                    const gcalFmt = (d: Date) => {
+                      const parts = new Intl.DateTimeFormat('en-GB', {
+                        timeZone: 'Asia/Kolkata',
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+                      }).formatToParts(d);
+                      const g = (t: string) => parts.find(p => p.type === t)?.value || '';
+                      // Google Calendar accepts YYYYMMDDTHHMMSS with ctz= for the timezone
+                      return `${g('year')}${g('month')}${g('day')}T${g('hour')}${g('minute')}${g('second')}`;
+                    };
+                    const therapistName = iv.therapistId?.name || 'Therapist';
+                    const params = new URLSearchParams({
+                      action: 'TEMPLATE',
+                      text: `Ehsaas Interview — ${therapistName}`,
+                      dates: `${gcalFmt(sched)}/${gcalFmt(end)}`,
+                      details: `${iv.notes || 'Onboarding interview with Ehsaas Therapy Centre.'}\nJoin: ${iv.meetingLink || 'TBD'}`,
+                      location: iv.meetingLink || '',
+                      ctz: 'Asia/Kolkata',
+                    });
+                    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+                  };
+
                   // Build a minimal RFC-5545 ICS in IST so admin can save it
                   // to their calendar from this tab even if the original
-                  // scheduling email is gone.
+                  // scheduling email is gone (works for Outlook, Apple, etc.)
                   const downloadIcs = (iv: any) => {
                     const sched = new Date(iv.scheduledDate);
                     // Compute end = start + 60min using UTC ms math (timezone-safe)
@@ -1580,9 +1666,16 @@ const AdminDashboard = () => {
                             </Button>
                           )}
                           {iv.status === 'scheduled' && (
-                            <Button size="sm" variant="outline" onClick={() => downloadIcs(iv)}>
-                              <CalendarDays className="w-4 h-4 mr-1" /> Add to calendar
-                            </Button>
+                            <>
+                              <Button asChild size="sm" variant="outline">
+                                <a href={googleCalendarUrl(iv)} target="_blank" rel="noopener noreferrer">
+                                  <CalendarDays className="w-4 h-4 mr-1" /> Google Calendar
+                                </a>
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => downloadIcs(iv)}>
+                                Download .ics
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -1911,22 +2004,38 @@ const AdminDashboard = () => {
             )}
             <div>
               <label className="text-xs font-medium block mb-1">
-                {interviewDecisionModal.action === 'reject' ? 'Rejection reason' : interviewDecisionModal.action === 'cancel' ? 'Reason (shown to therapist)' : 'Note (optional)'}
+                {interviewDecisionModal.action === 'reject' ? 'Interview feedback / rejection reason *' :
+                 interviewDecisionModal.action === 'approve' ? 'Welcome note / interview feedback *' :
+                 'Reason (shown to therapist) *'}
               </label>
               <Textarea
                 rows={3}
                 value={interviewDecisionModal.reason}
                 onChange={e => setInterviewDecisionModal(p => ({ ...p, reason: e.target.value }))}
-                placeholder={interviewDecisionModal.action === 'approve' ? 'Welcome note, next steps, etc.' : 'Why?'}
+                placeholder={
+                  interviewDecisionModal.action === 'approve' ? 'Welcome note, next steps, what stood out, etc.' :
+                  interviewDecisionModal.action === 'reject' ? 'Specific feedback the therapist will receive by email.' :
+                  'Why is this slot being cancelled?'
+                }
               />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {interviewDecisionModal.action === 'reject' ? 'Shown to the therapist verbatim as interview feedback.' :
+                 interviewDecisionModal.action === 'approve' ? 'Sent to the therapist as a welcome note.' :
+                 'Shown to the therapist with the cancellation notice.'}
+              </p>
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setInterviewDecisionModal(p => ({ ...p, open: false }))}>Cancel</Button>
             <Button
               variant={interviewDecisionModal.action === 'reject' ? 'destructive' : 'default'}
+              disabled={!interviewDecisionModal.reason || !interviewDecisionModal.reason.trim()}
               onClick={async () => {
                 if (!interviewDecisionModal.action) return;
+                if (!interviewDecisionModal.reason || !interviewDecisionModal.reason.trim()) {
+                  toast({ title: 'Reason required', description: 'Add a note before continuing — it goes to the therapist.', variant: 'destructive' });
+                  return;
+                }
                 try {
                   await api.decideInterview(interviewDecisionModal.interviewId, interviewDecisionModal.action, interviewDecisionModal.reason);
                   toast({
