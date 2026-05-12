@@ -193,8 +193,15 @@ const TherapistDashboard = () => {
 
   if (isLoading || !user) return null;
 
-  // Gate: show onboarding if not onboarded or not approved
-  if (!user.isOnboarded || !user.isApproved) {
+  // Gate: show the onboarding screen for users who are still moving through
+  // it (not onboarded, never-approved, or rejected). REVOKED therapists are
+  // a special case — they were previously approved, so they keep dashboard
+  // access (past sessions, earnings, profile, messages) so they have full
+  // visibility into their own data + can chat with admin about the
+  // revocation. Clients still don't see them publicly because
+  // /team's backend filter requires isApproved=true.
+  const isRevoked = (user as any).onboardingStatus === 'revoked';
+  if (!isRevoked && (!user.isOnboarded || !user.isApproved)) {
     return <TherapistOnboarding />;
   }
 

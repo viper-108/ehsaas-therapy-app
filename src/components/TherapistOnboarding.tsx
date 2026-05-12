@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { ChatWindow } from "@/components/ChatWindow";
+import { ConversationList } from "@/components/ConversationList";
 
 const TERMS_AND_CONDITIONS = `
 EHSAAS THERAPY CENTRE — THERAPIST TERMS & CONDITIONS
@@ -57,25 +58,32 @@ export const TherapistOnboarding = () => {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Admin chat panel — lets a therapist whose application is pending /
-  // interview-scheduled / in-process reach admin directly, since they
-  // don't get to the regular Messages tab until they're fully approved.
+  // Pending / interview / in-process therapists don't reach the regular
+  // dashboard Messages tab — so we surface a full Messages panel on the
+  // status screen instead (conversation list on the left, ChatWindow on
+  // the right). They can read any admin messages, reply, or start a new
+  // conversation with admin.
   const [adminContact, setAdminContact] = useState<{ _id: string; name: string } | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatConvKey, setChatConvKey] = useState('');
+  const [chatOther, setChatOther] = useState<any>(null);
+
   useEffect(() => {
-    // Fetch the first admin from /messages/contacts (works for any
-    // authenticated user, including pending therapists).
-    if (!user || !user._id) return;
-    if (adminContact) return;
+    if (!user || !user._id || adminContact) return;
     api.getContacts?.('all').then((list: any[]) => {
       const admin = (list || []).find(c => c.role === 'admin');
       if (admin) setAdminContact({ _id: admin._id, name: admin.name || 'Ehsaas Admin' });
     }).catch(() => {});
   }, [user, adminContact]);
 
-  const conversationKey = adminContact && user?._id
-    ? [String(user._id), String(adminContact._id)].sort().join('_')
-    : '';
+  // Default-select the admin conversation as soon as we know who admin is,
+  // so the chat is one click away (or already loaded if admin has messaged
+  // them first).
+  useEffect(() => {
+    if (!adminContact || !user?._id || chatConvKey) return;
+    const key = [String(user._id), String(adminContact._id)].sort().join('_');
+    setChatConvKey(key);
+    setChatOther({ _id: adminContact._id, name: adminContact.name, role: 'admin' });
+  }, [adminContact, user, chatConvKey]);
 
   // Profile form state — pre-populate from existing user data
   // pricing30/50 = max price (shown to clients); min30/50 = lowest price you'll accept (admin only)
@@ -213,41 +221,36 @@ export const TherapistOnboarding = () => {
             <Badge className={`${statusUi.bg} ${statusUi.iconColor} text-sm`}>Status: {statusUi.badge}</Badge>
           </Card>
 
-          {/* Message Admin — pending / interview / in-process therapists
-              can reach admin directly from this screen. Server's
-              /messages contacts endpoint already exposes admin to any
-              authenticated user, so the chat works regardless of
-              approval state. */}
-          <Card className="max-w-lg w-full p-5">
-            <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
-              <div>
-                <h3 className="font-semibold text-foreground flex items-center gap-2">
-                  <MessageCircle className="w-5 h-5 text-primary" />
-                  Need to reach Ehsaas admin?
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Ask questions about your application, request an interview reschedule, or share updates.
-                </p>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => setChatOpen(o => !o)}
-                disabled={!adminContact}
-                title={!adminContact ? 'Connecting…' : undefined}
-              >
-                {chatOpen ? 'Hide chat' : 'Message Admin'}
-              </Button>
+          {/* Messages — pending / interview / in-process therapists don't
+              reach the regular dashboard Messages tab while their profile
+              is under review, but they still need to talk to admin (about
+              their application, interview reschedule, updates, etc.).
+              Same ConversationList + ChatWindow used by the dashboard. */}
+          <Card className="max-w-4xl w-full p-0 overflow-hidden">
+            <div className="px-5 py-3 border-b">
+              <h3 className="font-semibold text-foreground flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-primary" />
+                Messages
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Read messages from Ehsaas admin and reply. Ask questions about your application, request a reschedule, or share updates.
+              </p>
             </div>
-
-            {chatOpen && adminContact && (
-              <div className="border rounded-lg overflow-hidden" style={{ height: '420px' }}>
-                <ChatWindow
-                  conversationKey={conversationKey}
-                  otherUser={{ _id: adminContact._id, name: adminContact.name, role: 'admin' }}
-                  onBack={() => setChatOpen(false)}
+            <div className="flex" style={{ height: '500px' }}>
+              <div className={`w-full md:w-72 border-r overflow-y-auto p-3 ${chatConvKey ? 'hidden md:block' : ''}`}>
+                <ConversationList
+                  onSelectConversation={(key, other) => { setChatConvKey(key); setChatOther(other); }}
+                  selectedKey={chatConvKey}
                 />
               </div>
-            )}
+              <div className={`flex-1 ${!chatConvKey ? 'hidden md:flex' : 'flex'}`}>
+                <ChatWindow
+                  conversationKey={chatConvKey}
+                  otherUser={chatOther}
+                  onBack={() => { setChatConvKey(''); setChatOther(null); }}
+                />
+              </div>
+            </div>
           </Card>
         </div>
       </div>

@@ -106,8 +106,12 @@ router.get('/:id', async (req, res) => {
     if (!therapist) {
       return res.status(404).json({ message: 'Therapist not found' });
     }
-    // Hide soft-deleted therapists from public (unless admin call)
-    if (therapist.accountStatus === 'past') {
+    // Hide from public any therapist who isn't currently practising on
+    // Ehsaas: soft-deleted (accountStatus='past'), revoked (isApproved
+    // dropped from true → false), or never approved (still in
+    // onboarding/interview). Therapists themselves use /api/auth/me on
+    // their own dashboard so they keep access to their record.
+    if (therapist.accountStatus === 'past' || !therapist.isApproved) {
       return res.status(404).json({ message: 'Therapist not found' });
     }
     const obj = therapist.toObject();
