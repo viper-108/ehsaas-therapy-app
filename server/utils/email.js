@@ -105,10 +105,16 @@ export const sendEmail = async (to, subject, html, attachments = []) => {
 // message when servicesOffered is empty (admin should ask during interview).
 export const sendOnboardingNotification = async (therapist) => {
   const services = Array.isArray(therapist.servicesOffered) ? therapist.servicesOffered : [];
+  const label = (t) => t === 'couple' ? 'Couples' : (t || 'service').charAt(0).toUpperCase() + (t || '').slice(1);
   const servicesHtml = services.length
-    ? `<p><strong>Services & pricing therapist asked for:</strong></p><ul>${services
-        .map(s => `<li>${s.type === 'couple' ? 'Couples' : (s.type || 'service').charAt(0).toUpperCase() + (s.type || '').slice(1)} Therapy — ₹${s.minPrice ?? 0} to ₹${s.maxPrice ?? 0}</li>`)
-        .join('')}</ul>`
+    ? `<p><strong>Services & pricing therapist asked for:</strong></p><ul>${services.map(s => {
+        const dps = Array.isArray(s.durationPricing) ? s.durationPricing : [];
+        if (dps.length === 0) {
+          return `<li>${label(s.type)} Therapy — ₹${s.minPrice ?? 0} to ₹${s.maxPrice ?? 0}</li>`;
+        }
+        const inner = dps.map(dp => `<li>${dp.duration} min — ₹${dp.minPrice ?? 0} to ₹${dp.maxPrice ?? 0}</li>`).join('');
+        return `<li>${label(s.type)} Therapy<ul>${inner}</ul></li>`;
+      }).join('')}</ul>`
     : `<div style="background:#fffbeb;border-left:4px solid #d97706;padding:12px 16px;margin:16px 0;border-radius:4px;">
          <strong>Status:</strong> Therapist hasn't selected any price range yet.
          <p style="margin:6px 0 0 0;color:#92400e;font-size:13px;">No services or pricing were submitted during onboarding. Ask during the interview, then set per-service prices from the admin dashboard after approval.</p>

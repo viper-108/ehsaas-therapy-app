@@ -419,20 +419,39 @@ const AdminDashboard = () => {
                           </div>
                         )}
 
-                        {/* Services the therapist asked for (admin sees their original asks) */}
+                        {/* Services the therapist asked for (admin sees their original asks).
+                            For multi-duration services (individual / couple / supervision)
+                            we surface each duration band separately. */}
                         {Array.isArray(therapist.servicesOffered) && therapist.servicesOffered.length > 0 ? (
                           <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
                             <p className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
                               <Briefcase className="w-4 h-4 text-blue-700 dark:text-blue-300" />
                               Services therapist offered (their asks — admin only)
                             </p>
-                            <div className="space-y-1">
-                              {therapist.servicesOffered.map((s: any) => (
-                                <div key={s.type} className="flex items-center justify-between text-sm">
-                                  <span className="capitalize font-medium">{s.type === 'couple' ? 'Couples' : s.type} Therapy</span>
-                                  <span className="text-muted-foreground">₹{s.minPrice} — ₹{s.maxPrice}</span>
-                                </div>
-                              ))}
+                            <div className="space-y-2">
+                              {therapist.servicesOffered.map((s: any) => {
+                                const dps = Array.isArray(s.durationPricing) ? s.durationPricing : [];
+                                return (
+                                  <div key={s.type} className="text-sm">
+                                    <div className="flex items-center justify-between">
+                                      <span className="capitalize font-medium">{s.type === 'couple' ? 'Couples' : s.type} Therapy</span>
+                                      {dps.length === 0 && (
+                                        <span className="text-muted-foreground">₹{s.minPrice} — ₹{s.maxPrice}</span>
+                                      )}
+                                    </div>
+                                    {dps.length > 0 && (
+                                      <div className="mt-1 ml-3 space-y-0.5">
+                                        {dps.map((dp: any) => (
+                                          <div key={dp.duration} className="flex items-center justify-between text-xs">
+                                            <span className="text-muted-foreground">{dp.duration} min</span>
+                                            <span className="text-muted-foreground">₹{dp.minPrice} — ₹{dp.maxPrice}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                             <p className="text-[11px] text-muted-foreground mt-2 italic">
                               Use the therapist's detail page to finalize per-service prices after interview.

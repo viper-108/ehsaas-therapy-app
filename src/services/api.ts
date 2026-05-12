@@ -347,7 +347,12 @@ class ApiService {
   }
 
   // ============ SERVICES (therapist + admin) ============
-  async setMyServicesOffered(services: { type: string; minPrice: number; maxPrice: number }[]) {
+  async setMyServicesOffered(services: {
+    type: string;
+    minPrice: number;
+    maxPrice: number;
+    durationPricing?: { duration: number; minPrice: number; maxPrice: number }[];
+  }[]) {
     const res = await fetch(`${API_BASE}/therapists/dashboard/services-offered`, {
       method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ services })
     });

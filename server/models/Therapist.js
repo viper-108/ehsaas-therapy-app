@@ -49,11 +49,31 @@ const therapistSchema = new mongoose.Schema({
 
   // ========== SERVICE TYPES & PRICING (NEW) ==========
   // What the therapist OFFERS — set during onboarding. Original ask, never displayed publicly after admin approval.
+  //
+  // `minPrice` / `maxPrice` are the overall band for the service (used by
+  //   single-duration services like family / group, and as a rollup for the
+  //   multi-duration ones).
+  // `durationPricing` carries the per-duration band. The supported durations
+  //   per service type are fixed in the onboarding UI:
+  //     individual  → 30, 50
+  //     couple      → 50, 90
+  //     supervision → 50, 90
+  //     family      → (no durations — uses top-level minPrice/maxPrice)
+  //     group       → (no durations — uses top-level minPrice/maxPrice)
   servicesOffered: {
     type: [{
       type: { type: String, enum: ['individual', 'couple', 'group', 'family', 'supervision'], required: true },
       minPrice: { type: Number, required: true, min: 0 },
       maxPrice: { type: Number, required: true, min: 0 },
+      durationPricing: {
+        type: [{
+          duration: { type: Number, required: true, min: 1 },
+          minPrice: { type: Number, required: true, min: 0 },
+          maxPrice: { type: Number, required: true, min: 0 },
+          _id: false,
+        }],
+        default: [],
+      },
       _id: false,
     }],
     default: [],
@@ -64,6 +84,15 @@ const therapistSchema = new mongoose.Schema({
       type: { type: String, enum: ['individual', 'couple', 'group', 'family', 'supervision'], required: true },
       minPrice: { type: Number, required: true, min: 0 },
       maxPrice: { type: Number, required: true, min: 0 },
+      durationPricing: {
+        type: [{
+          duration: { type: Number, required: true, min: 1 },
+          minPrice: { type: Number, required: true, min: 0 },
+          maxPrice: { type: Number, required: true, min: 0 },
+          _id: false,
+        }],
+        default: [],
+      },
       // Therapist response after admin approves the service+price
       therapistAccepted: { type: Boolean, default: false },
       therapistRejected: { type: Boolean, default: false },

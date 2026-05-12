@@ -102,15 +102,43 @@ export const TherapistOnboarding = () => {
     pricingMin50: '',
   });
 
-  // Services offered (per-service min/max ASKS) — used for admin to finalize after interview
+  // Services offered (per-service-per-duration min/max ASKS) — used for
+  // admin to finalize after interview.
+  //
+  // Each service type has a fixed set of supported session durations:
+  //   individual  → 30, 50 min
+  //   couple      → 50, 90 min
+  //   supervision → 50, 90 min
+  //   family      → single price band (no duration split)
+  //   group       → single price band (no duration split)
   const SERVICE_TYPES = ['individual', 'couple', 'group', 'family', 'supervision'] as const;
   type ServiceType = typeof SERVICE_TYPES[number];
-  const [services, setServices] = useState<Record<ServiceType, { offered: boolean; min: string; max: string }>>({
-    individual: { offered: false, min: '', max: '' },
-    couple: { offered: false, min: '', max: '' },
-    group: { offered: false, min: '', max: '' },
-    family: { offered: false, min: '', max: '' },
-    supervision: { offered: false, min: '', max: '' },
+  const SERVICE_DURATIONS: Record<ServiceType, number[]> = {
+    individual:  [30, 50],
+    couple:      [50, 90],
+    supervision: [50, 90],
+    family:      [],  // empty = single price band, uses top-level min/max
+    group:       [],
+  };
+  type ServiceState = {
+    offered: boolean;
+    // Top-level band — used as the "ask" for family/group, derived from the
+    // duration bands' min-of-mins / max-of-maxes for individual/couple/supervision.
+    min: string;
+    max: string;
+    // Per-duration bands. Keys are duration strings ("30","50","90").
+    durations: Record<string, { min: string; max: string }>;
+  };
+  const emptyService = (type: ServiceType): ServiceState => ({
+    offered: false, min: '', max: '',
+    durations: Object.fromEntries(SERVICE_DURATIONS[type].map(d => [String(d), { min: '', max: '' }])),
+  });
+  const [services, setServices] = useState<Record<ServiceType, ServiceState>>({
+    individual:  emptyService('individual'),
+    couple:      emptyService('couple'),
+    group:       emptyService('group'),
+    family:      emptyService('family'),
+    supervision: emptyService('supervision'),
   });
   const [resumeUrl, setResumeUrl] = useState('');
   const [resumeUploading, setResumeUploading] = useState(false);
@@ -123,22 +151,36 @@ export const TherapistOnboarding = () => {
     if (user) {
       const pricing = user.pricing instanceof Map ? Object.fromEntries(user.pricing) : (user.pricing || {});
       const pricingMin = user.pricingMin instanceof Map ? Object.fromEntries(user.pricingMin) : (user.pricingMin || {});
-      // Hydrate services
-      const svcMap = { individual: false, couple: false, group: false, family: false, supervision: false } as any;
-      const svcMin: any = {}; const svcMax: any = {};
+      // Hydrate services + their per-duration pricing bands from whatever
+      // the server has on file (durationPricing array is the new shape).
+      const next: any = {
+        individual:  emptyService('individual'),
+        couple:      emptyService('couple'),
+        group:       emptyService('group'),
+        family:      emptyService('family'),
+        supervision: emptyService('supervision'),
+      };
       (user.servicesOffered || []).forEach((s: any) => {
-        if (s?.type && SERVICE_TYPES.includes(s.type)) {
-          svcMap[s.type] = true;
-          svcMin[s.type] = String(s.minPrice || '');
-          svcMax[s.type] = String(s.maxPrice || '');
-        }
+        if (!s?.type || !SERVICE_TYPES.includes(s.type)) return;
+        next[s.type].offered = true;
+        next[s.type].min = String(s.minPrice ?? '');
+        next[s.type].max = String(s.maxPrice ?? '');
+        (s.durationPricing || []).forEach((dp: any) => {
+          const key = String(dp.duration);
+          if (next[s.type].durations[key]) {
+            next[s.type].durations[key] = {
+              min: String(dp.minPrice ?? ''),
+              max: String(dp.maxPrice ?? ''),
+            };
+          }
+        });
       });
       setServices({
-        individual: { offered: svcMap.individual, min: svcMin.individual || '', max: svcMax.individual || '' },
-        couple: { offered: svcMap.couple, min: svcMin.couple || '', max: svcMax.couple || '' },
-        group: { offered: svcMap.group, min: svcMin.group || '', max: svcMax.group || '' },
-        family: { offered: svcMap.family, min: svcMin.family || '', max: svcMax.family || '' },
-        supervision: { offered: svcMap.supervision, min: svcMin.supervision || '', max: svcMax.supervision || '' },
+        individual: next.individual,
+        couple: next.couple,
+        group: next.group,
+        family: next.family,
+        supervision: next.supervision,
       });
       setForm({
         title: user.title || '',
@@ -292,26 +334,73 @@ export const TherapistOnboarding = () => {
     const langs = form.languages.split(',').map(s => s.trim()).filter(Boolean);
     if (langs.length === 0) return toast({ title: "At least one language is required", variant: "destructive" });
 
-    // Per-service pricing (services array) is the only pricing channel now.
-    // The old top-level "Default Hourly Pricing" block was removed — admin
-    // sees per-service ranges. Server still expects a top-level pricing map
-    // for legacy callers, so derive a single 50-min default from the chosen
-    // services (uses 'individual' if present, else the first selected one).
-    const servicesArr: { type: string; minPrice: number; maxPrice: number }[] = [];
+    // Per-service-per-duration pricing. Each entry carries an aggregate
+    // band (minPrice/maxPrice) for legacy callers + a durationPricing
+    // array with the explicit (duration, min, max) tuples the therapist
+    // entered. Services with no configured durations (family, group) just
+    // use the aggregate band.
+    type SvcPayload = {
+      type: string; minPrice: number; maxPrice: number;
+      durationPricing: { duration: number; minPrice: number; maxPrice: number }[];
+    };
+    const servicesArr: SvcPayload[] = [];
     let svcInvalid = '';
-    SERVICE_TYPES.forEach(t => {
+    for (const t of SERVICE_TYPES) {
       const s = services[t];
-      if (!s.offered) return;
-      const min = Number(s.min); const max = Number(s.max);
-      if (!s.max || isNaN(max) || max <= 0) { svcInvalid = `Set a max price for ${t} therapy.`; return; }
-      if (s.min && !isNaN(min) && min > max) { svcInvalid = `Min price for ${t} must be ≤ max.`; return; }
-      servicesArr.push({ type: t, minPrice: !isNaN(min) ? min : 0, maxPrice: max });
-    });
+      if (!s.offered) continue;
+      const durs = SERVICE_DURATIONS[t];
+
+      if (durs.length === 0) {
+        // Single-band service (family, group)
+        const min = Number(s.min); const max = Number(s.max);
+        if (!s.max || isNaN(max) || max <= 0) { svcInvalid = `Set a max price for ${t} therapy.`; break; }
+        if (s.min && !isNaN(min) && min > max) { svcInvalid = `Min price for ${t} therapy must be ≤ max.`; break; }
+        servicesArr.push({
+          type: t,
+          minPrice: !isNaN(min) ? min : 0,
+          maxPrice: max,
+          durationPricing: [],
+        });
+      } else {
+        // Multi-duration service — every configured duration must have a
+        // valid max price. We then derive the aggregate band as
+        // min-of-mins / max-of-maxes for legacy consumers.
+        const dp: { duration: number; minPrice: number; maxPrice: number }[] = [];
+        for (const d of durs) {
+          const cell = s.durations[String(d)] || { min: '', max: '' };
+          const cMin = Number(cell.min); const cMax = Number(cell.max);
+          if (!cell.max || isNaN(cMax) || cMax <= 0) {
+            svcInvalid = `Set a max price for ${t} ${d}-min sessions.`;
+            break;
+          }
+          if (cell.min && !isNaN(cMin) && cMin > cMax) {
+            svcInvalid = `Min price for ${t} ${d}-min must be ≤ max.`;
+            break;
+          }
+          dp.push({ duration: d, minPrice: !isNaN(cMin) ? cMin : 0, maxPrice: cMax });
+        }
+        if (svcInvalid) break;
+        servicesArr.push({
+          type: t,
+          minPrice: Math.min(...dp.map(x => x.minPrice || x.maxPrice)),
+          maxPrice: Math.max(...dp.map(x => x.maxPrice)),
+          durationPricing: dp,
+        });
+      }
+    }
     if (svcInvalid) return toast({ title: "Invalid pricing", description: svcInvalid, variant: "destructive" });
     if (servicesArr.length === 0) return toast({ title: "Select at least one service type you offer", variant: "destructive" });
 
-    const indiv = servicesArr.find(s => s.type === 'individual') || servicesArr[0];
-    const pricing: any = indiv?.maxPrice ? { '50': indiv.maxPrice } : {};
+    // Top-level pricing map — built from the individual service's
+    // durationPricing if present, else from the first selected service's
+    // aggregate maxPrice. Used by legacy booking/payment paths.
+    const pricing: any = {};
+    const indiv = servicesArr.find(s => s.type === 'individual');
+    if (indiv && indiv.durationPricing.length) {
+      for (const dp of indiv.durationPricing) pricing[String(dp.duration)] = dp.maxPrice;
+    } else if (servicesArr[0]?.maxPrice) {
+      pricing['50'] = servicesArr[0].maxPrice;
+    }
 
     setProfileSaving(true);
     try {
@@ -350,9 +439,23 @@ export const TherapistOnboarding = () => {
     } finally { setResumeUploading(false); }
   };
 
-  const profileComplete = !!(form.title.trim() && form.experience && form.bio.trim() &&
-    form.specializations.split(',').filter(Boolean).length > 0 &&
-    form.languages.split(',').filter(Boolean).length > 0);
+  // Keep this in lock-step with handleProfileSave's validation. The UI was
+  // showing the green "Complete" badge based on a shorter checklist, while
+  // Save Profile was actually requiring more — leading to "I filled bio,
+  // languages, specializations, why does it still say fill these to apply".
+  const missingProfileFields = (() => {
+    const missing: string[] = [];
+    if (!form.title.trim()) missing.push('Title');
+    if (!form.experience || isNaN(Number(form.experience))) missing.push('Years of experience');
+    if (!form.phone.trim()) missing.push('Phone');
+    if (!form.highestEducation.trim()) missing.push('Highest education');
+    if (!form.educationBackground.trim()) missing.push('Education background');
+    if (!form.bio.trim()) missing.push('Bio');
+    if (form.specializations.split(',').filter(s => s.trim()).length === 0) missing.push('Specializations');
+    if (form.languages.split(',').filter(s => s.trim()).length === 0) missing.push('Languages');
+    return missing;
+  })();
+  const profileComplete = missingProfileFields.length === 0;
 
   const canSubmit = profileComplete && !!resumeUrl && accepted && !submitting;
 
@@ -559,31 +662,85 @@ export const TherapistOnboarding = () => {
                           </PopoverContent>
                         </Popover>
 
-                        {/* Per-service Min/Max inputs (only for selected services) */}
+                        {/* Per-service pricing — duration-aware. Services
+                            with no configured durations (family, group)
+                            show a single Min/Max band. Multi-duration
+                            services (individual / couple / supervision)
+                            show one Min/Max row per session length. */}
                         {selectedTypes.length > 0 && (
-                          <div className="mt-3 space-y-2">
+                          <div className="mt-3 space-y-3">
                             {selectedTypes.map(t => {
                               const s = services[t];
+                              const durs = SERVICE_DURATIONS[t];
                               return (
-                                <div key={t} className="p-2 rounded-md bg-primary/5 border border-primary/20 flex items-center gap-3 flex-wrap">
-                                  <span className="text-sm font-medium flex-1 min-w-[140px]">{labels[t].name}</span>
-                                  <div className="flex gap-2 items-center">
-                                    <Input
-                                      type="number"
-                                      placeholder="Min ₹"
-                                      className="w-24 h-9"
-                                      value={s.min}
-                                      onChange={e => setServices(p => ({ ...p, [t]: { ...p[t], min: e.target.value } }))}
-                                    />
-                                    <span className="text-xs text-muted-foreground">to</span>
-                                    <Input
-                                      type="number"
-                                      placeholder="Max ₹"
-                                      className="w-24 h-9"
-                                      value={s.max}
-                                      onChange={e => setServices(p => ({ ...p, [t]: { ...p[t], max: e.target.value } }))}
-                                    />
-                                  </div>
+                                <div key={t} className="p-3 rounded-md bg-primary/5 border border-primary/20">
+                                  <p className="text-sm font-medium mb-2">{labels[t].name}</p>
+                                  {durs.length === 0 ? (
+                                    // Single band (family, group)
+                                    <div className="flex gap-2 items-center flex-wrap">
+                                      <Input
+                                        type="number"
+                                        placeholder="Min ₹"
+                                        className="w-24 h-9"
+                                        value={s.min}
+                                        onChange={e => setServices(p => ({ ...p, [t]: { ...p[t], min: e.target.value } }))}
+                                      />
+                                      <span className="text-xs text-muted-foreground">to</span>
+                                      <Input
+                                        type="number"
+                                        placeholder="Max ₹"
+                                        className="w-24 h-9"
+                                        value={s.max}
+                                        onChange={e => setServices(p => ({ ...p, [t]: { ...p[t], max: e.target.value } }))}
+                                      />
+                                    </div>
+                                  ) : (
+                                    // One row per supported duration
+                                    <div className="space-y-2">
+                                      {durs.map(d => {
+                                        const key = String(d);
+                                        const cell = s.durations[key] || { min: '', max: '' };
+                                        return (
+                                          <div key={d} className="flex gap-2 items-center flex-wrap">
+                                            <span className="text-xs font-medium w-16">{d} min</span>
+                                            <Input
+                                              type="number"
+                                              placeholder="Min ₹"
+                                              className="w-24 h-9"
+                                              value={cell.min}
+                                              onChange={e => setServices(p => ({
+                                                ...p,
+                                                [t]: {
+                                                  ...p[t],
+                                                  durations: {
+                                                    ...p[t].durations,
+                                                    [key]: { ...p[t].durations[key], min: e.target.value },
+                                                  },
+                                                },
+                                              }))}
+                                            />
+                                            <span className="text-xs text-muted-foreground">to</span>
+                                            <Input
+                                              type="number"
+                                              placeholder="Max ₹"
+                                              className="w-24 h-9"
+                                              value={cell.max}
+                                              onChange={e => setServices(p => ({
+                                                ...p,
+                                                [t]: {
+                                                  ...p[t],
+                                                  durations: {
+                                                    ...p[t].durations,
+                                                    [key]: { ...p[t].durations[key], max: e.target.value },
+                                                  },
+                                                },
+                                              }))}
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -666,7 +823,9 @@ export const TherapistOnboarding = () => {
                 </Button>
                 {!canSubmit && !submitting && (
                   <p className="text-xs text-muted-foreground text-center mt-2">
-                    {!profileComplete && '☝ Complete your profile first.'}
+                    {!profileComplete && (
+                      <>☝ Still missing: <strong>{missingProfileFields.join(', ')}</strong>.</>
+                    )}
                     {profileComplete && !resumeUrl && '☝ Upload your resume to continue.'}
                     {profileComplete && resumeUrl && !accepted && '☝ Accept the terms to enable submit.'}
                   </p>

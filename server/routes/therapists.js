@@ -230,7 +230,10 @@ router.get('/:id/available-slots', async (req, res) => {
 // ==================== SERVICES OFFERED & ACCEPT/REJECT ====================
 
 // PUT /api/therapists/dashboard/services-offered
-// Body: { services: [{ type, minPrice, maxPrice }] } — therapist sets their original asks
+// Body: { services: [{ type, minPrice, maxPrice, durationPricing? }] }
+// `durationPricing` is the new per-duration band (one entry per supported
+// duration for the service: individual 30+50, couple/supervision 50+90).
+// Family + group keep the aggregate band only.
 router.put('/dashboard/services-offered', protect, therapistOnly, async (req, res) => {
   try {
     const { services } = req.body || {};
@@ -238,11 +241,23 @@ router.put('/dashboard/services-offered', protect, therapistOnly, async (req, re
     const validTypes = ['individual', 'couple', 'group', 'family', 'supervision'];
     const cleaned = services
       .filter(s => s && validTypes.includes(s.type))
-      .map(s => ({
-        type: s.type,
-        minPrice: Math.max(0, Number(s.minPrice) || 0),
-        maxPrice: Math.max(0, Number(s.maxPrice) || 0),
-      }))
+      .map(s => {
+        const durationPricing = Array.isArray(s.durationPricing)
+          ? s.durationPricing
+              .map(dp => ({
+                duration: Math.max(1, Number(dp?.duration) || 0),
+                minPrice: Math.max(0, Number(dp?.minPrice) || 0),
+                maxPrice: Math.max(0, Number(dp?.maxPrice) || 0),
+              }))
+              .filter(dp => dp.duration > 0 && dp.maxPrice > 0 && dp.minPrice <= dp.maxPrice)
+          : [];
+        return {
+          type: s.type,
+          minPrice: Math.max(0, Number(s.minPrice) || 0),
+          maxPrice: Math.max(0, Number(s.maxPrice) || 0),
+          durationPricing,
+        };
+      })
       .filter(s => s.maxPrice > 0 && s.minPrice <= s.maxPrice);
 
     const therapist = await Therapist.findByIdAndUpdate(
