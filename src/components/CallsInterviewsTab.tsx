@@ -110,8 +110,9 @@ export function CallsInterviewsTab() {
   const interviewBadge = (status: string) => {
     switch (status) {
       case 'scheduled': return <Badge className="text-xs bg-primary/10 text-primary">Scheduled</Badge>;
-      case 'completed': return <Badge className="text-xs bg-success/10 text-success">Completed</Badge>;
-      case 'cancelled': return <Badge className="text-xs bg-destructive/10 text-destructive">Cancelled</Badge>;
+      case 'completed': return <Badge className="text-xs bg-success/10 text-success">Approved</Badge>;
+      case 'rejected':  return <Badge className="text-xs bg-destructive/10 text-destructive">Rejected</Badge>;
+      case 'cancelled': return <Badge className="text-xs bg-amber-500/10 text-amber-700 dark:text-amber-300">Cancelled</Badge>;
       default:          return <Badge className="text-xs" variant="outline">{status}</Badge>;
     }
   };
@@ -219,6 +220,26 @@ export function CallsInterviewsTab() {
                   )}
                 </div>
                 {iv.notes && <p className="text-xs text-muted-foreground mb-2"><strong>Notes:</strong> {iv.notes}</p>}
+
+                {/* Admin's terminal decision (approve / reject / cancel) is
+                    shown verbatim so the therapist knows exactly what
+                    happened — and the next step. */}
+                {iv.status !== 'scheduled' && (iv.decisionNote || iv.decidedAt) && (
+                  <div className={`text-xs p-2 rounded border mb-2 ${
+                    iv.status === 'completed' ? 'bg-success/5 border-success/30 text-success' :
+                    iv.status === 'rejected'  ? 'bg-destructive/5 border-destructive/30 text-destructive' :
+                                                'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
+                  }`}>
+                    <p className="font-medium">
+                      {iv.status === 'completed' ? 'Approved by admin' : iv.status === 'rejected' ? 'Rejected by admin' : 'Cancelled by admin'}
+                      {iv.decidedAt ? ` on ${formatDateIst(iv.decidedAt, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                    </p>
+                    {iv.decisionNote && <p className="mt-1">{iv.decisionNote}</p>}
+                    {iv.status === 'cancelled' && (
+                      <p className="mt-1 italic">Admin will reschedule a new slot and you'll be notified.</p>
+                    )}
+                  </div>
+                )}
 
                 {iv.rescheduleRequestedAt && iv.rescheduleProposedDate ? (
                   <div className="text-xs p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded">

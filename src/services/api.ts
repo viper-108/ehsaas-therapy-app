@@ -1150,6 +1150,27 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  // Admin makes a terminal decision on a scheduled interview:
+  //   action='approve'  → therapist passes (status='approved')
+  //   action='reject'   → therapist fails  (status='rejected')
+  //   action='cancel'   → slot scrapped, can be re-scheduled later
+  async decideInterview(interviewId: string, action: 'approve' | 'reject' | 'cancel', reason?: string) {
+    const res = await fetch(`${API_BASE}/admin/interviews/${interviewId}/${action}`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason }),
+    });
+    return this.handleResponse(res);
+  }
+
+  // Admin reschedules a previously-cancelled interview (sets new date/time
+  // and link, flips the slot back to 'scheduled' and the therapist to
+  // 'interview_scheduled').
+  async rescheduleInterview(interviewId: string, body: { scheduledDate: string; scheduledTime: string; meetingLink?: string; notes?: string }) {
+    const res = await fetch(`${API_BASE}/admin/interviews/${interviewId}`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify(body),
+    });
+    return this.handleResponse(res);
+  }
+
   async rescheduleIntroCall(introCallId: string, preferredDateTime: string) {
     const res = await fetch(`${API_BASE}/intro-calls/${introCallId}/reschedule`, {
       method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ preferredDateTime }),

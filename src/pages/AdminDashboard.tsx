@@ -81,6 +81,13 @@ const AdminDashboard = () => {
   const [pendingTrainings, setPendingTrainings] = useState<any[]>([]);
   const [allTherapists, setAllTherapists] = useState<any[]>([]);
   const [rejectedTherapists, setRejectedTherapists] = useState<any[]>([]);
+  // All InterviewSchedule rows. Keyed by therapistId so we can look up the
+  // active interview from a therapist card and surface the right
+  // approve/reject/cancel actions.
+  const [interviews, setInterviews] = useState<any[]>([]);
+  const [interviewDecisionModal, setInterviewDecisionModal] = useState<{
+    open: boolean; interviewId: string; therapistName: string; action: 'approve' | 'reject' | 'cancel' | null; reason: string;
+  }>({ open: false, interviewId: '', therapistName: '', action: null, reason: '' });
   // Filter for the unified Pending Approvals tab — narrows the long list
   // to just the category admin is reviewing right now.
   const [approvalCategory, setApprovalCategory] = useState<
@@ -162,7 +169,7 @@ const AdminDashboard = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData, serviceChangeData, pendingWorkshopsData, pSup, pSupe, pSupGroups, pTrainings, rejectedData] = await Promise.all([
+      const [statsData, pendingData, therapistsData, clientsData, sessionsData, reviewsData, pendingReviewsData, allNegotiations, pendingGroupsData, pendingCouplesData, serviceChangeData, pendingWorkshopsData, pSup, pSupe, pSupGroups, pTrainings, rejectedData, interviewsData] = await Promise.all([
         api.getAdminStats(),
         api.getPendingTherapists(),
         api.getAllTherapistsAdmin(),
@@ -180,6 +187,7 @@ const AdminDashboard = () => {
         api.listPendingSupervisionGroups().catch(() => []),
         api.listPendingTrainings().catch(() => []),
         api.getRejectedTherapists().catch(() => []),
+        api.getInterviews().catch(() => []),
       ]);
       setStats(statsData);
       setPending(pendingData);
@@ -198,6 +206,7 @@ const AdminDashboard = () => {
       setPendingSupervisionGroups(pSupGroups);
       setPendingTrainings(pTrainings);
       setRejectedTherapists(Array.isArray(rejectedData) ? rejectedData : []);
+      setInterviews(Array.isArray(interviewsData) ? interviewsData : []);
     } catch (error) {
       console.error('Admin dashboard load error:', error);
     } finally {
@@ -464,13 +473,60 @@ const AdminDashboard = () => {
                         </div>
 
                         {/* Current status / interview info */}
-                        {(therapist.onboardingStatus === 'interview_scheduled' || therapist.onboardingStatus === 'in_process') && (
-                          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded">
-                            {therapist.interviewScheduledAt && <p className="text-xs"><strong>Interview:</strong> {new Date(therapist.interviewScheduledAt).toLocaleString('en-IN')}</p>}
-                            {therapist.interviewLink && <p className="text-xs"><strong>Link:</strong> <a href={therapist.interviewLink} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">{therapist.interviewLink}</a></p>}
-                            {therapist.interviewNotes && <p className="text-xs mt-1"><strong>Notes:</strong> {therapist.interviewNotes}</p>}
-                          </div>
-                        )}
+                        {(therapist.onboardingStatus === 'interview_scheduled' || therapist.onboardingStatus === 'in_process') && (() => {
+                          // Look up the active interview record for this
+                          // therapist so admin can approve/reject/cancel it
+                          // inline. We pick the most recent one whose status
+                          // is still 'scheduled' (one therapist can have
+                          // multiple historical interview rows).
+                          const activeInterview = interviews
+                            .filter((iv: any) => String(iv.therapistId?._id || iv.therapistId) === String(therapist._id) && iv.status === 'scheduled')
+                            .sort((a: any, b: any) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime())[0];
+                          return (
+                            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded">
+                              {therapist.interviewScheduledAt && <p className="text-xs"><strong>Interview:</strong> {new Date(therapist.interviewScheduledAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</p>}
+                              {therapist.interviewLink && <p className="text-xs"><strong>Link:</strong> <a href={therapist.interviewLink} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">{therapist.interviewLink}</a></p>}
+                              {therapist.interviewNotes && <p className="text-xs mt-1"><strong>Notes:</strong> {therapist.interviewNotes}</p>}
+
+                              {activeInterview ? (
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  <Button size="sm" onClick={() => setInterviewDecisionModal({ open: true, interviewId: activeInterview._id, therapistName: therapist.name, action: 'approve', reason: '' })}>
+                                    Approve Interview
+                                  </Button>
+                                  <Button size="sm" variant="destructive" onClick={() => setInterviewDecisionModal({ open: true, interviewId: activeInterview._id, therapistName: therapist.name, action: 'reject', reason: '' })}>
+                                    Reject Interview
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={() => setInterviewDecisionModal({ open: true, interviewId: activeInterview._id, therapistName: therapist.name, action: 'cancel', reason: '' })}>
+                                    Cancel Interview
+                                  </Button>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-muted-foreground italic mt-2">No interview record found — use Schedule Interview to set one up.</p>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* Cancelled-interview reschedule prompt */}
+                        {(() => {
+                          const cancelled = interviews
+                            .filter((iv: any) => String(iv.therapistId?._id || iv.therapistId) === String(therapist._id) && iv.status === 'cancelled')
+                            .sort((a: any, b: any) => new Date(b.decidedAt || b.updatedAt).getTime() - new Date(a.decidedAt || a.updatedAt).getTime())[0];
+                          if (!cancelled || (therapist.onboardingStatus !== 'pending_approval' && therapist.onboardingStatus !== 'in_process')) return null;
+                          return (
+                            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded">
+                              <p className="text-xs"><strong>Most recent interview was cancelled</strong>{cancelled.decidedAt ? ` on ${new Date(cancelled.decidedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}` : ''}.</p>
+                              {cancelled.decisionNote && <p className="text-xs text-muted-foreground mt-1"><em>{cancelled.decisionNote}</em></p>}
+                              <Button
+                                size="sm"
+                                className="mt-2"
+                                onClick={() => setInterviewModal({ open: true, therapistId: therapist._id, name: therapist.name, status: 'interview_scheduled', link: cancelled.meetingLink || therapist.interviewLink || '', scheduledAt: '', notes: cancelled.notes || therapist.interviewNotes || '' })}
+                              >
+                                Reschedule Interview
+                              </Button>
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex gap-2 flex-wrap">
                           <Button onClick={() => handleApprove(therapist._id)} className="flex-1 min-w-[120px]">
@@ -1510,6 +1566,76 @@ const AdminDashboard = () => {
       </Dialog>
 
       {/* Interview / In-Process Modal */}
+      {/* Interview decision dialog (approve / reject / cancel a scheduled interview) */}
+      <Dialog
+        open={interviewDecisionModal.open}
+        onOpenChange={(open) => { if (!open) setInterviewDecisionModal(p => ({ ...p, open: false })); }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {interviewDecisionModal.action === 'approve' && `Approve interview — ${interviewDecisionModal.therapistName}`}
+              {interviewDecisionModal.action === 'reject' && `Reject after interview — ${interviewDecisionModal.therapistName}`}
+              {interviewDecisionModal.action === 'cancel' && `Cancel interview slot — ${interviewDecisionModal.therapistName}`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            {interviewDecisionModal.action === 'approve' && (
+              <p className="text-muted-foreground">
+                Marks the interview as completed and approves the therapist. They'll be notified by email and in-app, and can finalise services & pricing on their dashboard.
+              </p>
+            )}
+            {interviewDecisionModal.action === 'reject' && (
+              <p className="text-muted-foreground">
+                Marks the interview as rejected and moves the therapist into the rejected list. They'll receive the standard rejection email.
+              </p>
+            )}
+            {interviewDecisionModal.action === 'cancel' && (
+              <p className="text-muted-foreground">
+                Scraps the interview slot. The therapist moves back to <strong>Pending</strong> and you can reschedule a new slot from this card.
+              </p>
+            )}
+            <div>
+              <label className="text-xs font-medium block mb-1">
+                {interviewDecisionModal.action === 'reject' ? 'Rejection reason' : interviewDecisionModal.action === 'cancel' ? 'Reason (shown to therapist)' : 'Note (optional)'}
+              </label>
+              <Textarea
+                rows={3}
+                value={interviewDecisionModal.reason}
+                onChange={e => setInterviewDecisionModal(p => ({ ...p, reason: e.target.value }))}
+                placeholder={interviewDecisionModal.action === 'approve' ? 'Welcome note, next steps, etc.' : 'Why?'}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setInterviewDecisionModal(p => ({ ...p, open: false }))}>Cancel</Button>
+            <Button
+              variant={interviewDecisionModal.action === 'reject' ? 'destructive' : 'default'}
+              onClick={async () => {
+                if (!interviewDecisionModal.action) return;
+                try {
+                  await api.decideInterview(interviewDecisionModal.interviewId, interviewDecisionModal.action, interviewDecisionModal.reason);
+                  toast({
+                    title: interviewDecisionModal.action === 'approve' ? 'Interview approved' :
+                           interviewDecisionModal.action === 'reject'  ? 'Interview rejected' :
+                                                                          'Interview cancelled',
+                    description: `${interviewDecisionModal.therapistName} has been notified.`,
+                  });
+                  setInterviewDecisionModal({ open: false, interviewId: '', therapistName: '', action: null, reason: '' });
+                  loadAll();
+                } catch (e: any) {
+                  toast({ title: 'Failed', description: e.message || 'Try again later', variant: 'destructive' });
+                }
+              }}
+            >
+              {interviewDecisionModal.action === 'approve' && 'Approve & notify'}
+              {interviewDecisionModal.action === 'reject' && 'Reject & notify'}
+              {interviewDecisionModal.action === 'cancel' && 'Cancel slot & notify'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={interviewModal.open} onOpenChange={(open) => { if (!open) setInterviewModal(p => ({ ...p, open: false })); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

@@ -1194,6 +1194,8 @@ router.get('/interviews', protect, adminOnly, async (req, res) => {
 // PUT /api/admin/interviews/:id
 // 12-hour minimum-notice rule applies when admin is rescheduling too —
 // last-minute changes need to go through chat, not a silent backend move.
+// Exception: a cancelled interview can be rescheduled at any time (the old
+// slot is already gone and the therapist is back in the queue).
 router.put('/interviews/:id', protect, adminOnly, async (req, res) => {
   try {
     const InterviewSchedule = (await import('../models/InterviewSchedule.js')).default;
@@ -1201,7 +1203,8 @@ router.put('/interviews/:id', protect, adminOnly, async (req, res) => {
     if (!existing) return res.status(404).json({ message: 'Not found' });
 
     const isMovingDate = req.body && (req.body.scheduledDate || req.body.scheduledTime);
-    if (isMovingDate && existing.scheduledDate) {
+    // Skip the 12h rule when rescheduling out of a cancelled state.
+    if (isMovingDate && existing.scheduledDate && existing.status === 'scheduled') {
       const start = new Date(existing.scheduledDate);
       const [hh, mm] = String(existing.scheduledTime || '00:00').split(':').map(Number);
       start.setHours(hh || 0, mm || 0, 0, 0);
@@ -1213,12 +1216,154 @@ router.put('/interviews/:id', protect, adminOnly, async (req, res) => {
       }
     }
 
-    const interview = await InterviewSchedule.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    // Rescheduling a cancelled interview puts it back to 'scheduled' and
+    // clears the prior decision note so therapist's dashboard reflects the
+    // fresh slot.
+    const update = { ...req.body };
+    if (existing.status === 'cancelled' && (update.scheduledDate || update.scheduledTime)) {
+      update.status = 'scheduled';
+      update.decidedAt = null;
+      update.decisionNote = '';
+    }
+
+    const interview = await InterviewSchedule.findByIdAndUpdate(req.params.id, update, { new: true });
+
+    // If admin just rescheduled a cancelled slot, flip the therapist back to
+    // 'interview_scheduled' so their dashboard banner is correct.
+    if (existing.status === 'cancelled' && interview && interview.status === 'scheduled') {
+      try {
+        const Therapist = (await import('../models/Therapist.js')).default;
+        const Notification = (await import('../models/Notification.js')).default;
+        const { sendEmail } = await import('../utils/email.js');
+        await Therapist.findByIdAndUpdate(interview.therapistId, {
+          onboardingStatus: 'interview_scheduled',
+          interviewScheduledAt: interview.scheduledDate,
+          interviewLink: interview.meetingLink || '',
+          interviewNotes: interview.notes || '',
+        });
+        const t = await Therapist.findById(interview.therapistId).select('name email');
+        const dateStr = new Date(interview.scheduledDate).toLocaleDateString('en-IN', {
+          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
+        });
+        Notification.notify(interview.therapistId, 'therapist', 'interview_rescheduled',
+          'Your interview has been rescheduled',
+          `New time: ${dateStr} at ${interview.scheduledTime} IST.`,
+          '/therapist-dashboard'
+        ).catch(() => {});
+        if (t?.email) {
+          sendEmail(t.email, 'Interview rescheduled — Ehsaas',
+            `<p>Hi ${t.name || 'Therapist'},</p><p>Your Ehsaas interview has been rescheduled to <strong>${dateStr} at ${interview.scheduledTime} IST</strong>.</p>${interview.meetingLink ? `<p>Meeting link: <a href="${interview.meetingLink}">${interview.meetingLink}</a></p>` : ''}`
+          ).catch(() => {});
+        }
+      } catch (e) { console.error('Reschedule notify failed:', e.message); }
+    }
+
     res.json(interview);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// Interview lifecycle decisions
+// ───────────────────────────────────────────────────────────────────────────
+// While an interview is in status 'scheduled', admin can:
+//   • approve  → therapist passes; therapist.onboardingStatus → 'approved',
+//                 isApproved=true, interview.status='completed'.
+//   • reject   → therapist fails; therapist.onboardingStatus → 'rejected'
+//                 with rejectionReason, interview.status='rejected'.
+//   • cancel   → slot is scrapped, can be re-scheduled. Therapist returns
+//                 to 'pending_approval', interview.status='cancelled'.
+
+const decideInterview = async (req, res, action) => {
+  try {
+    const { reason } = req.body || {};
+    const InterviewSchedule = (await import('../models/InterviewSchedule.js')).default;
+    const interview = await InterviewSchedule.findById(req.params.id);
+    if (!interview) return res.status(404).json({ message: 'Interview not found' });
+    if (!['scheduled', 'cancelled'].includes(interview.status) && action === 'cancel') {
+      return res.status(400).json({ message: `Cannot cancel a ${interview.status} interview` });
+    }
+    if (interview.status !== 'scheduled' && action !== 'cancel') {
+      return res.status(400).json({ message: `Cannot ${action} an interview whose status is ${interview.status}` });
+    }
+
+    const therapist = await Therapist.findById(interview.therapistId).select('-password');
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+
+    const now = new Date();
+    let subject = '';
+    let body = '';
+    let notifType = '';
+
+    if (action === 'approve') {
+      interview.status = 'completed';
+      interview.decidedAt = now;
+      interview.decisionNote = reason || 'Approved after interview.';
+      therapist.onboardingStatus = 'approved';
+      therapist.isApproved = true;
+      therapist.rejectionReason = '';
+      therapist.rejectedAt = null;
+      subject = 'Welcome to Ehsaas — you\'re approved!';
+      body = 'Congratulations! Following your interview, you have been approved to practice on Ehsaas. Log in to your dashboard to finalise services and pricing.';
+      notifType = 'therapist_approved';
+    } else if (action === 'reject') {
+      interview.status = 'rejected';
+      interview.decidedAt = now;
+      interview.decisionNote = reason || 'Not moving forward after interview.';
+      therapist.onboardingStatus = 'rejected';
+      therapist.isApproved = false;
+      therapist.rejectionReason = reason || 'Application not approved after interview.';
+      therapist.rejectedAt = now;
+      subject = 'Ehsaas — application update';
+      body = `We're not moving forward with your application at this time. ${reason ? `Reviewer note: ${reason}` : 'Your profile is saved with us — if a future opening matches, we will reach out.'}`;
+      notifType = 'therapist_rejected';
+    } else if (action === 'cancel') {
+      interview.status = 'cancelled';
+      interview.decidedAt = now;
+      interview.decisionNote = reason || 'Slot cancelled by admin. We will reach out with a new time.';
+      // Therapist goes back to the pre-interview queue so admin can either
+      // re-schedule the same record or schedule a brand new one.
+      therapist.onboardingStatus = 'pending_approval';
+      therapist.interviewScheduledAt = null;
+      therapist.interviewLink = '';
+      therapist.interviewNotes = '';
+      subject = 'Your Ehsaas interview slot was cancelled';
+      body = `${reason || 'Your scheduled interview was cancelled by Ehsaas admin.'} We'll reach out shortly to schedule a new time.`;
+      notifType = 'interview_cancelled';
+    } else {
+      return res.status(400).json({ message: 'Unknown action' });
+    }
+
+    await Promise.all([interview.save(), therapist.save()]);
+
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, `interview_${action}`, 'InterviewSchedule', interview._id, { therapist: therapist.name }); } catch {}
+
+    // Email + in-app notification
+    try {
+      const Notification = (await import('../models/Notification.js')).default;
+      const { sendEmail } = await import('../utils/email.js');
+      const link = action === 'approve'
+        ? '/therapist-dashboard?tab=approvals'
+        : '/therapist-dashboard';
+      Notification.notify(therapist._id, 'therapist', notifType, subject, body, link).catch(() => {});
+      if (therapist.email) {
+        sendEmail(therapist.email, subject,
+          `<p>Hi ${therapist.name || 'Therapist'},</p><p>${body}</p>${reason && action !== 'reject' ? `<p><em>Admin note: ${reason}</em></p>` : ''}`
+        ).catch(() => {});
+      }
+    } catch (e) { console.error(`Notify therapist (${action}) failed:`, e.message); }
+
+    res.json({ interview, therapist: convertPricing(therapist) });
+  } catch (error) {
+    console.error(`Interview ${action} error:`, error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+router.put('/interviews/:id/approve', protect, adminOnly, (req, res) => decideInterview(req, res, 'approve'));
+router.put('/interviews/:id/reject',  protect, adminOnly, (req, res) => decideInterview(req, res, 'reject'));
+router.put('/interviews/:id/cancel',  protect, adminOnly, (req, res) => decideInterview(req, res, 'cancel'));
 
 // PUT /api/admin/interviews/:id/reschedule-decision
 // Admin accepts or rejects a therapist-proposed reschedule. Accepting moves
