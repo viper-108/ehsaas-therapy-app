@@ -39,13 +39,30 @@ const createTransporter = () => {
 };
 
 const FROM_EMAIL_SMTP = process.env.EMAIL_USER || 'noreply@ehsaastherapy.com';
-// Resend default is onboarding@resend.dev — only delivers to account owner.
-// Set RESEND_FROM=sessions@ehsaastherapycentre.com once you verify the domain in Resend dashboard.
+// Resend's default `onboarding@resend.dev` ONLY delivers to the Resend
+// account owner email — every other recipient is silently dropped. So
+// when RESEND_FROM isn't explicitly set, we log a loud warning and treat
+// it as "Resend-only-to-owner" rather than a fully working provider.
 const RESEND_FROM = process.env.RESEND_FROM || 'onboarding@resend.dev';
+const RESEND_FROM_IS_DEFAULT = !process.env.RESEND_FROM;
+if (RESEND_FROM_IS_DEFAULT && process.env.RESEND_API_KEY) {
+  console.warn('[EMAIL] RESEND_FROM is unset — using `onboarding@resend.dev` which only delivers to the Resend account owner. Set RESEND_FROM=<verified domain> to deliver to everyone.');
+}
+
+// Resend attachments require `content` to be a Buffer or base64 string;
+// many of our callers pass UTF-8 strings (e.g. .ics generated client-side).
+// Normalise so a string is wrapped as a Buffer before sending.
+const normaliseAttachment = (a) => ({
+  filename: a.filename,
+  content: typeof a.content === 'string' && !/^[A-Za-z0-9+/=\r\n]+$/.test(a.content)
+    ? Buffer.from(a.content, 'utf8')
+    : a.content,
+});
 
 export const sendEmail = async (to, subject, html, attachments = []) => {
-  // 1. Prefer Resend if configured
+  // 1. Try Resend first (configured + verified-domain FROM).
   const resend = getResend();
+  let resendError = null;
   if (resend) {
     try {
       const payload = {
@@ -55,25 +72,30 @@ export const sendEmail = async (to, subject, html, attachments = []) => {
         html,
       };
       if (attachments.length) {
-        payload.attachments = attachments.map(a => ({
-          filename: a.filename,
-          content: a.content, // Buffer or base64 string
-        }));
+        payload.attachments = attachments.map(normaliseAttachment);
       }
       const { data, error } = await resend.emails.send(payload);
       if (error) {
-        console.error(`[EMAIL ERROR] Resend failed for ${to}: ${error.message || JSON.stringify(error)}`);
-        return { success: false, error: error.message || 'Resend error' };
+        resendError = error.message || JSON.stringify(error);
+        console.error(`[EMAIL ERROR] Resend failed for ${to}: ${resendError}`);
+        // Fall through to SMTP below — Resend's free tier rejects every
+        // non-owner recipient when RESEND_FROM=onboarding@resend.dev, so
+        // SMTP is the only viable path until the domain is verified.
+      } else {
+        console.log(`[EMAIL] Sent (resend) to ${to}: ${subject}${attachments.length ? ` (${attachments.length} attachments)` : ''}`);
+        return { success: true, id: data?.id };
       }
-      console.log(`[EMAIL] Sent (resend) to ${to}: ${subject}${attachments.length ? ` (${attachments.length} attachments)` : ''}`);
-      return { success: true, id: data?.id };
     } catch (error) {
+      resendError = error.message;
       console.error(`[EMAIL ERROR] Resend threw for ${to}:`, error.message);
-      return { success: false, error: error.message };
+      // Fall through to SMTP.
     }
   }
 
-  // 2. Fall back to SMTP (Gmail)
+  // 2. SMTP fallback (Gmail / other) — runs when Resend is not configured
+  //    OR when Resend errored above. This is the safety net that fixes the
+  //    "therapist isn't receiving email" reports caused by Resend's
+  //    onboarding-only sandbox.
   const transporter = createTransporter();
   if (transporter) {
     try {
@@ -84,15 +106,18 @@ export const sendEmail = async (to, subject, html, attachments = []) => {
         html,
         attachments,
       });
-      console.log(`[EMAIL] Sent (smtp) to ${to}: ${subject}${attachments.length ? ` (${attachments.length} attachments)` : ''}`);
+      console.log(`[EMAIL] Sent (smtp${resendError ? ' fallback' : ''}) to ${to}: ${subject}${attachments.length ? ` (${attachments.length} attachments)` : ''}`);
       return { success: true };
     } catch (error) {
       console.error(`[EMAIL ERROR] SMTP failed to send to ${to}:`, error.message);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, resendError };
     }
   }
 
-  // 3. No email provider configured — mock log
+  // 3. No email provider configured at all — mock log so dev still works.
+  if (resendError) {
+    console.error(`[EMAIL] Resend failed and no SMTP fallback configured — email to ${to} NOT sent.`);
+  }
   console.log(`[EMAIL MOCK] To: ${to}`);
   console.log(`[EMAIL MOCK] Subject: ${subject}`);
   console.log(`[EMAIL MOCK] Body preview: ${html.substring(0, 200)}...`);

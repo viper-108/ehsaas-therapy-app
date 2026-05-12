@@ -1171,6 +1171,15 @@ class ApiService {
     return this.handleResponse(res);
   }
 
+  // Cancels the therapist's interview state (no InterviewSchedule row
+  // required). Sends the therapist back to pending_approval.
+  async cancelTherapistInterview(therapistId: string, reason?: string) {
+    const res = await fetch(`${API_BASE}/admin/therapists/${therapistId}/cancel-interview`, {
+      method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ reason }),
+    });
+    return this.handleResponse(res);
+  }
+
   // Admin reschedules a previously-cancelled interview (sets new date/time
   // and link, flips the slot back to 'scheduled' and the therapist to
   // 'interview_scheduled').

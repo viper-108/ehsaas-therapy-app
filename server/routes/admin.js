@@ -91,6 +91,17 @@ router.put('/therapists/:id/approve', protect, adminOnly, async (req, res) => {
 
     console.log(`[ADMIN] Approved therapist: ${therapist.name} (${therapist.email})`);
 
+    // If there's an active interview row, mark it as completed so the
+    // Interviews tab moves it out of "Upcoming" and the therapist's
+    // CallsInterviewsTab shows the right status.
+    try {
+      const InterviewSchedule = (await import('../models/InterviewSchedule.js')).default;
+      await InterviewSchedule.updateMany(
+        { therapistId: therapist._id, status: 'scheduled' },
+        { $set: { status: 'completed', decidedAt: new Date(), decisionNote: 'Approved without/post interview.' } }
+      );
+    } catch (e) { console.error('[INTERVIEW SYNC on approve]', e.message); }
+
     // Audit log
     try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'therapist_approved', 'Therapist', therapist._id, { name: therapist.name }); } catch {}
 
@@ -124,6 +135,17 @@ router.put('/therapists/:id/reject', protect, adminOnly, async (req, res) => {
     }
 
     console.log(`[ADMIN] Rejected therapist: ${therapist.name} (${therapist.email})`);
+
+    // If there's an active interview row, mark it as rejected so the
+    // therapist's CallsInterviewsTab shows the right status + reason.
+    try {
+      const InterviewSchedule = (await import('../models/InterviewSchedule.js')).default;
+      await InterviewSchedule.updateMany(
+        { therapistId: therapist._id, status: 'scheduled' },
+        { $set: { status: 'rejected', decidedAt: new Date(), decisionNote: reason || 'Rejected without/post interview.' } }
+      );
+    } catch (e) { console.error('[INTERVIEW SYNC on reject]', e.message); }
+
     try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'therapist_rejected', 'Therapist', therapist._id, { name: therapist.name, reason }); } catch {}
 
     // Send rejection email (fire and forget, reason is optional)
@@ -132,6 +154,60 @@ router.put('/therapists/:id/reject', protect, adminOnly, async (req, res) => {
     res.json(convertPricing(therapist));
   } catch (error) {
     console.error('Reject therapist error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/admin/therapists/:id/cancel-interview
+// Clears the therapist's interview state (returns them to pending_approval)
+// without taking the interview. Marks any active InterviewSchedule row as
+// 'cancelled' so the therapist sees the right status. Used when admin
+// wants to scrap the scheduled slot but keep the therapist in the queue.
+router.put('/therapists/:id/cancel-interview', protect, adminOnly, async (req, res) => {
+  try {
+    const { reason } = req.body || {};
+    const therapist = await Therapist.findByIdAndUpdate(
+      req.params.id,
+      {
+        onboardingStatus: 'pending_approval',
+        interviewScheduledAt: null,
+        interviewLink: '',
+        interviewNotes: '',
+      },
+      { new: true }
+    ).select('-password');
+    if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
+
+    try {
+      const InterviewSchedule = (await import('../models/InterviewSchedule.js')).default;
+      await InterviewSchedule.updateMany(
+        { therapistId: therapist._id, status: 'scheduled' },
+        { $set: { status: 'cancelled', decidedAt: new Date(), decisionNote: reason || 'Slot cancelled by admin. We will reach out with a new time.' } }
+      );
+    } catch (e) { console.error('[INTERVIEW SYNC on cancel-interview]', e.message); }
+
+    try { const { logAudit } = await import('../middleware/audit.js'); logAudit(req, 'interview_cancel_no_decide', 'Therapist', therapist._id, { name: therapist.name, reason }); } catch {}
+
+    // Notify therapist (email + in-app)
+    try {
+      const { sendEmail } = await import('../utils/email.js');
+      const Notification = (await import('../models/Notification.js')).default;
+      const body = reason
+        ? `Your scheduled interview was cancelled by Ehsaas admin: ${reason} We'll reach out shortly to schedule a new time.`
+        : `Your scheduled interview was cancelled by Ehsaas admin. We'll reach out shortly to schedule a new time.`;
+      Notification.notify(therapist._id, 'therapist', 'interview_cancelled',
+        'Your Ehsaas interview slot was cancelled', body, '/therapist-dashboard'
+      ).catch(() => {});
+      if (therapist.email) {
+        sendEmail(therapist.email, 'Your Ehsaas interview slot was cancelled',
+          `<p>Hi ${therapist.name || 'Therapist'},</p><p>${body}</p>`
+        ).catch(() => {});
+      }
+    } catch (e) { console.error('[INTERVIEW CANCEL notify]', e.message); }
+
+    res.json(convertPricing(therapist));
+  } catch (error) {
+    console.error('Cancel interview error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

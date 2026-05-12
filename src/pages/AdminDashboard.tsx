@@ -534,20 +534,56 @@ const AdminDashboard = () => {
                               {therapist.interviewLink && <p className="text-xs"><strong>Link:</strong> <a href={therapist.interviewLink} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">{therapist.interviewLink}</a></p>}
                               {therapist.interviewNotes && <p className="text-xs mt-1"><strong>Notes:</strong> {therapist.interviewNotes}</p>}
 
-                              {activeInterview ? (
-                                <div className="flex flex-wrap gap-2 mt-3">
-                                  <Button size="sm" onClick={() => setInterviewDecisionModal({ open: true, interviewId: activeInterview._id, therapistName: therapist.name, action: 'approve', reason: '' })}>
-                                    Approve Interview
-                                  </Button>
-                                  <Button size="sm" variant="destructive" onClick={() => setInterviewDecisionModal({ open: true, interviewId: activeInterview._id, therapistName: therapist.name, action: 'reject', reason: '' })}>
-                                    Reject Interview
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={() => setInterviewDecisionModal({ open: true, interviewId: activeInterview._id, therapistName: therapist.name, action: 'cancel', reason: '' })}>
-                                    Cancel Interview
-                                  </Button>
-                                </div>
-                              ) : (
-                                <p className="text-xs text-muted-foreground italic mt-2">No interview record found — use Schedule Interview to set one up.</p>
+                              {/* Decision buttons always available while
+                                  status is interview_scheduled / in_process.
+                                  If there's an InterviewSchedule row we
+                                  drive it via /interviews/:id/{approve,reject,cancel}
+                                  (which also syncs the therapist record).
+                                  If not (legacy data / sync gap), we fall
+                                  back to the therapist-level approve /
+                                  reject / cancel-interview endpoints —
+                                  same outcome for the therapist. Admin
+                                  can decide without taking the interview. */}
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                <Button size="sm" onClick={() => {
+                                  if (activeInterview) {
+                                    setInterviewDecisionModal({ open: true, interviewId: activeInterview._id, therapistName: therapist.name, action: 'approve', reason: '' });
+                                  } else {
+                                    handleApprove(therapist._id);
+                                  }
+                                }}>
+                                  Approve
+                                </Button>
+                                <Button size="sm" variant="destructive" onClick={() => {
+                                  if (activeInterview) {
+                                    setInterviewDecisionModal({ open: true, interviewId: activeInterview._id, therapistName: therapist.name, action: 'reject', reason: '' });
+                                  } else {
+                                    setRejectModal({ open: true, therapistId: therapist._id, name: therapist.name });
+                                  }
+                                }}>
+                                  Reject
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={async () => {
+                                  if (activeInterview) {
+                                    setInterviewDecisionModal({ open: true, interviewId: activeInterview._id, therapistName: therapist.name, action: 'cancel', reason: '' });
+                                  } else {
+                                    const reason = window.prompt('Reason for cancelling the interview slot (shown to therapist, optional):') || '';
+                                    try {
+                                      await api.cancelTherapistInterview(therapist._id, reason);
+                                      toast({ title: 'Interview cancelled', description: `${therapist.name} has been notified.` });
+                                      loadAll();
+                                    } catch (e: any) {
+                                      toast({ title: 'Failed', description: e.message || 'Try again later', variant: 'destructive' });
+                                    }
+                                  }
+                                }}>
+                                  Cancel Interview
+                                </Button>
+                              </div>
+                              {!activeInterview && (
+                                <p className="text-[11px] text-muted-foreground italic mt-2">
+                                  No interview record on file — these actions update the therapist's status directly.
+                                </p>
                               )}
                             </div>
                           );
