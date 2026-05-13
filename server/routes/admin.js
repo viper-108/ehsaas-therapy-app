@@ -356,7 +356,18 @@ router.put('/therapists/:id/services', protect, adminOnly, async (req, res) => {
       const { sendEmail } = await import('../utils/email.js');
       const Notification = (await import('../models/Notification.js')).default;
       const baseUrl = process.env.CLIENT_URL || '';
-      const rows = cleaned.map(s => `<tr><td style="padding:6px 12px;">${s.type}</td><td style="padding:6px 12px;">₹${s.minPrice} - ₹${s.maxPrice}</td></tr>`).join('');
+      // Per-service rows + nested per-duration breakdown when present.
+      // (Individual: 30+50, couple/supervision: 50+90. Family/group keep
+      // a single aggregate band — no nested rows for those.)
+      const labelOf = (t) => t === 'couple' ? 'Couples Therapy' : (t.charAt(0).toUpperCase() + t.slice(1)) + ' Therapy';
+      const rows = cleaned.map(s => {
+        const dps = Array.isArray(s.durationPricing) ? s.durationPricing : [];
+        if (dps.length === 0) {
+          return `<tr><td style="padding:6px 12px;">${labelOf(s.type)}</td><td style="padding:6px 12px;">₹${s.minPrice} – ₹${s.maxPrice}</td></tr>`;
+        }
+        const inner = dps.map(dp => `<tr><td style="padding:4px 12px 4px 28px;color:#666;font-size:13px;">${dp.duration} min</td><td style="padding:4px 12px;color:#666;font-size:13px;">₹${dp.minPrice} – ₹${dp.maxPrice}</td></tr>`).join('');
+        return `<tr><td style="padding:6px 12px;font-weight:600;">${labelOf(s.type)}</td><td style="padding:6px 12px;color:#666;font-size:13px;">${s.minPrice === s.maxPrice ? `₹${s.maxPrice}` : `₹${s.minPrice} – ₹${s.maxPrice}`} (aggregate)</td></tr>${inner}`;
+      }).join('');
       const html = `
         <p>Hi ${therapist.name},</p>
         <p>The Ehsaas team has finalized your services list and pricing. Please review and accept or reject each service in your dashboard.</p>

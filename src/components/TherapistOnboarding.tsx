@@ -99,6 +99,7 @@ export const TherapistOnboarding = () => {
     highestEducation: '',
     pronouns: '',
     hoursPerWeek: '',
+    applyingRole: '',
     pricing30: '',
     pricing50: '',
     pricingMin30: '',
@@ -150,8 +151,17 @@ export const TherapistOnboarding = () => {
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
 
+  // Rehydrate the form from the server-side user record EXACTLY ONCE
+  // (per user identity). The old `[user]` dependency rehydrated every
+  // time the auth context handed us a new user-object reference — auth
+  // refreshes, /me re-fetches on pageshow, updateUser after Save — and
+  // that overwrote whatever the therapist was actively typing.
+  // Net effect: therapists reported they had to fill the form twice
+  // because their first fill was wiped before they could submit.
+  const formInitialized = useRef(false);
   useEffect(() => {
-    if (user) {
+    if (user && !formInitialized.current) {
+      formInitialized.current = true;
       const pricing = user.pricing instanceof Map ? Object.fromEntries(user.pricing) : (user.pricing || {});
       const pricingMin = user.pricingMin instanceof Map ? Object.fromEntries(user.pricingMin) : (user.pricingMin || {});
       // Hydrate services + their per-duration pricing bands from whatever
@@ -196,6 +206,7 @@ export const TherapistOnboarding = () => {
         highestEducation: user.highestEducation || '',
         pronouns: user.pronouns || '',
         hoursPerWeek: user.hoursPerWeek || '',
+        applyingRole: user.applyingRole || '',
         pricing30: pricing['30'] != null ? String(pricing['30']) : '',
         pricing50: pricing['50'] != null ? String(pricing['50']) : '',
         pricingMin30: pricingMin['30'] != null ? String(pricingMin['30']) : '',
@@ -347,6 +358,7 @@ export const TherapistOnboarding = () => {
     if (!/^[0-9+\-\s()]+$/.test(form.phone.trim())) return fail("Phone number can't contain letters", "Use digits and optionally + - ( ) and spaces.");
     if (!form.pronouns) return fail("Pronouns required");
     if (!form.hoursPerWeek) return fail("Hours per week required");
+    if (!form.applyingRole) return fail("Please pick the role you're applying for");
     if (!form.highestEducation.trim()) return fail("Highest education required");
     if (!form.educationBackground.trim()) return fail("Education background required");
     if (!form.bio.trim()) return fail("Bio required");
@@ -436,6 +448,7 @@ export const TherapistOnboarding = () => {
         highestEducation: form.highestEducation.trim(),
         pronouns: form.pronouns,
         hoursPerWeek: form.hoursPerWeek,
+        applyingRole: form.applyingRole,
         pricing,
       });
       // Save services-offered
@@ -475,6 +488,7 @@ export const TherapistOnboarding = () => {
     if (!form.phone.trim()) missing.push('Phone');
     if (!form.pronouns) missing.push('Pronouns');
     if (!form.hoursPerWeek) missing.push('Hours per week');
+    if (!form.applyingRole) missing.push('Role applying for');
     if (!form.highestEducation.trim()) missing.push('Highest education');
     if (!form.educationBackground.trim()) missing.push('Education background');
     if (!form.bio.trim()) missing.push('Bio');
@@ -497,6 +511,7 @@ export const TherapistOnboarding = () => {
     form.phone.trim()              !== ((user as any)?.phone || '').trim() ||
     form.pronouns                  !== ((user as any)?.pronouns || '') ||
     form.hoursPerWeek              !== ((user as any)?.hoursPerWeek || '') ||
+    form.applyingRole              !== ((user as any)?.applyingRole || '') ||
     form.highestEducation.trim()   !== ((user as any)?.highestEducation || '').trim() ||
     form.educationBackground.trim()!== ((user as any)?.educationBackground || '').trim() ||
     form.bio.trim()                !== ((user as any)?.bio || '').trim() ||
@@ -674,6 +689,20 @@ export const TherapistOnboarding = () => {
                     <SelectItem value="11-20">11–20 hours/week</SelectItem>
                     <SelectItem value="21-30">21–30 hours/week</SelectItem>
                     <SelectItem value="30+">30+ hours/week</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label>What role are you applying for? <span className="text-destructive">*</span></Label>
+                <Select value={form.applyingRole} onValueChange={(v) => setForm(p => ({ ...p, applyingRole: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="trainee">Trainee therapist (0–350 counselling hours experience)</SelectItem>
+                    <SelectItem value="junior">Junior therapist (350–1,500 counselling hours)</SelectItem>
+                    <SelectItem value="mid-level">Mid-level therapist (1,500–4,000 counselling hours)</SelectItem>
+                    <SelectItem value="senior">Senior therapist (4,000+ counselling hours)</SelectItem>
+                    <SelectItem value="clinical">Clinical psychologist (RCI registered)</SelectItem>
+                    <SelectItem value="psychiatrist">Psychiatrist with MD</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

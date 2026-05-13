@@ -221,6 +221,21 @@ const therapistSchema = new mongoose.Schema({
     enum: ['', '0-5', '6-10', '11-20', '21-30', '30+'],
     default: '',
   },
+  // Role the therapist is applying for. Drives admin's downstream
+  // expectations (RCI registration, training requirements, etc.).
+  applyingRole: {
+    type: String,
+    enum: [
+      '',
+      'trainee',          // Trainee therapist (0–350 counselling hours)
+      'junior',           // Junior therapist (350–1500 hours)
+      'mid-level',        // Mid-level therapist (1500–4000 hours)
+      'senior',           // Senior therapist (4000+ hours)
+      'clinical',         // Clinical psychologist (RCI registered)
+      'psychiatrist',     // Psychiatrist with MD
+    ],
+    default: '',
+  },
   // Pending profile edits — when an APPROVED therapist edits their
   // profile, the proposed values land here and admin must accept/reject
   // before they go live on the public-facing record. While pending the

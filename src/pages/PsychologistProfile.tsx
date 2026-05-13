@@ -56,6 +56,7 @@ const mongoToPsychologist = (t: any): Psychologist => {
     slidingScaleAvailable: !!t.slidingScaleAvailable,
     // Approved services this therapist offers (admin-finalized + therapist-accepted only)
     approvedServices: Array.isArray(t.approvedServices) ? t.approvedServices : [],
+    pronouns: t.pronouns || '',
     // Supervisor pricing (only present if this therapist is an approved supervisor)
     supervisorProfile: t.supervisorProfile || null,
   };
@@ -280,7 +281,12 @@ const PsychologistProfile = () => {
             </div>
 
             <div className="flex-1">
-              <h1 className="text-xl font-bold text-foreground mb-1">{psychologist.name}</h1>
+              <h1 className="text-xl font-bold text-foreground mb-1">
+                {psychologist.name}
+                {(psychologist as any).pronouns && (psychologist as any).pronouns !== 'prefer-not-to-say' && (
+                  <span className="text-sm font-normal text-muted-foreground ml-2">({(psychologist as any).pronouns})</span>
+                )}
+              </h1>
               <p className="text-muted-foreground mb-3">{psychologist.title}</p>
 
               <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3 flex-wrap">

@@ -489,7 +489,7 @@ router.put('/dashboard/profile', protect, therapistOnly, async (req, res) => {
   try {
     // Public-facing fields — admin must approve before they go live for
     // an already-approved therapist.
-    const publicFields = ['name', 'title', 'phone', 'specializations', 'experience', 'bio', 'languages', 'educationBackground', 'courses', 'highestEducation', 'pronouns', 'hoursPerWeek'];
+    const publicFields = ['name', 'title', 'phone', 'specializations', 'experience', 'bio', 'languages', 'educationBackground', 'courses', 'highestEducation', 'pronouns', 'hoursPerWeek', 'applyingRole'];
     // Operational fields — applied directly even post-approval.
     const operationalFields = ['calendlyLink', 'image', 'maxSessionsPerDay', 'slidingScaleAvailable'];
 

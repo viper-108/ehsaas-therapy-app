@@ -1659,14 +1659,14 @@ const AdminDashboard = () => {
                             <p className="text-xs text-muted-foreground mt-1"><strong>Decision:</strong> {iv.decisionNote}</p>
                           )}
                         </div>
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          {iv.status === 'scheduled' && iv.meetingLink && (
-                            <Button asChild size="sm">
-                              <a href={iv.meetingLink} target="_blank" rel="noopener noreferrer">Join interview</a>
-                            </Button>
-                          )}
+                        <div className="flex flex-col gap-2 sm:items-end">
                           {iv.status === 'scheduled' && (
-                            <>
+                            <div className="flex flex-wrap gap-2 justify-end">
+                              {iv.meetingLink && (
+                                <Button asChild size="sm">
+                                  <a href={iv.meetingLink} target="_blank" rel="noopener noreferrer">Join interview</a>
+                                </Button>
+                              )}
                               <Button asChild size="sm" variant="outline">
                                 <a href={googleCalendarUrl(iv)} target="_blank" rel="noopener noreferrer">
                                   <CalendarDays className="w-4 h-4 mr-1" /> Google Calendar
@@ -1675,7 +1675,42 @@ const AdminDashboard = () => {
                               <Button size="sm" variant="outline" onClick={() => downloadIcs(iv)}>
                                 Download .ics
                               </Button>
-                            </>
+                            </div>
+                          )}
+                          {iv.status === 'scheduled' && (
+                            /* Terminal decision buttons — same modal the
+                               Pending Approvals card uses, with mandatory
+                               reason. Cancel keeps the interview row but
+                               sets status='cancelled' so admin can
+                               reschedule from the Pending tab. */
+                            <div className="flex flex-wrap gap-2 justify-end">
+                              <Button size="sm" variant="default" onClick={() => setInterviewDecisionModal({ open: true, interviewId: iv._id, therapistName: iv.therapistId?.name || 'Therapist', action: 'approve', reason: '' })}>
+                                Accept
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => setInterviewDecisionModal({ open: true, interviewId: iv._id, therapistName: iv.therapistId?.name || 'Therapist', action: 'reject', reason: '' })}>
+                                Reject
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setInterviewDecisionModal({ open: true, interviewId: iv._id, therapistName: iv.therapistId?.name || 'Therapist', action: 'cancel', reason: '' })}>
+                                Cancel
+                              </Button>
+                            </div>
+                          )}
+                          {iv.status === 'cancelled' && (
+                            /* Reschedule shortcut — opens the existing
+                               interview modal pre-filled with the slot's
+                               previous link/notes so admin can drop in a
+                               new date/time. */
+                            <Button size="sm" variant="outline" onClick={() => setInterviewModal({
+                              open: true,
+                              therapistId: String(iv.therapistId?._id || iv.therapistId || ''),
+                              name: iv.therapistId?.name || 'Therapist',
+                              status: 'interview_scheduled',
+                              link: iv.meetingLink || '',
+                              scheduledAt: '',
+                              notes: iv.notes || '',
+                            })}>
+                              Reschedule interview
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -2247,6 +2282,22 @@ const AdminDashboard = () => {
                         <div><span className="text-muted-foreground">Experience:</span> <span className="text-foreground font-medium">{detailModal.data.experience} years</span></div>
                         <div><span className="text-muted-foreground">Rating:</span> <span className="text-foreground font-medium">{detailModal.data.rating}/5</span></div>
                         <div><span className="text-muted-foreground">Status:</span> {statusBadge(detailModal.data.onboardingStatus || 'not_started')}</div>
+                        {detailModal.data.pronouns && (
+                          <div><span className="text-muted-foreground">Pronouns:</span> <span className="text-foreground font-medium">{detailModal.data.pronouns}</span></div>
+                        )}
+                        {detailModal.data.hoursPerWeek && (
+                          <div><span className="text-muted-foreground">Hours/week:</span> <span className="text-foreground font-medium">{detailModal.data.hoursPerWeek}</span></div>
+                        )}
+                        {detailModal.data.applyingRole && (
+                          <div className="col-span-2"><span className="text-muted-foreground">Applying as:</span> <span className="text-foreground font-medium">{({
+                            trainee: 'Trainee therapist (0–350 hrs)',
+                            junior: 'Junior therapist (350–1,500 hrs)',
+                            'mid-level': 'Mid-level therapist (1,500–4,000 hrs)',
+                            senior: 'Senior therapist (4,000+ hrs)',
+                            clinical: 'Clinical psychologist (RCI registered)',
+                            psychiatrist: 'Psychiatrist with MD',
+                          } as Record<string, string>)[detailModal.data.applyingRole] || detailModal.data.applyingRole}</span></div>
+                        )}
                       </>
                     )}
                     <div className="col-span-2"><span className="text-muted-foreground">Joined:</span> <span className="text-foreground font-medium">{new Date(detailModal.data.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</span></div>

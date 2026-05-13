@@ -83,6 +83,7 @@ const Team = () => {
       bio: t.bio || '',
       pricing,                                       // only real durations
       approvedServices: t.approvedServices || [],    // surface so BookingModal can gate
+      pronouns: t.pronouns || '',                     // shown beside the title on the card
       availability: [],
       title: t.title || 'Psychologist',
     } as any;
@@ -284,7 +285,12 @@ const Team = () => {
                       <div className="flex items-start justify-between mb-3">
                         <div>
                           <h3 className="text-xl font-semibold text-foreground">{psychologist.name}</h3>
-                          <p className="text-sm text-muted-foreground">{psychologist.title}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {psychologist.title}
+                            {(psychologist as any).pronouns && ![''].includes((psychologist as any).pronouns) && (
+                              <span className="text-xs text-muted-foreground/80"> · {(psychologist as any).pronouns}</span>
+                            )}
+                          </p>
                         </div>
                         <div className="flex items-center gap-1 text-sm">
                           <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
